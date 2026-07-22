@@ -19,7 +19,7 @@ import {
 import type { ObjectDetection, DetectedObject } from "@tensorflow-models/coco-ssd";
 import type { BodyPix, PersonSegmentation, SemanticPersonSegmentation } from "@tensorflow-models/body-pix";
 import type { Textmodifier, TextmodeTexture } from "textmode.js";
-import { loadYoloSegModel, segmentWithYolo, supportsWebGpu, type YoloLoadProgress, type YoloMask } from "./yolo-seg";
+import { loadYoloSegModel, segmentWithYolo, supportsPreciseWebMode, supportsWebGpu, type YoloLoadProgress, type YoloMask } from "./yolo-seg";
 
 type EntityKey = "person" | "vehicle" | "pet";
 type QualityMode = "fast" | "balanced" | "precise";
@@ -738,7 +738,8 @@ export default function PrivacyStudio() {
       .catch((error) => {
         setHighLoadRequested(false);
         const code = error instanceof Error ? error.message : "";
-        if (code === "WEBGPU_REQUIRED") setMessage("当前浏览器没有可用的 WebGPU，高档已停用；请选择中档或使用 App");
+        if (code === "MOBILE_WEBGPU_DISABLED") setMessage("为避免手机卡死和发热，网页高档已在移动端停用；请选择中档或使用 App");
+        else if (code === "WEBGPU_REQUIRED") setMessage("当前浏览器没有可用的 WebGPU，高档已停用；请选择中档或使用 App");
         else if (code.includes("TIMEOUT")) setMessage("本机 WebGPU 初始化超过 75 秒，高档已自动停止；请选择中档或使用 App");
         else setMessage("YOLO 模型初始化失败；请选择中档或使用 App");
       });
@@ -1223,9 +1224,13 @@ export default function PrivacyStudio() {
                     <button type="button" disabled={exporting} className={quality === "fast" ? "active" : ""} aria-pressed={quality === "fast"} onClick={() => setQuality("fast")}>低 <small>省性能</small></button>
                     <button type="button" disabled={exporting} className={quality === "balanced" ? "active" : ""} aria-pressed={quality === "balanced"} onClick={() => setQuality("balanced")}>中 <small>轮廓</small></button>
                     <button type="button" disabled={exporting} className={quality === "precise" ? "active" : ""} aria-pressed={quality === "precise"} onClick={() => {
+                      if (!supportsPreciseWebMode()) {
+                        setMessage("为避免手机页面卡死和严重发热，网页高档仅支持桌面 WebGPU；手机请选择中档或使用 App");
+                        return;
+                      }
                       setQuality("precise");
-                      if (preciseModelState !== "ready") setMessage("高档模型约 11MB；手机初始化时可能短暂停顿，请确认后再加载");
-                    }}>高 <small>WebGPU</small></button>
+                      if (preciseModelState !== "ready") setMessage("高档模型约 11MB；桌面浏览器首次编译可能短暂停顿，请确认后再加载");
+                    }}>高 <small>桌面</small></button>
                   </div>
                 </div>
                 {quality === "precise" && (

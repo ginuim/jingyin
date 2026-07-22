@@ -36,10 +36,16 @@ let sessionPromise: Promise<OrtSession> | null = null;
 export type YoloLoadProgress = { stage: "download" | "compile" | "warmup" | "ready"; percent: number };
 
 function withTimeout<T>(promise: Promise<T>, milliseconds: number, code: string) {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => window.setTimeout(() => reject(new Error(code)), milliseconds)),
-  ]);
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(code)), milliseconds);
+    promise.then((value) => {
+      window.clearTimeout(timer);
+      resolve(value);
+    }, (error) => {
+      window.clearTimeout(timer);
+      reject(error);
+    });
+  });
 }
 
 function iou(a: number[], b: number[]) {
@@ -55,11 +61,26 @@ export function supportsWebGpu() {
   return typeof navigator !== "undefined" && "gpu" in navigator;
 }
 
+export function isMobileLikeDevice() {
+  if (typeof navigator === "undefined") return false;
+  const userAgentData = (navigator as Navigator & { userAgentData?: { mobile?: boolean } }).userAgentData;
+  return Boolean(
+    userAgentData?.mobile
+    || /Android|iPhone|iPad|iPod|Mobile|HarmonyOS/i.test(navigator.userAgent)
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
+}
+
+export function supportsPreciseWebMode() {
+  return supportsWebGpu() && !isMobileLikeDevice();
+}
+
 export async function loadYoloSegModel(onProgress?: (progress: YoloLoadProgress) => void) {
   if (sessionPromise) return sessionPromise;
+  if (!supportsWebGpu()) throw new Error("WEBGPU_REQUIRED");
+  if (isMobileLikeDevice()) throw new Error("MOBILE_WEBGPU_DISABLED");
   ortPromise ||= import("onnxruntime-web/webgpu");
   sessionPromise = ortPromise.then(async (ort) => {
-    if (!supportsWebGpu()) throw new Error("WEBGPU_REQUIRED");
     const parts = Array.from({ length: MODEL_PARTS }, (_, index) => index);
     let downloaded = 0;
     const buffers = await Promise.all(parts.map(async (part) => {
