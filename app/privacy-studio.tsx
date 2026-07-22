@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import type { ObjectDetection, DetectedObject } from "@tensorflow-models/coco-ssd";
 import type { BodyPix, PersonSegmentation, SemanticPersonSegmentation } from "@tensorflow-models/body-pix";
+import soundTouchProcessorUrl from "@soundtouchjs/audio-worklet/processor?url";
 import { loadYoloSegModel, segmentWithYolo, supportsPreciseWebMode, supportsWebGpu, type YoloLoadProgress, type YoloMask } from "./yolo-seg";
 
 type EntityKey = "person" | "vehicle" | "pet";
@@ -36,8 +37,7 @@ type TrackState = { id: string; className: string; bbox: [number, number, number
 type VoiceAudioGraph = {
   output: GainNode;
   preview: GainNode;
-  lowerFormant: BiquadFilterNode;
-  upperFormant: BiquadFilterNode;
+  pitchShift: import("@soundtouchjs/audio-worklet").SoundTouchNode;
 };
 type BiquadCoefficients = { b0: number; b1: number; b2: number; a1: number; a2: number };
 type BiquadState = { x1: number; x2: number; y1: number; y2: number };
@@ -234,7 +234,7 @@ export default function PrivacyStudio() {
   const [outputExtension, setOutputExtension] = useState<"mp4" | "webm">("webm");
   const [message, setMessage] = useState("");
   const [audioMode, setAudioMode] = useState<AudioMode>("original");
-  const [voiceFrequency, setVoiceFrequency] = useState(760);
+  const [voicePitch, setVoicePitch] = useState(-4);
 
   useEffect(() => {
     selectedRef.current = selected;
@@ -987,6 +987,11 @@ export default function PrivacyStudio() {
     if (voiceAudioGraphRef.current) return { audioContext, graph: voiceAudioGraphRef.current };
 
     const source = audioSourceRef.current;
+    const { SoundTouchNode } = await import("@soundtouchjs/audio-worklet");
+    await SoundTouchNode.register(audioContext, soundTouchProcessorUrl);
+    const pitchShift = new SoundTouchNode({ context: audioContext });
+    pitchShift.pitchSemitones.value = voicePitch;
+    pitchShift.playbackRate.value = 1;
     const highpass = audioContext.createBiquadFilter();
     highpass.type = "highpass";
     highpass.frequency.value = 95;
@@ -995,14 +1000,14 @@ export default function PrivacyStudio() {
     lowpass.frequency.value = 5600;
     const lowerFormant = audioContext.createBiquadFilter();
     lowerFormant.type = "peaking";
-    lowerFormant.frequency.value = voiceFrequency;
+    lowerFormant.frequency.value = 760;
     lowerFormant.Q.value = 1.1;
-    lowerFormant.gain.value = 8;
+    lowerFormant.gain.value = 4;
     const upperFormant = audioContext.createBiquadFilter();
     upperFormant.type = "peaking";
-    upperFormant.frequency.value = Math.min(5200, voiceFrequency * 3.2);
+    upperFormant.frequency.value = 2450;
     upperFormant.Q.value = 1.3;
-    upperFormant.gain.value = -6;
+    upperFormant.gain.value = -3;
     const shaper = audioContext.createWaveShaper();
     const curve = new Float32Array(1024);
     const normalizer = Math.tanh(1.35);
@@ -1023,7 +1028,8 @@ export default function PrivacyStudio() {
     const preview = audioContext.createGain();
     preview.gain.value = 0;
 
-    source.connect(highpass);
+    source.connect(pitchShift);
+    pitchShift.connect(highpass);
     highpass.connect(lowerFormant);
     lowerFormant.connect(upperFormant);
     upperFormant.connect(lowpass);
@@ -1033,7 +1039,7 @@ export default function PrivacyStudio() {
     outputGain.connect(preview);
     preview.connect(audioContext.destination);
 
-    const graph = { output: outputGain, preview, lowerFormant, upperFormant };
+    const graph = { output: outputGain, preview, pitchShift };
     voiceAudioGraphRef.current = graph;
     return { audioContext, graph };
   };
@@ -1047,14 +1053,13 @@ export default function PrivacyStudio() {
     voicePreview?.gain.setTargetAtTime(mode === "voice" ? 1 : 0, now, 0.01);
   };
 
-  const updateVoiceFrequency = (value: number) => {
-    setVoiceFrequency(value);
+  const updateVoicePitch = (value: number) => {
+    setVoicePitch(value);
     const audioContext = audioContextRef.current;
     const graph = voiceAudioGraphRef.current;
     if (!audioContext || !graph) return;
     const now = audioContext.currentTime;
-    graph.lowerFormant.frequency.setTargetAtTime(value, now, 0.025);
-    graph.upperFormant.frequency.setTargetAtTime(Math.min(5200, value * 3.2), now, 0.025);
+    graph.pitchShift.pitchSemitones.setTargetAtTime(value, now, 0.025);
   };
 
   const selectAudioMode = async (mode: AudioMode) => {
@@ -1158,6 +1163,11 @@ export default function PrivacyStudio() {
       const input = new media.Input({ formats: media.ALL_FORMATS, source: new media.BlobSource(file) });
       const videoTrack = await input.getPrimaryVideoTrack();
       if (!videoTrack) throw new Error("NO_VIDEO_TRACK");
+      const audioTrack = await input.getPrimaryAudioTrack();
+      const audioDuration = audioTrack ? await input.computeDuration([audioTrack]) : 0;
+      const SoundTouchConstructor = audioMode === "voice" && audioTrack
+        ? (await import("@soundtouchjs/core")).SoundTouch
+        : null;
       const width = await videoTrack.getDisplayWidth();
       const height = await videoTrack.getDisplayHeight();
       const outputFormat = new media.Mp4OutputFormat();
@@ -1184,6 +1194,11 @@ export default function PrivacyStudio() {
       let voicePreviousLowpass: number[] = [];
       let voiceLowerFormantState: BiquadState[] = [];
       let voiceUpperFormantState: BiquadState[] = [];
+      let voicePitchProcessor: import("@soundtouchjs/core").SoundTouch | null = null;
+      let voiceOutputFrames = 0;
+      let voiceTimestampBase: number | null = null;
+      let voiceSampleRate = 0;
+      let voiceChannelCount = 0;
 
       let frameNumber = 0;
       let processingLock: Promise<void> = Promise.resolve();
@@ -1224,21 +1239,62 @@ export default function PrivacyStudio() {
           forceTranscode: true,
           process: (sample) => {
             const channels = sample.numberOfChannels;
-            const data = new Float32Array(sample.numberOfFrames * channels);
-            sample.copyTo(data, { planeIndex: 0, format: "f32" });
-            if (voicePreviousInput.length !== channels) {
+            const inputData = new Float32Array(sample.numberOfFrames * channels);
+            sample.copyTo(inputData, { planeIndex: 0, format: "f32" });
+            if (!SoundTouchConstructor) return sample;
+            if (!voicePitchProcessor || voiceSampleRate !== sample.sampleRate || voiceChannelCount !== channels) {
+              voicePitchProcessor = new SoundTouchConstructor({ sampleRate: sample.sampleRate });
+              voicePitchProcessor.pitchSemitones = voicePitch;
+              voiceOutputFrames = 0;
+              voiceTimestampBase = sample.timestamp;
+              voiceSampleRate = sample.sampleRate;
+              voiceChannelCount = channels;
               voicePreviousInput = Array(channels).fill(0);
               voicePreviousHighpass = Array(channels).fill(0);
               voicePreviousLowpass = Array(channels).fill(0);
               voiceLowerFormantState = Array.from({ length: channels }, () => ({ x1: 0, x2: 0, y1: 0, y2: 0 }));
               voiceUpperFormantState = Array.from({ length: channels }, () => ({ x1: 0, x2: 0, y1: 0, y2: 0 }));
             }
+
+            const stereoInput = new Float32Array(sample.numberOfFrames * 2);
+            for (let frame = 0; frame < sample.numberOfFrames; frame += 1) {
+              stereoInput[frame * 2] = inputData[frame * channels];
+              stereoInput[frame * 2 + 1] = channels > 1 ? inputData[frame * channels + 1] : inputData[frame * channels];
+            }
+            voicePitchProcessor.inputBuffer.putSamples(stereoInput, 0, sample.numberOfFrames);
+            voicePitchProcessor.process();
+
+            const isLastSample = sample.timestamp + sample.duration >= audioDuration - 0.01;
+            const expectedFrames = Math.max(0, Math.round((audioDuration - (voiceTimestampBase ?? 0)) * sample.sampleRate));
+            if (isLastSample) {
+              for (let attempt = 0; attempt < 8 && voiceOutputFrames + voicePitchProcessor.outputBuffer.frameCount < expectedFrames; attempt += 1) {
+                const silenceFrames = 8192;
+                voicePitchProcessor.inputBuffer.putSamples(new Float32Array(silenceFrames * 2), 0, silenceFrames);
+                voicePitchProcessor.process();
+              }
+            }
+
+            const remainingFrames = isLastSample
+              ? Math.max(0, expectedFrames - voiceOutputFrames)
+              : voicePitchProcessor.outputBuffer.frameCount;
+            const outputFrames = Math.min(voicePitchProcessor.outputBuffer.frameCount, remainingFrames);
+            if (outputFrames === 0) return null;
+            const stereoOutput = new Float32Array(outputFrames * 2);
+            voicePitchProcessor.outputBuffer.extract(stereoOutput, 0, outputFrames);
+            voicePitchProcessor.outputBuffer.receive(outputFrames);
+            const data = new Float32Array(outputFrames * channels);
+            for (let frame = 0; frame < outputFrames; frame += 1) {
+              for (let channel = 0; channel < channels; channel += 1) {
+                data[frame * channels + channel] = stereoOutput[frame * 2 + Math.min(channel, 1)];
+              }
+            }
+
             const highpassAlpha = Math.exp((-2 * Math.PI * 95) / sample.sampleRate);
             const lowpassAlpha = 1 - Math.exp((-2 * Math.PI * 5600) / sample.sampleRate);
             const saturationNormalizer = Math.tanh(1.35);
-            const lowerFormantCoefficients = getPeakingCoefficients(voiceFrequency, sample.sampleRate, 1.1, 8);
-            const upperFormantCoefficients = getPeakingCoefficients(Math.min(5200, voiceFrequency * 3.2), sample.sampleRate, 1.3, -6);
-            for (let frame = 0; frame < sample.numberOfFrames; frame += 1) {
+            const lowerFormantCoefficients = getPeakingCoefficients(760, sample.sampleRate, 1.1, 4);
+            const upperFormantCoefficients = getPeakingCoefficients(2450, sample.sampleRate, 1.3, -3);
+            for (let frame = 0; frame < outputFrames; frame += 1) {
               for (let channel = 0; channel < channels; channel += 1) {
                 const index = frame * channels + channel;
                 const inputValue = data[index];
@@ -1253,12 +1309,14 @@ export default function PrivacyStudio() {
                 data[index] = Math.tanh(shaped * 1.08) * 0.94;
               }
             }
+            const outputTimestamp = (voiceTimestampBase ?? sample.timestamp) + voiceOutputFrames / sample.sampleRate;
+            voiceOutputFrames += outputFrames;
             return new media.AudioSample({
               data,
               format: "f32",
               numberOfChannels: channels,
               sampleRate: sample.sampleRate,
-              timestamp: sample.timestamp,
+              timestamp: outputTimestamp,
             });
           },
         } : undefined,
@@ -1571,20 +1629,20 @@ export default function PrivacyStudio() {
               </>}
               {(maskScope === "full" || settingsTab === "general") && (
                 <div className="control-block audio-privacy-control">
-                  <div className="control-title"><span>声音处理</span><small>{audioMode === "voice" ? `变音频率 ${voiceFrequency}Hz` : audioMode === "mute" ? "导出无音轨" : "保留视频原声"}</small></div>
+                  <div className="control-title"><span>声音处理</span><small>{audioMode === "voice" ? `音调 ${voicePitch > 0 ? "+" : ""}${voicePitch} 半音` : audioMode === "mute" ? "导出无音轨" : "保留视频原声"}</small></div>
                   <div className="segmented-control audio-mode-control" aria-label="声音隐私">
                     <button type="button" disabled={exporting} className={audioMode === "original" ? "active" : ""} aria-pressed={audioMode === "original"} onClick={() => { void selectAudioMode("original"); }}>原声 <small>保留</small></button>
-                    <button type="button" disabled={exporting} className={audioMode === "voice" ? "active" : ""} aria-pressed={audioMode === "voice"} onClick={() => { void selectAudioMode("voice"); }}>变音 <small>固定音色</small></button>
+                    <button type="button" disabled={exporting} className={audioMode === "voice" ? "active" : ""} aria-pressed={audioMode === "voice"} onClick={() => { void selectAudioMode("voice"); }}>变音 <small>音调偏移</small></button>
                     <button type="button" disabled={exporting} className={audioMode === "mute" ? "active" : ""} aria-pressed={audioMode === "mute"} onClick={() => { void selectAudioMode("mute"); }}>静音 <small>无音轨</small></button>
                   </div>
                   {audioMode === "voice" && (
-                    <div className="strength-slider voice-frequency-slider">
+                    <div className="strength-slider voice-pitch-slider">
                       <span>低</span>
-                      <input aria-label="变音频率" type="range" min="320" max="1600" step="20" value={voiceFrequency} disabled={exporting} onChange={(event) => updateVoiceFrequency(Number(event.target.value))} />
+                      <input aria-label="变声音调" type="range" min="-8" max="8" step="1" value={voicePitch} disabled={exporting} onChange={(event) => updateVoicePitch(Number(event.target.value))} />
                       <span>高</span>
                     </div>
                   )}
-                  <p className="audio-mode-note">无颤音；播放时拖动频率可实时试听。</p>
+                  <p className="audio-mode-note">真正改变音调，不改变语速；播放时拖动可实时试听。</p>
                 </div>
               )}
               {settingsTab === "subjects" && maskScope !== "full" && <>
