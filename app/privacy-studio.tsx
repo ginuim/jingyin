@@ -93,6 +93,12 @@ function intersectionOverUnion(a: number[], b: number[]) {
   return intersection / Math.max(1, a[2] * a[3] + b[2] * b[3] - intersection);
 }
 
+function isTaintedCanvasError(error: unknown) {
+  return error instanceof DOMException
+    ? error.name === "SecurityError"
+    : error instanceof Error && /tainted|SecurityError|texSubImage2D/i.test(`${error.name} ${error.message}`);
+}
+
 export default function PrivacyStudio() {
   const inputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -104,6 +110,8 @@ export default function PrivacyStudio() {
   const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const expandedMaskCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const effectCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const inferenceCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const lastInferenceErrorRef = useRef(0);
   const selectedRef = useRef<Set<EntityKey>>(new Set(["person"]));
   const selectedSubjectIdsRef = useRef<Set<string>>(new Set());
   const knownSubjectIdsRef = useRef<Set<string>>(new Set());
@@ -173,9 +181,13 @@ export default function PrivacyStudio() {
 
   useEffect(() => () => {
     if (videoUrl) URL.revokeObjectURL(videoUrl);
+  }, [videoUrl]);
+
+  useEffect(() => () => {
     if (downloadUrl) URL.revokeObjectURL(downloadUrl);
-    cancelAnimationFrame(animationRef.current);
-  }, [videoUrl, downloadUrl]);
+  }, [downloadUrl]);
+
+  useEffect(() => () => cancelAnimationFrame(animationRef.current), []);
 
   useEffect(() => () => {
     asciiRendererRef.current?.instance.destroy();
@@ -257,6 +269,44 @@ export default function PrivacyStudio() {
 
   const getSegmentationModel = useCallback(() => {
     return bodyPixRef.current;
+  }, []);
+
+  const prepareInferenceSource = useCallback((video: HTMLVideoElement) => {
+    if (!inferenceCanvasRef.current) inferenceCanvasRef.current = document.createElement("canvas");
+    const canvas = inferenceCanvasRef.current;
+    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+    }
+    const context = canvas.getContext("2d", { alpha: false, willReadFrequently: false });
+    if (!context) throw new Error("INFERENCE_CANVAS_UNAVAILABLE");
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas;
+  }, []);
+
+  const runWithPixelFallback = useCallback(async <T,>(
+    canvas: HTMLCanvasElement,
+    operation: (source: HTMLCanvasElement | ImageData) => Promise<T>,
+  ) => {
+    try {
+      return await operation(canvas);
+    } catch (error) {
+      if (!isTaintedCanvasError(error)) throw error;
+      const context = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
+      if (!context) throw error;
+      return operation(context.getImageData(0, 0, canvas.width, canvas.height));
+    }
+  }, []);
+
+  const handleInferenceError = useCallback((error: unknown) => {
+    console.error("Local frame inference failed", error);
+    const now = Date.now();
+    if (now - lastInferenceErrorRef.current < 4000) return;
+    lastInferenceErrorRef.current = now;
+    const securityError = isTaintedCanvasError(error);
+    setMessage(securityError
+      ? "浏览器拒绝读取当前视频帧，已安全跳过；请重新选择原始本地视频，避免从网页播放器直接分享的临时文件"
+      : "当前帧识别失败，已自动跳过并继续处理");
   }, []);
 
   const assignTracks = useCallback((detections: DetectedObject[]) => {
@@ -645,14 +695,21 @@ export default function PrivacyStudio() {
     if (qualityRef.current !== "precise" && modelRef.current && !detectingRef.current && time - lastDetectionRef.current > detectionInterval && !video.paused) {
       detectingRef.current = true;
       lastDetectionRef.current = time;
-      void modelRef.current.detect(video, 14, 0.34).then((detections) => {
+      let inferenceSource: HTMLCanvasElement | null = null;
+      try {
+        inferenceSource = prepareInferenceSource(video);
+      } catch (error) {
+        detectingRef.current = false;
+        handleInferenceError(error);
+      }
+      if (inferenceSource) void runWithPixelFallback(inferenceSource, (source) => modelRef.current!.detect(source, 14, 0.34)).then((detections) => {
         const tracked = assignTracks(detections);
         detectionsRef.current = tracked;
         updateSubjectList(tracked, video);
         const objectCount = tracked.filter((item) => item.score > 0.42 && isSelectedDetection(item) && (qualityRef.current === "fast" || item.class !== "person")).length;
         const peopleCount = qualityRef.current === "balanced" && selectedRef.current.has("person") ? (segmentationRef.current?.allPoses.length || 0) : 0;
         setDetectedCount(objectCount + peopleCount);
-      }).finally(() => { detectingRef.current = false; });
+      }).catch(handleInferenceError).finally(() => { detectingRef.current = false; });
     }
     const segmentationModel = getSegmentationModel();
     if (qualityRef.current === "precise" && preciseModelState === "ready" && !segmentingRef.current && time - lastSegmentationRef.current > 160 && !video.paused) {
@@ -660,11 +717,19 @@ export default function PrivacyStudio() {
       lastSegmentationRef.current = time;
       void segmentWithYolo(video, video.videoWidth, video.videoHeight)
         .then((results) => applyYoloResults(results, video, true))
+        .catch(handleInferenceError)
         .finally(() => { segmentingRef.current = false; });
     } else if (qualityRef.current === "balanced" && selectedRef.current.has("person") && segmentationModel && !segmentingRef.current && time - lastSegmentationRef.current > 100 && !video.paused) {
       segmentingRef.current = true;
       lastSegmentationRef.current = time;
-      void segmentationModel.segmentMultiPerson(video, {
+      let inferenceSource: HTMLCanvasElement | null = null;
+      try {
+        inferenceSource = prepareInferenceSource(video);
+      } catch (error) {
+        segmentingRef.current = false;
+        handleInferenceError(error);
+      }
+      if (inferenceSource) void runWithPixelFallback(inferenceSource, (source) => segmentationModel.segmentMultiPerson(source, {
         internalResolution: "medium",
         segmentationThreshold: 0.34,
         maxDetections: 10,
@@ -672,7 +737,7 @@ export default function PrivacyStudio() {
         nmsRadius: 20,
         minKeypointScore: 0.2,
         refineSteps: 7,
-      }).then((instances) => {
+      })).then((instances) => {
         const segmentation = combineSelectedPeople(instances, detectionsRef.current);
         if (!segmentation) {
           segmentationRef.current = null;
@@ -680,10 +745,10 @@ export default function PrivacyStudio() {
         }
         segmentationRef.current = segmentation;
         prepareSegmentationMask(segmentation);
-      }).finally(() => { segmentingRef.current = false; });
+      }).catch(handleInferenceError).finally(() => { segmentingRef.current = false; });
     }
     if (!video.paused && !video.ended) animationRef.current = requestAnimationFrame(renderLoop);
-  }, [applyYoloResults, assignTracks, combineSelectedPeople, drawFrame, getSegmentationModel, isSelectedDetection, preciseModelState, prepareSegmentationMask, updateSubjectList]);
+  }, [applyYoloResults, assignTracks, combineSelectedPeople, drawFrame, getSegmentationModel, handleInferenceError, isSelectedDetection, preciseModelState, prepareInferenceSource, prepareSegmentationMask, runWithPixelFallback, updateSubjectList]);
 
   const analyzeCurrentFrame = useCallback(async (video: HTMLVideoElement) => {
     if (scopeRef.current === "full") {
@@ -698,21 +763,23 @@ export default function PrivacyStudio() {
         applyYoloResults(results, video, true);
         drawFrame();
       } else {
-        const detections = await modelRef.current.detect(video, 14, 0.34);
+        const inferenceSource = prepareInferenceSource(video);
+        const detections = await runWithPixelFallback(inferenceSource, (source) => modelRef.current!.detect(source, 14, 0.34));
         const tracked = assignTracks(detections);
         detectionsRef.current = tracked;
         updateSubjectList(tracked, video);
       }
       return;
     }
+    const inferenceSource = prepareInferenceSource(video);
     const [detections, instances] = await Promise.all([
-      modelRef.current.detect(video, 14, 0.34),
-      segmentationModel.segmentMultiPerson(video, {
+      runWithPixelFallback(inferenceSource, (source) => modelRef.current!.detect(source, 14, 0.34)),
+      runWithPixelFallback(inferenceSource, (source) => segmentationModel.segmentMultiPerson(source, {
         internalResolution: "medium",
         segmentationThreshold: 0.34,
         minKeypointScore: 0.2,
         refineSteps: 7,
-      }),
+      })),
     ]);
     const tracked = assignTracks(detections);
     detectionsRef.current = tracked;
@@ -722,12 +789,12 @@ export default function PrivacyStudio() {
     if (segmentation) prepareSegmentationMask(segmentation);
     setDetectedCount(tracked.filter((item) => item.score > 0.42 && isSelectedDetection(item) && item.class !== "person").length + (segmentation?.allPoses.length || 0));
     drawFrame();
-  }, [applyYoloResults, assignTracks, combineSelectedPeople, drawFrame, getSegmentationModel, isSelectedDetection, preciseModelState, prepareSegmentationMask, updateSubjectList]);
+  }, [applyYoloResults, assignTracks, combineSelectedPeople, drawFrame, getSegmentationModel, isSelectedDetection, preciseModelState, prepareInferenceSource, prepareSegmentationMask, runWithPixelFallback, updateSubjectList]);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (video && video.paused && modelState === "ready") void analyzeCurrentFrame(video);
-  }, [analyzeCurrentFrame, modelState, quality, selectedSubjectIds]);
+    if (video && video.paused && modelState === "ready") void analyzeCurrentFrame(video).catch(handleInferenceError);
+  }, [analyzeCurrentFrame, handleInferenceError, modelState, quality, selectedSubjectIds]);
 
   useEffect(() => {
     if (!highLoadRequested || quality !== "precise" || modelState !== "ready" || (preciseModelState !== "idle" && preciseModelState !== "error")) return;
@@ -762,8 +829,9 @@ export default function PrivacyStudio() {
         setEstimatedHighSeconds(Math.max(duration, (millisecondsPerFrame / 1000) * duration * 60 * 1.15));
         drawFrame();
       })
+      .catch(handleInferenceError)
       .finally(() => { benchmarkingRef.current = false; });
-  }, [applyYoloResults, drawFrame, duration, estimatedHighSeconds, maskScope, preciseModelState]);
+  }, [applyYoloResults, drawFrame, duration, estimatedHighSeconds, handleInferenceError, maskScope, preciseModelState]);
 
   const loadModel = useCallback(async () => {
     if (modelRef.current) return;
@@ -813,6 +881,7 @@ export default function PrivacyStudio() {
     knownSubjectIdsRef.current.clear();
     trackCounterRef.current = { person: 0, vehicle: 0, pet: 0 };
     trackingFrameRef.current = 0;
+    lastInferenceErrorRef.current = 0;
     setSubjects([]);
     setSelectedSubjectIds(new Set());
     setDetectedCount(0);
@@ -850,32 +919,37 @@ export default function PrivacyStudio() {
     video.currentTime = value;
     setCurrentTime(value);
     window.setTimeout(async () => {
-      if (qualityRef.current === "precise" && preciseModelState === "ready") {
-        const results = await segmentWithYolo(video, video.videoWidth, video.videoHeight);
-        applyYoloResults(results, video, true);
+      try {
+        if (qualityRef.current === "precise" && preciseModelState === "ready") {
+          const results = await segmentWithYolo(video, video.videoWidth, video.videoHeight);
+          applyYoloResults(results, video, true);
+          drawFrame();
+          return;
+        }
+        const inferenceSource = prepareInferenceSource(video);
+        const tasks: Promise<unknown>[] = [];
+        if (modelRef.current) tasks.push(runWithPixelFallback(inferenceSource, (source) => modelRef.current!.detect(source, 14, 0.34)).then((result) => {
+          const tracked = assignTracks(result);
+          detectionsRef.current = tracked;
+          updateSubjectList(tracked, video);
+        }));
+        await Promise.all(tasks);
+        const segmentationModel = getSegmentationModel();
+        if (segmentationModel && qualityRef.current === "balanced") {
+          const instances = await runWithPixelFallback(inferenceSource, (source) => segmentationModel.segmentMultiPerson(source, {
+            internalResolution: "medium",
+            segmentationThreshold: 0.34,
+            minKeypointScore: 0.2,
+            refineSteps: 7,
+          }));
+          const segmentation = combineSelectedPeople(instances, detectionsRef.current);
+          segmentationRef.current = segmentation;
+          if (segmentation) prepareSegmentationMask(segmentation);
+        }
         drawFrame();
-        return;
+      } catch (error) {
+        handleInferenceError(error);
       }
-      const tasks: Promise<unknown>[] = [];
-      if (modelRef.current) tasks.push(modelRef.current.detect(video, 14, 0.34).then((result) => {
-        const tracked = assignTracks(result);
-        detectionsRef.current = tracked;
-        updateSubjectList(tracked, video);
-      }));
-      await Promise.all(tasks);
-      const segmentationModel = getSegmentationModel();
-      if (segmentationModel && qualityRef.current === "balanced") {
-        const instances = await segmentationModel.segmentMultiPerson(video, {
-          internalResolution: "medium",
-          segmentationThreshold: 0.34,
-          minKeypointScore: 0.2,
-          refineSteps: 7,
-        });
-        const segmentation = combineSelectedPeople(instances, detectionsRef.current);
-        segmentationRef.current = segmentation;
-        if (segmentation) prepareSegmentationMask(segmentation);
-      }
-      drawFrame();
     }, 40);
   };
 
@@ -899,6 +973,7 @@ export default function PrivacyStudio() {
     knownSubjectIdsRef.current.clear();
     trackCounterRef.current = { person: 0, vehicle: 0, pet: 0 };
     trackingFrameRef.current = 0;
+    lastInferenceErrorRef.current = 0;
     setSubjects([]);
     setSelectedSubjectIds(new Set());
   };
@@ -1145,6 +1220,7 @@ export default function PrivacyStudio() {
               <div className="video-shell">
                 <video
                   ref={videoRef}
+                  crossOrigin="anonymous"
                   src={videoUrl}
                   playsInline
                   preload="metadata"
@@ -1155,7 +1231,7 @@ export default function PrivacyStudio() {
                   onLoadedData={(event) => {
                     const video = event.currentTarget;
                     if (scopeRef.current === "full") drawFrame();
-                    else void loadModel().then(() => analyzeCurrentFrame(video));
+                    else void loadModel().then(() => analyzeCurrentFrame(video)).catch(handleInferenceError);
                   }}
                   onSeeked={() => drawFrame()}
                   onPause={() => setIsPlaying(false)}
@@ -1197,8 +1273,8 @@ export default function PrivacyStudio() {
                 <div className="control-title"><span>遮盖范围</span><small>{maskScope === "background" ? "反选已开启" : maskScope === "full" ? "无需 AI 识别" : "常规"}</small></div>
                 <div className="segmented-control scope-control" aria-label="遮盖范围">
                   <button type="button" disabled={exporting} className={maskScope === "full" ? "active" : ""} aria-pressed={maskScope === "full"} onClick={() => { if (maskScope !== "full") setEffectStrength(fullFrameStyle === "blur" ? 46 : fullFrameStyle === "pixel" ? 18 : 14); setMaskScope("full"); }}>全画面</button>
-                  <button type="button" disabled={exporting} className={maskScope === "subjects" ? "active" : ""} aria-pressed={maskScope === "subjects"} onClick={() => { if (maskScope === "full" && fullFrameStyle !== "blur") setEffectStrength(46); setMaskScope("subjects"); void loadModel().then(() => { if (videoRef.current) void analyzeCurrentFrame(videoRef.current); }); }}>遮盖主体</button>
-                  <button type="button" disabled={exporting} className={maskScope === "background" ? "active" : ""} aria-pressed={maskScope === "background"} onClick={() => { if (maskScope === "full" && fullFrameStyle !== "blur") setEffectStrength(46); setMaskScope("background"); void loadModel().then(() => { if (videoRef.current) void analyzeCurrentFrame(videoRef.current); }); }}>遮盖主体之外</button>
+                  <button type="button" disabled={exporting} className={maskScope === "subjects" ? "active" : ""} aria-pressed={maskScope === "subjects"} onClick={() => { if (maskScope === "full" && fullFrameStyle !== "blur") setEffectStrength(46); setMaskScope("subjects"); void loadModel().then(() => videoRef.current ? analyzeCurrentFrame(videoRef.current) : undefined).catch(handleInferenceError); }}>遮盖主体</button>
+                  <button type="button" disabled={exporting} className={maskScope === "background" ? "active" : ""} aria-pressed={maskScope === "background"} onClick={() => { if (maskScope === "full" && fullFrameStyle !== "blur") setEffectStrength(46); setMaskScope("background"); void loadModel().then(() => videoRef.current ? analyzeCurrentFrame(videoRef.current) : undefined).catch(handleInferenceError); }}>遮盖主体之外</button>
                 </div>
               </div>
 
