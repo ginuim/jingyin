@@ -22,7 +22,6 @@ import {
 } from "lucide-react";
 import type { ObjectDetection, DetectedObject } from "@tensorflow-models/coco-ssd";
 import type { BodyPix, PersonSegmentation, SemanticPersonSegmentation } from "@tensorflow-models/body-pix";
-import type { Textmodifier, TextmodeTexture } from "textmode.js";
 import { loadYoloSegModel, segmentWithYolo, supportsPreciseWebMode, supportsWebGpu, type YoloLoadProgress, type YoloMask } from "./yolo-seg";
 
 type EntityKey = "person" | "vehicle" | "pet";
@@ -34,19 +33,9 @@ type AudioMode = "original" | "voice" | "mute";
 type TrackedDetection = DetectedObject & { trackId: string };
 type SubjectItem = { id: string; key: EntityKey; label: string; thumbnail: string };
 type TrackState = { id: string; className: string; bbox: [number, number, number, number]; lastSeen: number };
-type AsciiRenderer = {
-  instance: Textmodifier;
-  texture: TextmodeTexture;
-  source: HTMLCanvasElement;
-  sourceContext: CanvasRenderingContext2D;
-  width: number;
-  height: number;
-};
 type VoiceAudioGraph = {
   output: GainNode;
   preview: GainNode;
-  delayLfo: OscillatorNode;
-  tremoloLfo: OscillatorNode;
 };
 
 const ENTITY_GROUPS: Array<{ key: EntityKey; label: string; sub: string; classes: string[] }> = [
@@ -142,8 +131,6 @@ export default function PrivacyStudio() {
   const drawFrameRef = useRef<(() => void) | null>(null);
   const offlineConversionRef = useRef<{ cancel: () => Promise<void> } | null>(null);
   const benchmarkingRef = useRef(false);
-  const asciiRendererRef = useRef<AsciiRenderer | null>(null);
-  const asciiRendererPromiseRef = useRef<Promise<AsciiRenderer> | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const audioMonitorRef = useRef<GainNode | null>(null);
@@ -174,7 +161,6 @@ export default function PrivacyStudio() {
   const [downloadUrl, setDownloadUrl] = useState("");
   const [outputExtension, setOutputExtension] = useState<"mp4" | "webm">("webm");
   const [message, setMessage] = useState("");
-  const [asciiState, setAsciiState] = useState<"idle" | "loading" | "ready" | "fallback">("idle");
   const [audioMode, setAudioMode] = useState<AudioMode>("original");
 
   useEffect(() => {
@@ -206,86 +192,12 @@ export default function PrivacyStudio() {
   useEffect(() => () => cancelAnimationFrame(animationRef.current), []);
 
   useEffect(() => () => {
-    asciiRendererRef.current?.instance.destroy();
-    asciiRendererRef.current = null;
-  }, []);
-
-  useEffect(() => () => {
     void audioContextRef.current?.close();
     audioContextRef.current = null;
     audioSourceRef.current = null;
     audioMonitorRef.current = null;
     voiceAudioGraphRef.current = null;
   }, []);
-
-  useEffect(() => {
-    if (maskScope !== "full" || fullFrameStyle !== "ascii") return;
-    const video = videoRef.current;
-    const width = video?.videoWidth || 720;
-    const height = video?.videoHeight || 1280;
-    const current = asciiRendererRef.current;
-    if (current && current.width === width && current.height === height) {
-      setAsciiState("ready");
-      return;
-    }
-    let canceled = false;
-    const initialize = async () => {
-      const probe = document.createElement("canvas");
-      if (!probe.getContext("webgl2")) throw new Error("WEBGL2_UNAVAILABLE");
-      asciiRendererRef.current?.instance.destroy();
-      asciiRendererRef.current = null;
-      const source = document.createElement("canvas");
-      source.width = width;
-      source.height = height;
-      const sourceContext = source.getContext("2d", { alpha: false });
-      if (!sourceContext) throw new Error("CANVAS_UNAVAILABLE");
-      const output = document.createElement("canvas");
-      output.width = width;
-      output.height = height;
-      const { textmode } = await import("textmode.js");
-      const instance = textmode.create({
-        canvas: output,
-        width,
-        height,
-        fontSize: Math.max(12, Math.round(width / 72)),
-        frameRate: 30,
-        loadingScreen: { transition: "none" },
-      });
-      let texture!: TextmodeTexture;
-      await instance.setup(() => {
-        texture = instance.createTexture(source)
-          .characters(" .,:;irsXA253hMHGS#9B&@")
-          .charColorMode("sampled")
-          .cellColorMode("fixed")
-          .cellColor(8, 16, 14);
-      });
-      instance.draw(() => {
-        instance.background(8, 16, 14);
-        instance.image(texture, texture.width, texture.height);
-      });
-      return { instance, texture, source, sourceContext, width, height };
-    };
-    setAsciiState("loading");
-    const promise = initialize();
-    asciiRendererPromiseRef.current = promise;
-    void promise.then((renderer) => {
-      if (canceled) {
-        renderer.instance.destroy();
-        return;
-      }
-      asciiRendererRef.current = renderer;
-      asciiRendererPromiseRef.current = null;
-      setAsciiState("ready");
-      setMessage("ASCII 开源 WebGL2 引擎已就绪");
-      window.setTimeout(() => drawFrameRef.current?.(), 80);
-    }).catch(() => {
-      if (canceled) return;
-      asciiRendererPromiseRef.current = null;
-      setAsciiState("fallback");
-      setMessage("当前浏览器不支持 ASCII WebGL2 引擎，已使用兼容效果");
-    });
-    return () => { canceled = true; };
-  }, [duration, fullFrameStyle, maskScope, videoUrl]);
 
   const isSelectedClass = useCallback((className: string) => {
     return ENTITY_GROUPS.some((group) => selectedRef.current.has(group.key) && group.classes.includes(className));
@@ -554,30 +466,30 @@ export default function PrivacyStudio() {
     };
 
     const drawAsciiFullFrame = () => {
-      const renderer = asciiRendererRef.current;
-      if (renderer && renderer.width === width && renderer.height === height) {
-        renderer.sourceContext.drawImage(source, 0, 0, width, height);
-        ctx.drawImage(renderer.instance.canvas, 0, 0, width, height);
-        return;
-      }
       if (!effectCanvasRef.current) effectCanvasRef.current = document.createElement("canvas");
       const sampleCanvas = effectCanvasRef.current;
-      const cellSize = Math.max(effectStrengthRef.current, width / 76);
-      const columns = Math.max(1, Math.ceil(width / cellSize));
-      const rows = Math.max(1, Math.ceil(height / cellSize));
+      const fontSize = Math.max(8, effectStrengthRef.current);
+      ctx.save();
+      ctx.font = `700 ${fontSize}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
+      ctx.textBaseline = "top";
+      const characterWidth = Math.max(4, ctx.measureText("M").width);
+      const columns = Math.max(1, Math.ceil(width / characterWidth));
+      const rows = Math.max(1, Math.ceil(height / fontSize));
       sampleCanvas.width = columns;
       sampleCanvas.height = rows;
       const sampleCtx = sampleCanvas.getContext("2d", { willReadFrequently: true });
-      if (!sampleCtx) return;
+      if (!sampleCtx) {
+        ctx.restore();
+        return;
+      }
       sampleCtx.drawImage(source, 0, 0, columns, rows);
       const pixels = sampleCtx.getImageData(0, 0, columns, rows).data;
-      const glyphs = "@%#*+=-:. ";
-      ctx.save();
-      ctx.fillStyle = "#08100e";
+      const glyphs = " .,:;irsXA253hMHGS#9B&@";
+      ctx.fillStyle = "#050706";
       ctx.fillRect(0, 0, width, height);
-      ctx.font = `700 ${Math.ceil(cellSize * 1.08)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
-      ctx.textBaseline = "top";
+      ctx.fillStyle = "#f4f7f5";
       for (let row = 0; row < rows; row += 1) {
+        let line = "";
         for (let column = 0; column < columns; column += 1) {
           const offset = (row * columns + column) * 4;
           const red = pixels[offset];
@@ -585,10 +497,9 @@ export default function PrivacyStudio() {
           const blue = pixels[offset + 2];
           const luminance = red * 0.2126 + green * 0.7152 + blue * 0.0722;
           const glyph = glyphs[Math.min(glyphs.length - 1, Math.floor((luminance / 256) * glyphs.length))];
-          if (glyph === " ") continue;
-          ctx.fillStyle = `rgb(${Math.round(red * 0.82)}, ${Math.min(255, Math.round(green * 0.92 + 22))}, ${Math.round(blue * 0.82)})`;
-          ctx.fillText(glyph, column * cellSize, row * cellSize);
+          line += glyph;
         }
+        ctx.fillText(line, 0, row * fontSize);
       }
       ctx.restore();
     };
@@ -1009,6 +920,16 @@ export default function PrivacyStudio() {
     const lowpass = audioContext.createBiquadFilter();
     lowpass.type = "lowpass";
     lowpass.frequency.value = 5600;
+    const lowerFormant = audioContext.createBiquadFilter();
+    lowerFormant.type = "peaking";
+    lowerFormant.frequency.value = 760;
+    lowerFormant.Q.value = 1.15;
+    lowerFormant.gain.value = 5.5;
+    const upperFormant = audioContext.createBiquadFilter();
+    upperFormant.type = "peaking";
+    upperFormant.frequency.value = 2450;
+    upperFormant.Q.value = 1.35;
+    upperFormant.gain.value = -4.5;
     const shaper = audioContext.createWaveShaper();
     const curve = new Float32Array(1024);
     const normalizer = Math.tanh(1.35);
@@ -1018,20 +939,6 @@ export default function PrivacyStudio() {
     }
     shaper.curve = curve;
     shaper.oversample = "2x";
-    const delay = audioContext.createDelay(0.04);
-    delay.delayTime.value = 0.012;
-    const delayLfo = audioContext.createOscillator();
-    delayLfo.type = "sine";
-    delayLfo.frequency.value = 5.2;
-    const delayDepth = audioContext.createGain();
-    delayDepth.gain.value = 0.0032;
-    const tremolo = audioContext.createGain();
-    tremolo.gain.value = 0.82;
-    const tremoloLfo = audioContext.createOscillator();
-    tremoloLfo.type = "sine";
-    tremoloLfo.frequency.value = 31;
-    const tremoloDepth = audioContext.createGain();
-    tremoloDepth.gain.value = 0.18;
     const compressor = audioContext.createDynamicsCompressor();
     compressor.threshold.value = -22;
     compressor.knee.value = 18;
@@ -1044,22 +951,16 @@ export default function PrivacyStudio() {
     preview.gain.value = 0;
 
     source.connect(highpass);
-    highpass.connect(lowpass);
+    highpass.connect(lowerFormant);
+    lowerFormant.connect(upperFormant);
+    upperFormant.connect(lowpass);
     lowpass.connect(shaper);
-    shaper.connect(delay);
-    delayLfo.connect(delayDepth);
-    delayDepth.connect(delay.delayTime);
-    delay.connect(tremolo);
-    tremoloLfo.connect(tremoloDepth);
-    tremoloDepth.connect(tremolo.gain);
-    tremolo.connect(compressor);
+    shaper.connect(compressor);
     compressor.connect(outputGain);
     outputGain.connect(preview);
     preview.connect(audioContext.destination);
-    delayLfo.start();
-    tremoloLfo.start();
 
-    const graph = { output: outputGain, preview, delayLfo, tremoloLfo };
+    const graph = { output: outputGain, preview };
     voiceAudioGraphRef.current = graph;
     return { audioContext, graph };
   };
@@ -1198,9 +1099,6 @@ export default function PrivacyStudio() {
       let voicePreviousInput: number[] = [];
       let voicePreviousHighpass: number[] = [];
       let voicePreviousLowpass: number[] = [];
-      let voiceDelayBuffers: Float32Array[] = [];
-      let voiceDelayWriteIndex = 0;
-      let voiceDelaySampleRate = 0;
 
       let frameNumber = 0;
       let processingLock: Promise<void> = Promise.resolve();
@@ -1248,26 +1146,10 @@ export default function PrivacyStudio() {
               voicePreviousHighpass = Array(channels).fill(0);
               voicePreviousLowpass = Array(channels).fill(0);
             }
-            if (voiceDelayBuffers.length !== channels || voiceDelaySampleRate !== sample.sampleRate) {
-              const delayBufferLength = Math.ceil(sample.sampleRate * 0.04) + 2;
-              voiceDelayBuffers = Array.from({ length: channels }, () => new Float32Array(delayBufferLength));
-              voiceDelayWriteIndex = 0;
-              voiceDelaySampleRate = sample.sampleRate;
-            }
             const highpassAlpha = Math.exp((-2 * Math.PI * 95) / sample.sampleRate);
             const lowpassAlpha = 1 - Math.exp((-2 * Math.PI * 5600) / sample.sampleRate);
-            const delayBufferLength = voiceDelayBuffers[0].length;
             const saturationNormalizer = Math.tanh(1.35);
             for (let frame = 0; frame < sample.numberOfFrames; frame += 1) {
-              const time = sample.timestamp + frame / sample.sampleRate;
-              const delaySeconds = 0.012 + 0.0032 * Math.sin(2 * Math.PI * 5.2 * time);
-              const delaySamples = delaySeconds * sample.sampleRate;
-              let readPosition = voiceDelayWriteIndex - delaySamples;
-              while (readPosition < 0) readPosition += delayBufferLength;
-              const readIndex = Math.floor(readPosition) % delayBufferLength;
-              const nextReadIndex = (readIndex + 1) % delayBufferLength;
-              const fraction = readPosition - Math.floor(readPosition);
-              const tremolo = 0.82 + 0.18 * Math.sin(2 * Math.PI * 31 * time);
               for (let channel = 0; channel < channels; channel += 1) {
                 const index = frame * channels + channel;
                 const inputValue = data[index];
@@ -1277,12 +1159,8 @@ export default function PrivacyStudio() {
                 voicePreviousHighpass[channel] = highpassed;
                 voicePreviousLowpass[channel] = lowpassed;
                 const shaped = Math.tanh(lowpassed * 1.35) / saturationNormalizer;
-                const delayBuffer = voiceDelayBuffers[channel];
-                delayBuffer[voiceDelayWriteIndex] = shaped;
-                const delayed = delayBuffer[readIndex] * (1 - fraction) + delayBuffer[nextReadIndex] * fraction;
-                data[index] = Math.tanh(delayed * tremolo * 1.1) * 0.92;
+                data[index] = Math.tanh(shaped * 1.08) * 0.94;
               }
-              voiceDelayWriteIndex = (voiceDelayWriteIndex + 1) % delayBufferLength;
             }
             return new media.AudioSample({
               data,
@@ -1359,6 +1237,7 @@ export default function PrivacyStudio() {
     setDownloadUrl("");
     setProgress(0);
     setMessage("正在本地逐帧处理，请保持页面开启");
+    video.loop = false;
     video.pause();
     if (video.currentTime > 0.01) {
       video.currentTime = 0;
@@ -1394,6 +1273,7 @@ export default function PrivacyStudio() {
           setExporting(false);
           setProgress(100);
           video.currentTime = 0;
+          video.loop = true;
           drawFrame();
         }
       })();
@@ -1414,6 +1294,7 @@ export default function PrivacyStudio() {
       recorder.onstop = null;
       if (recorder.state !== "inactive") recorder.stop();
       setExporting(false);
+      video.loop = true;
       setMessage("无法开始视频播放，请重新打开视频后再试");
       return;
     }
@@ -1476,6 +1357,7 @@ export default function PrivacyStudio() {
                   crossOrigin="anonymous"
                   src={videoUrl}
                   muted={audioMode === "mute"}
+                  loop={!exporting}
                   playsInline
                   preload="metadata"
                   onLoadedMetadata={(event) => {
@@ -1541,19 +1423,17 @@ export default function PrivacyStudio() {
 
               {maskScope === "full" ? (
                 <div className="control-block effect-control">
-                  <div className="control-title"><span>全画面风格</span><small>{fullFrameStyle === "ascii" ? (asciiState === "ready" ? "WebGL2 字符渲染" : asciiState === "loading" ? "正在加载字符引擎…" : asciiState === "fallback" ? "兼容模式" : "按需加载") : `${strengthRange.label} ${effectStrength}${strengthRange.unit}`}</small></div>
+                  <div className="control-title"><span>全画面风格</span><small>{fullFrameStyle === "ascii" ? `黑白字符画 · ${effectStrength}px` : `${strengthRange.label} ${effectStrength}${strengthRange.unit}`}</small></div>
                   <div className="segmented-control effect-style-control" aria-label="全画面风格">
                     <button type="button" disabled={exporting} className={fullFrameStyle === "blur" ? "active" : ""} aria-pressed={fullFrameStyle === "blur"} onClick={() => { setFullFrameStyle("blur"); setEffectStrength(46); }}>模糊</button>
                     <button type="button" disabled={exporting} className={fullFrameStyle === "pixel" ? "active" : ""} aria-pressed={fullFrameStyle === "pixel"} onClick={() => { setFullFrameStyle("pixel"); setEffectStrength(18); }}>低像素</button>
                     <button type="button" disabled={exporting} className={fullFrameStyle === "ascii" ? "active" : ""} aria-pressed={fullFrameStyle === "ascii"} onClick={() => { setFullFrameStyle("ascii"); setEffectStrength(14); }}>ASCII</button>
                   </div>
-                  {fullFrameStyle !== "ascii" && (
-                    <div className="strength-slider">
-                      <span>{strengthRange.min}</span>
-                      <input aria-label={strengthRange.label} type="range" min={strengthRange.min} max={strengthRange.max} step="1" value={Math.max(strengthRange.min, Math.min(strengthRange.max, effectStrength))} disabled={exporting} onChange={(event) => setEffectStrength(Number(event.target.value))} />
-                      <span>{strengthRange.max}</span>
-                    </div>
-                  )}
+                  <div className="strength-slider">
+                    <span>{strengthRange.min}</span>
+                    <input aria-label={strengthRange.label} type="range" min={strengthRange.min} max={strengthRange.max} step="1" value={Math.max(strengthRange.min, Math.min(strengthRange.max, effectStrength))} disabled={exporting} onChange={(event) => setEffectStrength(Number(event.target.value))} />
+                    <span>{strengthRange.max}</span>
+                  </div>
                 </div>
               ) : <>
                 {settingsTab === "general" && <>
@@ -1598,13 +1478,13 @@ export default function PrivacyStudio() {
               </>}
               {(maskScope === "full" || settingsTab === "general") && (
                 <div className="control-block audio-privacy-control">
-                  <div className="control-title"><span>声音处理</span><small>{audioMode === "voice" ? "本地电子变音" : audioMode === "mute" ? "导出无音轨" : "保留视频原声"}</small></div>
+                  <div className="control-title"><span>声音处理</span><small>{audioMode === "voice" ? "本地固定音色" : audioMode === "mute" ? "导出无音轨" : "保留视频原声"}</small></div>
                   <div className="segmented-control audio-mode-control" aria-label="声音隐私">
                     <button type="button" disabled={exporting} className={audioMode === "original" ? "active" : ""} aria-pressed={audioMode === "original"} onClick={() => { void selectAudioMode("original"); }}>原声 <small>保留</small></button>
-                    <button type="button" disabled={exporting} className={audioMode === "voice" ? "active" : ""} aria-pressed={audioMode === "voice"} onClick={() => { void selectAudioMode("voice"); }}>变音 <small>清晰电子音</small></button>
+                    <button type="button" disabled={exporting} className={audioMode === "voice" ? "active" : ""} aria-pressed={audioMode === "voice"} onClick={() => { void selectAudioMode("voice"); }}>变音 <small>固定音色</small></button>
                     <button type="button" disabled={exporting} className={audioMode === "mute" ? "active" : ""} aria-pressed={audioMode === "mute"} onClick={() => { void selectAudioMode("mute"); }}>静音 <small>无音轨</small></button>
                   </div>
-                  <p className="audio-mode-note">选择变音后，播放即可实时试听；导出使用相同效果。</p>
+                  <p className="audio-mode-note">无颤音；选择变音后，播放即可实时试听。</p>
                 </div>
               )}
               {settingsTab === "subjects" && maskScope !== "full" && <>
