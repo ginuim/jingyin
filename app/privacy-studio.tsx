@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowDownToLine,
+  Baby,
   Check,
   ChevronRight,
   EyeOff,
@@ -11,9 +12,12 @@ import {
   Pause,
   Play,
   RotateCcw,
+  ScanFace,
   ShieldCheck,
   Sparkles,
   Upload,
+  MapPin,
+  Users,
   X,
 } from "lucide-react";
 import type { ObjectDetection, DetectedObject } from "@tensorflow-models/coco-ssd";
@@ -1189,9 +1193,9 @@ export default function PrivacyStudio() {
       </header>
 
       <section className="hero" id="top">
-        <div className="eyebrow"><Sparkles size={15} /> AI PRIVACY FILTER</div>
-        <h1>给视频里的隐私，<br /><span>一键打上马赛克。</span></h1>
-        <p>自动识别人物、车辆和宠物。选择你要隐藏的实体，<br className="desktop-only" />直接在浏览器里处理并下载。</p>
+        <div className="eyebrow"><Sparkles size={15} /> LOCAL-FIRST VIDEO PRIVACY</div>
+        <h1>想分享生活，<br /><span>先把隐私藏好。</span></h1>
+        <p>孩子的视频、家人的身影、偶然入镜的路人，都可能成为可被复制的人像素材。<br className="desktop-only" />镜隐在本机完成遮盖，减少清晰画面被截取、冒用或用于 AI 换脸的风险。</p>
         <div className="trust-row">
           <span><Check size={15} /> 无需注册</span>
           <span><Check size={15} /> 免费使用</span>
@@ -1428,6 +1432,33 @@ export default function PrivacyStudio() {
           </div>
         )}
         <input ref={inputRef} className="visually-hidden" type="file" accept="video/mp4,video/quicktime,video/webm" onChange={(event) => void handleFile(event.target.files?.[0])} />
+      </section>
+
+      <section className="privacy-scenarios" aria-labelledby="privacy-scenarios-title">
+        <div className="privacy-scenarios-intro">
+          <div className="section-label">BEFORE YOU SHARE</div>
+          <h2 id="privacy-scenarios-title">不是不分享，<br />是分享前先保护好。</h2>
+          <p>照片和视频一旦公开，就可能被保存、裁剪和再次传播。先遮住不需要出现的主体或环境，让分享保留快乐，不留下多余的身份线索。</p>
+          <div className="local-proof"><ShieldCheck size={17} /><span><strong>视频不上传</strong><small>识别、遮盖和导出都在当前设备完成</small></span></div>
+        </div>
+        <div className="scenario-grid">
+          <article>
+            <span className="scenario-icon"><Baby /></span>
+            <div><h3>分享孩子的成长</h3><p>公开发布前隐藏孩子、同伴或旁观者，减少清晰人像在未知渠道中继续流传。</p><small>适合：遮盖主体</small></div>
+          </article>
+          <article>
+            <span className="scenario-icon"><ScanFace /></span>
+            <div><h3>降低 AI 换脸素材风险</h3><p>高质量正脸和连续动作更容易成为可复用素材。模糊人物能降低画面被直接截取利用的价值。</p><small>适合：遮盖主体 / 全画面</small></div>
+          </article>
+          <article>
+            <span className="scenario-icon"><MapPin /></span>
+            <div><h3>不暴露生活环境</h3><p>家庭陈设、学校周边、常走路线都可能透露位置和生活规律，可反选主体，只遮盖环境。</p><small>适合：遮盖主体之外</small></div>
+          </article>
+          <article>
+            <span className="scenario-icon"><Users /></span>
+            <div><h3>避免路人和家人被公开</h3><p>聚会、旅行和街拍里常有无关人员入镜。发布前处理，让没有同意出镜的人保持匿名。</p><small>适合：选择主体</small></div>
+          </article>
+        </div>
       </section>
 
       <section className="how-it-works" aria-labelledby="how-title">

@@ -157,6 +157,23 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .export-progress button { border: 0; background: none; color: #6d7773; text-decoration: underline; font-size: 10px; cursor: pointer; }
 .export-progress p { margin: 0 0 7px; color: #65756e; font-size: 9px; }
 
+.privacy-scenarios { width: min(1080px, calc(100% - 40px)); margin: 0 auto 120px; display: grid; grid-template-columns: minmax(250px, .72fr) minmax(0, 1.45fr); gap: 56px; align-items: start; }
+.privacy-scenarios-intro { position: sticky; top: 28px; }
+.privacy-scenarios h2 { margin: 17px 0 17px; font-size: clamp(34px, 4.2vw, 50px); line-height: 1.08; letter-spacing: -.058em; text-wrap: balance; }
+.privacy-scenarios-intro > p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.78; text-wrap: pretty; }
+.local-proof { margin-top: 24px; padding: 14px 0 0; border-top: 1px solid #dce3de; display: flex; align-items: flex-start; gap: 10px; color: #267a5c; }
+.local-proof > span { display: flex; flex-direction: column; gap: 3px; }
+.local-proof strong { color: #315a4c; font-size: 12px; }
+.local-proof small { color: #7a8782; font-size: 10px; line-height: 1.5; }
+.scenario-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.scenario-grid article { min-height: 210px; padding: 25px 23px 22px; display: flex; flex-direction: column; justify-content: space-between; gap: 25px; border: 1px solid #dfe5df; border-radius: 18px; background: rgba(255,255,255,.62); transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease; }
+.scenario-grid article:hover { transform: translateY(-3px); border-color: #bfd5ca; box-shadow: 0 16px 34px rgba(30,50,43,.07); }
+.scenario-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; background: var(--mint-light); color: #267a5c; }
+.scenario-icon svg { width: 20px; height: 20px; }
+.scenario-grid h3 { margin: 0 0 8px; font-size: 17px; letter-spacing: -.025em; }
+.scenario-grid p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.7; text-wrap: pretty; }
+.scenario-grid small { display: inline-block; margin-top: 15px; color: #397760; font: 650 9px/1.4 var(--font-geist-mono), monospace; letter-spacing: .02em; }
+
 .how-it-works { width: min(1040px, calc(100% - 40px)); margin: 0 auto 120px; text-align: center; }
 .how-it-works h2 { margin: 15px 0 46px; font-size: clamp(32px, 4vw, 46px); letter-spacing: -.055em; }
 .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
@@ -191,12 +208,14 @@ footer button { margin-left: auto; display: flex; align-items: center; gap: 6px;
   .settings-toolbar { display: none; }
   .video-close-mobile { position: absolute; top: 10px; right: 10px; z-index: 4; width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 10px; background: rgba(237,240,236,.88); color: #69736f; opacity: .6; cursor: pointer; backdrop-filter: blur(8px); }
   .studio { padding: 10px; }
+  .privacy-scenarios { grid-template-columns: 1fr; gap: 34px; }
+  .privacy-scenarios-intro { position: static; max-width: 620px; }
   .steps { grid-template-columns: 1fr; }
   .privacy-banner { padding: 35px; }
 }
 
 @media (max-width: 560px) {
-  .site-header, .hero, .studio, .how-it-works, .privacy-banner, footer { width: min(100% - 24px, 1180px); }
+  .site-header, .hero, .studio, .privacy-scenarios, .how-it-works, .privacy-banner, footer { width: min(100% - 24px, 1180px); }
   .site-header { height: 64px; }
   .brand { font-size: 19px; }
   .brand-mark { width: 34px; height: 34px; }
@@ -207,6 +226,10 @@ footer button { margin-left: auto; display: flex; align-items: center; gap: 6px;
   .desktop-only { display: none; }
   .trust-row { justify-content: flex-start; gap: 9px 14px; font-size: 11px; }
   .studio { margin-bottom: 90px; border-radius: 21px; }
+  .privacy-scenarios { margin-bottom: 86px; gap: 25px; }
+  .privacy-scenarios h2 { font-size: 36px; }
+  .scenario-grid { grid-template-columns: 1fr; gap: 10px; }
+  .scenario-grid article { min-height: 0; padding: 22px 20px; gap: 20px; }
   .upload-zone { min-height: 390px; border-radius: 15px; }
   .preview-column { padding: 10px; min-height: 280px; }
   .video-shell { aspect-ratio: 4 / 3; }
