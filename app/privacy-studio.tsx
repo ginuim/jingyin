@@ -42,6 +42,12 @@ type AsciiRenderer = {
   width: number;
   height: number;
 };
+type VoiceAudioGraph = {
+  output: GainNode;
+  preview: GainNode;
+  delayLfo: OscillatorNode;
+  tremoloLfo: OscillatorNode;
+};
 
 const ENTITY_GROUPS: Array<{ key: EntityKey; label: string; sub: string; classes: string[] }> = [
   { key: "person", label: "人物", sub: "全身与半身", classes: ["person"] },
@@ -141,6 +147,7 @@ export default function PrivacyStudio() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const audioMonitorRef = useRef<GainNode | null>(null);
+  const voiceAudioGraphRef = useRef<VoiceAudioGraph | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState("");
@@ -208,6 +215,7 @@ export default function PrivacyStudio() {
     audioContextRef.current = null;
     audioSourceRef.current = null;
     audioMonitorRef.current = null;
+    voiceAudioGraphRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -969,7 +977,7 @@ export default function PrivacyStudio() {
     }, 40);
   };
 
-  const createVoiceExportTrack = async (video: HTMLVideoElement) => {
+  const ensureVoiceAudioGraph = async (video: HTMLVideoElement) => {
     const AudioContextConstructor = window.AudioContext
       || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AudioContextConstructor) throw new Error("WEB_AUDIO_UNAVAILABLE");
@@ -980,6 +988,7 @@ export default function PrivacyStudio() {
       audioContextRef.current = audioContext;
       audioSourceRef.current = null;
       audioMonitorRef.current = null;
+      voiceAudioGraphRef.current = null;
     }
     if (!audioSourceRef.current) {
       const source = audioContext.createMediaElementSource(video);
@@ -991,55 +1000,112 @@ export default function PrivacyStudio() {
       audioMonitorRef.current = monitor;
     }
     await audioContext.resume();
+    if (voiceAudioGraphRef.current) return { audioContext, graph: voiceAudioGraphRef.current };
 
     const source = audioSourceRef.current;
-    const monitor = audioMonitorRef.current;
     const highpass = audioContext.createBiquadFilter();
     highpass.type = "highpass";
-    highpass.frequency.value = 120;
+    highpass.frequency.value = 95;
     const lowpass = audioContext.createBiquadFilter();
     lowpass.type = "lowpass";
-    lowpass.frequency.value = 4300;
-    const ring = audioContext.createGain();
-    ring.gain.value = 0;
-    const carrier = audioContext.createOscillator();
-    carrier.type = "sine";
-    carrier.frequency.value = 820;
+    lowpass.frequency.value = 5600;
+    const shaper = audioContext.createWaveShaper();
+    const curve = new Float32Array(1024);
+    const normalizer = Math.tanh(1.35);
+    for (let index = 0; index < curve.length; index += 1) {
+      const value = (index / (curve.length - 1)) * 2 - 1;
+      curve[index] = Math.tanh(value * 1.35) / normalizer;
+    }
+    shaper.curve = curve;
+    shaper.oversample = "2x";
+    const delay = audioContext.createDelay(0.04);
+    delay.delayTime.value = 0.012;
+    const delayLfo = audioContext.createOscillator();
+    delayLfo.type = "sine";
+    delayLfo.frequency.value = 5.2;
+    const delayDepth = audioContext.createGain();
+    delayDepth.gain.value = 0.0032;
+    const tremolo = audioContext.createGain();
+    tremolo.gain.value = 0.82;
+    const tremoloLfo = audioContext.createOscillator();
+    tremoloLfo.type = "sine";
+    tremoloLfo.frequency.value = 31;
+    const tremoloDepth = audioContext.createGain();
+    tremoloDepth.gain.value = 0.18;
     const compressor = audioContext.createDynamicsCompressor();
-    compressor.threshold.value = -20;
-    compressor.knee.value = 12;
-    compressor.ratio.value = 5;
+    compressor.threshold.value = -22;
+    compressor.knee.value = 18;
+    compressor.ratio.value = 3.5;
     compressor.attack.value = 0.005;
-    compressor.release.value = 0.16;
+    compressor.release.value = 0.18;
     const outputGain = audioContext.createGain();
-    outputGain.gain.value = 1.25;
-    const destination = audioContext.createMediaStreamDestination();
+    outputGain.gain.value = 1.06;
+    const preview = audioContext.createGain();
+    preview.gain.value = 0;
 
-    monitor?.gain.setValueAtTime(0, audioContext.currentTime);
     source.connect(highpass);
     highpass.connect(lowpass);
-    lowpass.connect(ring);
-    carrier.connect(ring.gain);
-    ring.connect(compressor);
+    lowpass.connect(shaper);
+    shaper.connect(delay);
+    delayLfo.connect(delayDepth);
+    delayDepth.connect(delay.delayTime);
+    delay.connect(tremolo);
+    tremoloLfo.connect(tremoloDepth);
+    tremoloDepth.connect(tremolo.gain);
+    tremolo.connect(compressor);
     compressor.connect(outputGain);
-    outputGain.connect(destination);
-    carrier.start();
+    outputGain.connect(preview);
+    preview.connect(audioContext.destination);
+    delayLfo.start();
+    tremoloLfo.start();
+
+    const graph = { output: outputGain, preview, delayLfo, tremoloLfo };
+    voiceAudioGraphRef.current = graph;
+    return { audioContext, graph };
+  };
+
+  const routeAudioPreview = (mode: AudioMode, audioContext = audioContextRef.current) => {
+    if (!audioContext) return;
+    const now = audioContext.currentTime;
+    const monitor = audioMonitorRef.current;
+    const voicePreview = voiceAudioGraphRef.current?.preview;
+    monitor?.gain.setTargetAtTime(mode === "original" ? 1 : 0, now, 0.01);
+    voicePreview?.gain.setTargetAtTime(mode === "voice" ? 1 : 0, now, 0.01);
+  };
+
+  const selectAudioMode = async (mode: AudioMode) => {
+    setAudioMode(mode);
+    const video = videoRef.current;
+    if (video) video.muted = mode === "mute";
+    try {
+      if (mode === "voice" && video) {
+        const { audioContext } = await ensureVoiceAudioGraph(video);
+        routeAudioPreview(mode, audioContext);
+      } else {
+        routeAudioPreview(mode);
+      }
+    } catch (error) {
+      console.error("Failed to initialize voice preview", error);
+      setAudioMode("original");
+      if (video) video.muted = false;
+      routeAudioPreview("original");
+      setMessage("当前浏览器无法实时预览变音，请选择保留原声或静音");
+    }
+  };
+
+  const createVoiceExportTrack = async (video: HTMLVideoElement) => {
+    const { audioContext, graph } = await ensureVoiceAudioGraph(video);
+    routeAudioPreview("voice", audioContext);
+    const destination = audioContext.createMediaStreamDestination();
+    graph.output.connect(destination);
 
     const track = destination.stream.getAudioTracks()[0];
     if (!track) throw new Error("VOICE_TRACK_UNAVAILABLE");
     return {
       track,
       cleanup: () => {
-        try { source.disconnect(highpass); } catch { /* already disconnected */ }
-        try { carrier.stop(); } catch { /* already stopped */ }
-        carrier.disconnect();
-        highpass.disconnect();
-        lowpass.disconnect();
-        ring.disconnect();
-        compressor.disconnect();
-        outputGain.disconnect();
+        try { graph.output.disconnect(destination); } catch { /* already disconnected */ }
         track.stop();
-        monitor?.gain.setValueAtTime(1, audioContext.currentTime);
       },
     };
   };
@@ -1071,6 +1137,7 @@ export default function PrivacyStudio() {
     audioContextRef.current = null;
     audioSourceRef.current = null;
     audioMonitorRef.current = null;
+    voiceAudioGraphRef.current = null;
   };
 
   const exportOffline = async () => {
@@ -1131,6 +1198,9 @@ export default function PrivacyStudio() {
       let voicePreviousInput: number[] = [];
       let voicePreviousHighpass: number[] = [];
       let voicePreviousLowpass: number[] = [];
+      let voiceDelayBuffers: Float32Array[] = [];
+      let voiceDelayWriteIndex = 0;
+      let voiceDelaySampleRate = 0;
 
       let frameNumber = 0;
       let processingLock: Promise<void> = Promise.resolve();
@@ -1178,10 +1248,26 @@ export default function PrivacyStudio() {
               voicePreviousHighpass = Array(channels).fill(0);
               voicePreviousLowpass = Array(channels).fill(0);
             }
-            const highpassAlpha = Math.exp((-2 * Math.PI * 120) / sample.sampleRate);
-            const lowpassAlpha = 1 - Math.exp((-2 * Math.PI * 4300) / sample.sampleRate);
+            if (voiceDelayBuffers.length !== channels || voiceDelaySampleRate !== sample.sampleRate) {
+              const delayBufferLength = Math.ceil(sample.sampleRate * 0.04) + 2;
+              voiceDelayBuffers = Array.from({ length: channels }, () => new Float32Array(delayBufferLength));
+              voiceDelayWriteIndex = 0;
+              voiceDelaySampleRate = sample.sampleRate;
+            }
+            const highpassAlpha = Math.exp((-2 * Math.PI * 95) / sample.sampleRate);
+            const lowpassAlpha = 1 - Math.exp((-2 * Math.PI * 5600) / sample.sampleRate);
+            const delayBufferLength = voiceDelayBuffers[0].length;
+            const saturationNormalizer = Math.tanh(1.35);
             for (let frame = 0; frame < sample.numberOfFrames; frame += 1) {
-              const carrier = Math.sin(2 * Math.PI * 820 * (sample.timestamp + frame / sample.sampleRate));
+              const time = sample.timestamp + frame / sample.sampleRate;
+              const delaySeconds = 0.012 + 0.0032 * Math.sin(2 * Math.PI * 5.2 * time);
+              const delaySamples = delaySeconds * sample.sampleRate;
+              let readPosition = voiceDelayWriteIndex - delaySamples;
+              while (readPosition < 0) readPosition += delayBufferLength;
+              const readIndex = Math.floor(readPosition) % delayBufferLength;
+              const nextReadIndex = (readIndex + 1) % delayBufferLength;
+              const fraction = readPosition - Math.floor(readPosition);
+              const tremolo = 0.82 + 0.18 * Math.sin(2 * Math.PI * 31 * time);
               for (let channel = 0; channel < channels; channel += 1) {
                 const index = frame * channels + channel;
                 const inputValue = data[index];
@@ -1190,8 +1276,13 @@ export default function PrivacyStudio() {
                 voicePreviousInput[channel] = inputValue;
                 voicePreviousHighpass[channel] = highpassed;
                 voicePreviousLowpass[channel] = lowpassed;
-                data[index] = Math.tanh(lowpassed * carrier * 2.4) * 0.72;
+                const shaped = Math.tanh(lowpassed * 1.35) / saturationNormalizer;
+                const delayBuffer = voiceDelayBuffers[channel];
+                delayBuffer[voiceDelayWriteIndex] = shaped;
+                const delayed = delayBuffer[readIndex] * (1 - fraction) + delayBuffer[nextReadIndex] * fraction;
+                data[index] = Math.tanh(delayed * tremolo * 1.1) * 0.92;
               }
+              voiceDelayWriteIndex = (voiceDelayWriteIndex + 1) % delayBufferLength;
             }
             return new media.AudioSample({
               data,
@@ -1509,11 +1600,11 @@ export default function PrivacyStudio() {
                 <div className="control-block audio-privacy-control">
                   <div className="control-title"><span>声音处理</span><small>{audioMode === "voice" ? "本地电子变音" : audioMode === "mute" ? "导出无音轨" : "保留视频原声"}</small></div>
                   <div className="segmented-control audio-mode-control" aria-label="声音隐私">
-                    <button type="button" disabled={exporting} className={audioMode === "original" ? "active" : ""} aria-pressed={audioMode === "original"} onClick={() => setAudioMode("original")}>原声 <small>保留</small></button>
-                    <button type="button" disabled={exporting} className={audioMode === "voice" ? "active" : ""} aria-pressed={audioMode === "voice"} onClick={() => setAudioMode("voice")}>变音 <small>电子音</small></button>
-                    <button type="button" disabled={exporting} className={audioMode === "mute" ? "active" : ""} aria-pressed={audioMode === "mute"} onClick={() => setAudioMode("mute")}>静音 <small>无音轨</small></button>
+                    <button type="button" disabled={exporting} className={audioMode === "original" ? "active" : ""} aria-pressed={audioMode === "original"} onClick={() => { void selectAudioMode("original"); }}>原声 <small>保留</small></button>
+                    <button type="button" disabled={exporting} className={audioMode === "voice" ? "active" : ""} aria-pressed={audioMode === "voice"} onClick={() => { void selectAudioMode("voice"); }}>变音 <small>清晰电子音</small></button>
+                    <button type="button" disabled={exporting} className={audioMode === "mute" ? "active" : ""} aria-pressed={audioMode === "mute"} onClick={() => { void selectAudioMode("mute"); }}>静音 <small>无音轨</small></button>
                   </div>
-                  <p className="audio-mode-note">变音在导出时应用；静音会同时关闭预览声音。</p>
+                  <p className="audio-mode-note">选择变音后，播放即可实时试听；导出使用相同效果。</p>
                 </div>
               )}
               {settingsTab === "subjects" && maskScope !== "full" && <>
