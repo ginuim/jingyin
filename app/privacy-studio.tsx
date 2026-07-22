@@ -56,28 +56,72 @@ function pickMimeType() {
   return options.find((type) => MediaRecorder.isTypeSupported(type)) || "";
 }
 
-async function finalizeRecordedMedia(blob: Blob, mimeType: string) {
+async function finalizeRecordedMedia(blob: Blob, mimeType: string, onProgress?: (value: number) => void) {
   const media = await import("mediabunny");
-  const input = new media.Input({ formats: media.ALL_FORMATS, source: new media.BlobSource(blob) });
   const isMp4 = mimeType.startsWith("video/mp4");
-  const format = isMp4
-    ? new media.Mp4OutputFormat({ fastStart: "in-memory" })
-    : new media.WebMOutputFormat();
-  const target = new media.BufferTarget();
-  const output = new media.Output({ format, target });
-  const conversion = await media.Conversion.init({
-    input,
-    output,
-    tracks: "primary",
-    showWarnings: false,
-  });
-  if (!conversion.isValid) throw new Error("INVALID_RECORDED_MEDIA");
-  await conversion.execute();
-  if (!target.buffer) throw new Error("EMPTY_RECORDED_MEDIA");
-  const normalized = new Blob([target.buffer], { type: isMp4 ? "video/mp4" : "video/webm" });
-  const normalizedInput = new media.Input({ formats: media.ALL_FORMATS, source: new media.BlobSource(normalized) });
-  const normalizedDuration = await normalizedInput.computeDuration();
-  return { blob: normalized, duration: normalizedDuration, extension: isMp4 ? "mp4" as const : "webm" as const };
+  const convert = async (toMp4: boolean, forceCompatibleCodecs: boolean) => {
+    const input = new media.Input({ formats: media.ALL_FORMATS, source: new media.BlobSource(blob) });
+    const videoTrack = await input.getPrimaryVideoTrack();
+    if (!videoTrack) throw new Error("NO_RECORDED_VIDEO_TRACK");
+    const audioTrack = await input.getPrimaryAudioTrack();
+    const width = await videoTrack.getDisplayWidth();
+    const height = await videoTrack.getDisplayHeight();
+    const evenWidth = Math.max(2, width - (width % 2));
+    const evenHeight = Math.max(2, height - (height % 2));
+    const format = toMp4
+      ? new media.Mp4OutputFormat({ fastStart: "in-memory" })
+      : new media.WebMOutputFormat();
+    const videoCodec = forceCompatibleCodecs
+      ? await media.getFirstEncodableVideoCodec(["avc"], { width: evenWidth, height: evenHeight, bitrate: media.QUALITY_HIGH })
+      : null;
+    const audioCodec = forceCompatibleCodecs && audioTrack
+      ? await media.getFirstEncodableAudioCodec(["aac"], {
+        numberOfChannels: await audioTrack.getNumberOfChannels(),
+        sampleRate: await audioTrack.getSampleRate(),
+        bitrate: media.QUALITY_HIGH,
+      })
+      : null;
+    if (forceCompatibleCodecs && (!videoCodec || (audioTrack && !audioCodec))) throw new Error("MP4_CODEC_UNAVAILABLE");
+
+    const target = new media.BufferTarget();
+    const output = new media.Output({ format, target });
+    const conversion = await media.Conversion.init({
+      input,
+      output,
+      tracks: "primary",
+      video: forceCompatibleCodecs ? {
+        codec: videoCodec!,
+        width: evenWidth,
+        height: evenHeight,
+        fit: "fill",
+        bitrate: media.QUALITY_HIGH,
+        hardwareAcceleration: "prefer-hardware",
+        forceTranscode: true,
+      } : undefined,
+      audio: forceCompatibleCodecs && audioTrack ? {
+        codec: audioCodec!,
+        bitrate: media.QUALITY_HIGH,
+        forceTranscode: true,
+      } : undefined,
+      showWarnings: false,
+    });
+    if (!conversion.isValid) throw new Error("INVALID_RECORDED_MEDIA");
+    conversion.onProgress = (value) => onProgress?.(Math.max(0, Math.min(1, value)));
+    await conversion.execute();
+    if (!target.buffer) throw new Error("EMPTY_RECORDED_MEDIA");
+    const normalized = new Blob([target.buffer], { type: toMp4 ? "video/mp4" : "video/webm" });
+    const normalizedInput = new media.Input({ formats: media.ALL_FORMATS, source: new media.BlobSource(normalized) });
+    const normalizedDuration = await normalizedInput.computeDuration();
+    return { blob: normalized, duration: normalizedDuration, extension: toMp4 ? "mp4" as const : "webm" as const };
+  };
+
+  if (isMp4) return convert(true, false);
+  try {
+    return await convert(true, true);
+  } catch (error) {
+    console.warn("H.264/AAC MP4 conversion unavailable; keeping WebM", error);
+    return convert(false, false);
+  }
 }
 
 function entityKeyForClass(className: string) {
@@ -1258,12 +1302,14 @@ export default function PrivacyStudio() {
       void (async () => {
         const recordedMime = mimeType || "video/webm";
         const recordedBlob = new Blob(chunks, { type: recordedMime });
-        setMessage("正在写入视频时长与播放索引…");
+        setMessage(recordedMime.startsWith("video/mp4") ? "正在写入 MP4 时长与播放索引…" : "正在本地生成 H.264/AAC MP4…");
         try {
-          const finalized = await finalizeRecordedMedia(recordedBlob, recordedMime);
+          const finalized = await finalizeRecordedMedia(recordedBlob, recordedMime, (value) => setProgress(99 + value));
           setOutputExtension(finalized.extension);
           setDownloadUrl(URL.createObjectURL(finalized.blob));
-          setMessage(`处理完成 · 已写入时长 ${formatTime(finalized.duration)}`);
+          setMessage(finalized.extension === "mp4"
+            ? `MP4 处理完成 · 时长 ${formatTime(finalized.duration)}`
+            : `处理完成 · 当前设备无 H.264/AAC 编码器，已保留 WebM · ${formatTime(finalized.duration)}`);
         } catch (error) {
           console.error("Failed to finalize recorded video metadata", error);
           setOutputExtension(recordedMime.startsWith("video/mp4") ? "mp4" : "webm");
