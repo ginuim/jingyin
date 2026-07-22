@@ -99,6 +99,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .audio-mode-control { grid-template-columns: repeat(3, 1fr); }
 .audio-mode-control button:last-child.active { background: #dfe5e1; color: #394641; box-shadow: none; }
 .audio-mode-control button:last-child.active small { color: #65716c; }
+.voice-frequency-slider { margin-top: 10px; }
 .audio-mode-note { margin: 7px 2px 0; color: #87908c; font-size: 9px; line-height: 1.45; }
 .high-model-trigger { align-self: flex-start; margin-top: 4px; padding: 8px 10px; border: 1px solid #dfbd87; border-radius: 8px; background: #fff; color: #765527; font-size: 9px; font-weight: 700; cursor: pointer; }
 .high-model-trigger:disabled { opacity: .55; cursor: wait; }

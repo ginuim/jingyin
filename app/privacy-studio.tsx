@@ -36,7 +36,11 @@ type TrackState = { id: string; className: string; bbox: [number, number, number
 type VoiceAudioGraph = {
   output: GainNode;
   preview: GainNode;
+  lowerFormant: BiquadFilterNode;
+  upperFormant: BiquadFilterNode;
 };
+type BiquadCoefficients = { b0: number; b1: number; b2: number; a1: number; a2: number };
+type BiquadState = { x1: number; x2: number; y1: number; y2: number };
 
 const ENTITY_GROUPS: Array<{ key: EntityKey; label: string; sub: string; classes: string[] }> = [
   { key: "person", label: "人物", sub: "全身与半身", classes: ["person"] },
@@ -143,6 +147,30 @@ function isTaintedCanvasError(error: unknown) {
     : error instanceof Error && /tainted|SecurityError|texSubImage2D/i.test(`${error.name} ${error.message}`);
 }
 
+function getPeakingCoefficients(frequency: number, sampleRate: number, q: number, gainDb: number): BiquadCoefficients {
+  const omega = 2 * Math.PI * Math.min(frequency, sampleRate * 0.45) / sampleRate;
+  const alpha = Math.sin(omega) / (2 * q);
+  const amplitude = 10 ** (gainDb / 40);
+  const a0 = 1 + alpha / amplitude;
+  return {
+    b0: (1 + alpha * amplitude) / a0,
+    b1: (-2 * Math.cos(omega)) / a0,
+    b2: (1 - alpha * amplitude) / a0,
+    a1: (-2 * Math.cos(omega)) / a0,
+    a2: (1 - alpha / amplitude) / a0,
+  };
+}
+
+function applyBiquad(value: number, state: BiquadState, coefficients: BiquadCoefficients) {
+  const output = coefficients.b0 * value + coefficients.b1 * state.x1 + coefficients.b2 * state.x2
+    - coefficients.a1 * state.y1 - coefficients.a2 * state.y2;
+  state.x2 = state.x1;
+  state.x1 = value;
+  state.y2 = state.y1;
+  state.y1 = output;
+  return output;
+}
+
 export default function PrivacyStudio() {
   const inputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -206,6 +234,7 @@ export default function PrivacyStudio() {
   const [outputExtension, setOutputExtension] = useState<"mp4" | "webm">("webm");
   const [message, setMessage] = useState("");
   const [audioMode, setAudioMode] = useState<AudioMode>("original");
+  const [voiceFrequency, setVoiceFrequency] = useState(760);
 
   useEffect(() => {
     selectedRef.current = selected;
@@ -966,14 +995,14 @@ export default function PrivacyStudio() {
     lowpass.frequency.value = 5600;
     const lowerFormant = audioContext.createBiquadFilter();
     lowerFormant.type = "peaking";
-    lowerFormant.frequency.value = 760;
-    lowerFormant.Q.value = 1.15;
-    lowerFormant.gain.value = 5.5;
+    lowerFormant.frequency.value = voiceFrequency;
+    lowerFormant.Q.value = 1.1;
+    lowerFormant.gain.value = 8;
     const upperFormant = audioContext.createBiquadFilter();
     upperFormant.type = "peaking";
-    upperFormant.frequency.value = 2450;
-    upperFormant.Q.value = 1.35;
-    upperFormant.gain.value = -4.5;
+    upperFormant.frequency.value = Math.min(5200, voiceFrequency * 3.2);
+    upperFormant.Q.value = 1.3;
+    upperFormant.gain.value = -6;
     const shaper = audioContext.createWaveShaper();
     const curve = new Float32Array(1024);
     const normalizer = Math.tanh(1.35);
@@ -1004,7 +1033,7 @@ export default function PrivacyStudio() {
     outputGain.connect(preview);
     preview.connect(audioContext.destination);
 
-    const graph = { output: outputGain, preview };
+    const graph = { output: outputGain, preview, lowerFormant, upperFormant };
     voiceAudioGraphRef.current = graph;
     return { audioContext, graph };
   };
@@ -1016,6 +1045,16 @@ export default function PrivacyStudio() {
     const voicePreview = voiceAudioGraphRef.current?.preview;
     monitor?.gain.setTargetAtTime(mode === "original" ? 1 : 0, now, 0.01);
     voicePreview?.gain.setTargetAtTime(mode === "voice" ? 1 : 0, now, 0.01);
+  };
+
+  const updateVoiceFrequency = (value: number) => {
+    setVoiceFrequency(value);
+    const audioContext = audioContextRef.current;
+    const graph = voiceAudioGraphRef.current;
+    if (!audioContext || !graph) return;
+    const now = audioContext.currentTime;
+    graph.lowerFormant.frequency.setTargetAtTime(value, now, 0.025);
+    graph.upperFormant.frequency.setTargetAtTime(Math.min(5200, value * 3.2), now, 0.025);
   };
 
   const selectAudioMode = async (mode: AudioMode) => {
@@ -1143,6 +1182,8 @@ export default function PrivacyStudio() {
       let voicePreviousInput: number[] = [];
       let voicePreviousHighpass: number[] = [];
       let voicePreviousLowpass: number[] = [];
+      let voiceLowerFormantState: BiquadState[] = [];
+      let voiceUpperFormantState: BiquadState[] = [];
 
       let frameNumber = 0;
       let processingLock: Promise<void> = Promise.resolve();
@@ -1189,16 +1230,22 @@ export default function PrivacyStudio() {
               voicePreviousInput = Array(channels).fill(0);
               voicePreviousHighpass = Array(channels).fill(0);
               voicePreviousLowpass = Array(channels).fill(0);
+              voiceLowerFormantState = Array.from({ length: channels }, () => ({ x1: 0, x2: 0, y1: 0, y2: 0 }));
+              voiceUpperFormantState = Array.from({ length: channels }, () => ({ x1: 0, x2: 0, y1: 0, y2: 0 }));
             }
             const highpassAlpha = Math.exp((-2 * Math.PI * 95) / sample.sampleRate);
             const lowpassAlpha = 1 - Math.exp((-2 * Math.PI * 5600) / sample.sampleRate);
             const saturationNormalizer = Math.tanh(1.35);
+            const lowerFormantCoefficients = getPeakingCoefficients(voiceFrequency, sample.sampleRate, 1.1, 8);
+            const upperFormantCoefficients = getPeakingCoefficients(Math.min(5200, voiceFrequency * 3.2), sample.sampleRate, 1.3, -6);
             for (let frame = 0; frame < sample.numberOfFrames; frame += 1) {
               for (let channel = 0; channel < channels; channel += 1) {
                 const index = frame * channels + channel;
                 const inputValue = data[index];
                 const highpassed = highpassAlpha * (voicePreviousHighpass[channel] + inputValue - voicePreviousInput[channel]);
-                const lowpassed = voicePreviousLowpass[channel] + lowpassAlpha * (highpassed - voicePreviousLowpass[channel]);
+                const lowerFormant = applyBiquad(highpassed, voiceLowerFormantState[channel], lowerFormantCoefficients);
+                const upperFormant = applyBiquad(lowerFormant, voiceUpperFormantState[channel], upperFormantCoefficients);
+                const lowpassed = voicePreviousLowpass[channel] + lowpassAlpha * (upperFormant - voicePreviousLowpass[channel]);
                 voicePreviousInput[channel] = inputValue;
                 voicePreviousHighpass[channel] = highpassed;
                 voicePreviousLowpass[channel] = lowpassed;
@@ -1524,13 +1571,20 @@ export default function PrivacyStudio() {
               </>}
               {(maskScope === "full" || settingsTab === "general") && (
                 <div className="control-block audio-privacy-control">
-                  <div className="control-title"><span>声音处理</span><small>{audioMode === "voice" ? "本地固定音色" : audioMode === "mute" ? "导出无音轨" : "保留视频原声"}</small></div>
+                  <div className="control-title"><span>声音处理</span><small>{audioMode === "voice" ? `变音频率 ${voiceFrequency}Hz` : audioMode === "mute" ? "导出无音轨" : "保留视频原声"}</small></div>
                   <div className="segmented-control audio-mode-control" aria-label="声音隐私">
                     <button type="button" disabled={exporting} className={audioMode === "original" ? "active" : ""} aria-pressed={audioMode === "original"} onClick={() => { void selectAudioMode("original"); }}>原声 <small>保留</small></button>
                     <button type="button" disabled={exporting} className={audioMode === "voice" ? "active" : ""} aria-pressed={audioMode === "voice"} onClick={() => { void selectAudioMode("voice"); }}>变音 <small>固定音色</small></button>
                     <button type="button" disabled={exporting} className={audioMode === "mute" ? "active" : ""} aria-pressed={audioMode === "mute"} onClick={() => { void selectAudioMode("mute"); }}>静音 <small>无音轨</small></button>
                   </div>
-                  <p className="audio-mode-note">无颤音；选择变音后，播放即可实时试听。</p>
+                  {audioMode === "voice" && (
+                    <div className="strength-slider voice-frequency-slider">
+                      <span>低</span>
+                      <input aria-label="变音频率" type="range" min="320" max="1600" step="20" value={voiceFrequency} disabled={exporting} onChange={(event) => updateVoiceFrequency(Number(event.target.value))} />
+                      <span>高</span>
+                    </div>
+                  )}
+                  <p className="audio-mode-note">无颤音；播放时拖动频率可实时试听。</p>
                 </div>
               )}
               {settingsTab === "subjects" && maskScope !== "full" && <>
