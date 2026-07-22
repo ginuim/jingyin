@@ -1,4 +1,3 @@
 {
-  "buildCommand": "vite build",
-  "outputDirectory": ".output"
+  "buildCommand": "vite build"
 }
