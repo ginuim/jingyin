@@ -30,6 +30,7 @@ type QualityMode = "fast" | "balanced" | "precise";
 type MaskScope = "subjects" | "background" | "full";
 type FullFrameStyle = "blur" | "pixel" | "ascii";
 type SettingsTab = "general" | "subjects";
+type AudioMode = "original" | "voice" | "mute";
 type TrackedDetection = DetectedObject & { trackId: string };
 type SubjectItem = { id: string; key: EntityKey; label: string; thumbnail: string };
 type TrackState = { id: string; className: string; bbox: [number, number, number, number]; lastSeen: number };
@@ -137,6 +138,9 @@ export default function PrivacyStudio() {
   const benchmarkingRef = useRef(false);
   const asciiRendererRef = useRef<AsciiRenderer | null>(null);
   const asciiRendererPromiseRef = useRef<Promise<AsciiRenderer> | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const audioMonitorRef = useRef<GainNode | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState("");
@@ -164,6 +168,7 @@ export default function PrivacyStudio() {
   const [outputExtension, setOutputExtension] = useState<"mp4" | "webm">("webm");
   const [message, setMessage] = useState("");
   const [asciiState, setAsciiState] = useState<"idle" | "loading" | "ready" | "fallback">("idle");
+  const [audioMode, setAudioMode] = useState<AudioMode>("original");
 
   useEffect(() => {
     selectedRef.current = selected;
@@ -196,6 +201,13 @@ export default function PrivacyStudio() {
   useEffect(() => () => {
     asciiRendererRef.current?.instance.destroy();
     asciiRendererRef.current = null;
+  }, []);
+
+  useEffect(() => () => {
+    void audioContextRef.current?.close();
+    audioContextRef.current = null;
+    audioSourceRef.current = null;
+    audioMonitorRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -957,6 +969,81 @@ export default function PrivacyStudio() {
     }, 40);
   };
 
+  const createVoiceExportTrack = async (video: HTMLVideoElement) => {
+    const AudioContextConstructor = window.AudioContext
+      || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextConstructor) throw new Error("WEB_AUDIO_UNAVAILABLE");
+
+    let audioContext = audioContextRef.current;
+    if (!audioContext || audioContext.state === "closed") {
+      audioContext = new AudioContextConstructor();
+      audioContextRef.current = audioContext;
+      audioSourceRef.current = null;
+      audioMonitorRef.current = null;
+    }
+    if (!audioSourceRef.current) {
+      const source = audioContext.createMediaElementSource(video);
+      const monitor = audioContext.createGain();
+      monitor.gain.value = 1;
+      source.connect(monitor);
+      monitor.connect(audioContext.destination);
+      audioSourceRef.current = source;
+      audioMonitorRef.current = monitor;
+    }
+    await audioContext.resume();
+
+    const source = audioSourceRef.current;
+    const monitor = audioMonitorRef.current;
+    const highpass = audioContext.createBiquadFilter();
+    highpass.type = "highpass";
+    highpass.frequency.value = 120;
+    const lowpass = audioContext.createBiquadFilter();
+    lowpass.type = "lowpass";
+    lowpass.frequency.value = 4300;
+    const ring = audioContext.createGain();
+    ring.gain.value = 0;
+    const carrier = audioContext.createOscillator();
+    carrier.type = "sine";
+    carrier.frequency.value = 820;
+    const compressor = audioContext.createDynamicsCompressor();
+    compressor.threshold.value = -20;
+    compressor.knee.value = 12;
+    compressor.ratio.value = 5;
+    compressor.attack.value = 0.005;
+    compressor.release.value = 0.16;
+    const outputGain = audioContext.createGain();
+    outputGain.gain.value = 1.25;
+    const destination = audioContext.createMediaStreamDestination();
+
+    monitor?.gain.setValueAtTime(0, audioContext.currentTime);
+    source.connect(highpass);
+    highpass.connect(lowpass);
+    lowpass.connect(ring);
+    carrier.connect(ring.gain);
+    ring.connect(compressor);
+    compressor.connect(outputGain);
+    outputGain.connect(destination);
+    carrier.start();
+
+    const track = destination.stream.getAudioTracks()[0];
+    if (!track) throw new Error("VOICE_TRACK_UNAVAILABLE");
+    return {
+      track,
+      cleanup: () => {
+        try { source.disconnect(highpass); } catch { /* already disconnected */ }
+        try { carrier.stop(); } catch { /* already stopped */ }
+        carrier.disconnect();
+        highpass.disconnect();
+        lowpass.disconnect();
+        ring.disconnect();
+        compressor.disconnect();
+        outputGain.disconnect();
+        track.stop();
+        monitor?.gain.setValueAtTime(1, audioContext.currentTime);
+      },
+    };
+  };
+
   const reset = () => {
     videoRef.current?.pause();
     cancelAnimationFrame(animationRef.current);
@@ -980,6 +1067,10 @@ export default function PrivacyStudio() {
     lastInferenceErrorRef.current = 0;
     setSubjects([]);
     setSelectedSubjectIds(new Set());
+    void audioContextRef.current?.close();
+    audioContextRef.current = null;
+    audioSourceRef.current = null;
+    audioMonitorRef.current = null;
   };
 
   const exportOffline = async () => {
@@ -1037,6 +1128,10 @@ export default function PrivacyStudio() {
       const sourceCtx = sourceCanvas.getContext("2d", { alpha: false });
       if (!sourceCtx) throw new Error("NO_CANVAS_CONTEXT");
 
+      let voicePreviousInput: number[] = [];
+      let voicePreviousHighpass: number[] = [];
+      let voicePreviousLowpass: number[] = [];
+
       let frameNumber = 0;
       let processingLock: Promise<void> = Promise.resolve();
       const runInOrder = <T,>(task: () => Promise<T>) => {
@@ -1071,6 +1166,42 @@ export default function PrivacyStudio() {
             });
           }),
         },
+        audio: audioMode === "mute" ? { discard: true } : audioMode === "voice" ? {
+          sampleFormat: "f32",
+          forceTranscode: true,
+          process: (sample) => {
+            const channels = sample.numberOfChannels;
+            const data = new Float32Array(sample.numberOfFrames * channels);
+            sample.copyTo(data, { planeIndex: 0, format: "f32" });
+            if (voicePreviousInput.length !== channels) {
+              voicePreviousInput = Array(channels).fill(0);
+              voicePreviousHighpass = Array(channels).fill(0);
+              voicePreviousLowpass = Array(channels).fill(0);
+            }
+            const highpassAlpha = Math.exp((-2 * Math.PI * 120) / sample.sampleRate);
+            const lowpassAlpha = 1 - Math.exp((-2 * Math.PI * 4300) / sample.sampleRate);
+            for (let frame = 0; frame < sample.numberOfFrames; frame += 1) {
+              const carrier = Math.sin(2 * Math.PI * 820 * (sample.timestamp + frame / sample.sampleRate));
+              for (let channel = 0; channel < channels; channel += 1) {
+                const index = frame * channels + channel;
+                const inputValue = data[index];
+                const highpassed = highpassAlpha * (voicePreviousHighpass[channel] + inputValue - voicePreviousInput[channel]);
+                const lowpassed = voicePreviousLowpass[channel] + lowpassAlpha * (highpassed - voicePreviousLowpass[channel]);
+                voicePreviousInput[channel] = inputValue;
+                voicePreviousHighpass[channel] = highpassed;
+                voicePreviousLowpass[channel] = lowpassed;
+                data[index] = Math.tanh(lowpassed * carrier * 2.4) * 0.72;
+              }
+            }
+            return new media.AudioSample({
+              data,
+              format: "f32",
+              numberOfChannels: channels,
+              sampleRate: sample.sampleRate,
+              timestamp: sample.timestamp,
+            });
+          },
+        } : undefined,
         showWarnings: false,
       });
 
@@ -1120,6 +1251,19 @@ export default function PrivacyStudio() {
       setMessage("当前浏览器暂不支持导出，请使用最新版 Chrome 或 Edge");
       return;
     }
+    let voiceTrack: MediaStreamTrack | null = null;
+    let cleanupVoiceTrack: (() => void) | null = null;
+    if (audioMode === "voice") {
+      try {
+        const voiceOutput = await createVoiceExportTrack(video);
+        voiceTrack = voiceOutput.track;
+        cleanupVoiceTrack = voiceOutput.cleanup;
+      } catch (error) {
+        console.error("Failed to initialize local voice filter", error);
+        setMessage("当前浏览器无法初始化隐私变音；请选择保留原声或静音");
+        return;
+      }
+    }
     setExporting(true);
     setDownloadUrl("");
     setProgress(0);
@@ -1132,12 +1276,15 @@ export default function PrivacyStudio() {
 
     const canvasStream = canvas.captureStream(30);
     const sourceStream = (video as HTMLVideoElement & { captureStream?: () => MediaStream }).captureStream?.();
-    sourceStream?.getAudioTracks().forEach((track) => canvasStream.addTrack(track));
+    if (audioMode === "original") sourceStream?.getAudioTracks().forEach((track) => canvasStream.addTrack(track));
+    if (voiceTrack) canvasStream.addTrack(voiceTrack);
     const mimeType = pickMimeType();
     const recorder = new MediaRecorder(canvasStream, mimeType ? { mimeType, videoBitsPerSecond: 6_000_000 } : undefined);
     const chunks: BlobPart[] = [];
     recorder.ondataavailable = (event) => event.data.size && chunks.push(event.data);
     recorder.onstop = () => {
+      cleanupVoiceTrack?.();
+      cleanupVoiceTrack = null;
       void (async () => {
         const recordedMime = mimeType || "video/webm";
         const recordedBlob = new Blob(chunks, { type: recordedMime });
@@ -1166,8 +1313,19 @@ export default function PrivacyStudio() {
     };
     video.onended = () => exportStopRef.current?.();
     video.ontimeupdate = () => setProgress(duration ? Math.min(99, (video.currentTime / duration) * 100) : 0);
-    recorder.start(1000);
-    await video.play();
+    try {
+      recorder.start(1000);
+      await video.play();
+    } catch (error) {
+      console.error("Failed to start video export playback", error);
+      cleanupVoiceTrack?.();
+      cleanupVoiceTrack = null;
+      recorder.onstop = null;
+      if (recorder.state !== "inactive") recorder.stop();
+      setExporting(false);
+      setMessage("无法开始视频播放，请重新打开视频后再试");
+      return;
+    }
     setIsPlaying(true);
     cancelAnimationFrame(animationRef.current);
     animationRef.current = requestAnimationFrame(renderLoop);
@@ -1195,7 +1353,7 @@ export default function PrivacyStudio() {
       <section className="hero" id="top">
         <div className="eyebrow"><Sparkles size={15} /> LOCAL-FIRST VIDEO PRIVACY</div>
         <h1>想分享生活，<br /><span>先把隐私藏好。</span></h1>
-        <p>孩子的视频、家人的身影、偶然入镜的路人，都可能成为可被复制的人像素材。<br className="desktop-only" />镜隐在本机完成遮盖，减少清晰画面被截取、冒用或用于 AI 换脸的风险。</p>
+        <p>孩子的视频、家人的身影和清晰语音，都可能成为可被复制的身份素材。<br className="desktop-only" />镜隐在本机完成画面遮盖与声音处理，减少内容被截取、冒用或用于 AI 换脸与声音克隆的风险。</p>
         <div className="trust-row">
           <span><Check size={15} /> 无需注册</span>
           <span><Check size={15} /> 免费使用</span>
@@ -1226,6 +1384,7 @@ export default function PrivacyStudio() {
                   ref={videoRef}
                   crossOrigin="anonymous"
                   src={videoUrl}
+                  muted={audioMode === "mute"}
                   playsInline
                   preload="metadata"
                   onLoadedMetadata={(event) => {
@@ -1346,6 +1505,17 @@ export default function PrivacyStudio() {
                 <div className="watermark-note"><LockKeyhole size={14} /><span><strong>网页版默认添加右下角水印</strong><small>后续可通过广告权益或一次买断移除；当前版本暂不提供付费入口。</small></span></div>
                 </>}
               </>}
+              {(maskScope === "full" || settingsTab === "general") && (
+                <div className="control-block audio-privacy-control">
+                  <div className="control-title"><span>声音处理</span><small>{audioMode === "voice" ? "本地电子变音" : audioMode === "mute" ? "导出无音轨" : "保留视频原声"}</small></div>
+                  <div className="segmented-control audio-mode-control" aria-label="声音隐私">
+                    <button type="button" disabled={exporting} className={audioMode === "original" ? "active" : ""} aria-pressed={audioMode === "original"} onClick={() => setAudioMode("original")}>原声 <small>保留</small></button>
+                    <button type="button" disabled={exporting} className={audioMode === "voice" ? "active" : ""} aria-pressed={audioMode === "voice"} onClick={() => setAudioMode("voice")}>变音 <small>电子音</small></button>
+                    <button type="button" disabled={exporting} className={audioMode === "mute" ? "active" : ""} aria-pressed={audioMode === "mute"} onClick={() => setAudioMode("mute")}>静音 <small>无音轨</small></button>
+                  </div>
+                  <p className="audio-mode-note">变音在导出时应用；静音会同时关闭预览声音。</p>
+                </div>
+              )}
               {settingsTab === "subjects" && maskScope !== "full" && <>
                 <div className="entity-heading"><span>{maskScope === "background" ? "选择要保留清晰的主体" : "选择要遮盖的主体"}</span><small>可多选</small></div>
                 <div className="entity-list">
@@ -1448,7 +1618,7 @@ export default function PrivacyStudio() {
           </article>
           <article>
             <span className="scenario-icon"><ScanFace /></span>
-            <div><h3>降低 AI 换脸素材风险</h3><p>高质量正脸和连续动作更容易成为可复用素材。模糊人物能降低画面被直接截取利用的价值。</p><small>适合：遮盖主体 / 全画面</small></div>
+            <div><h3>降低 AI 换脸与声音克隆风险</h3><p>高质量正脸、连续动作和清晰语音都可能成为可复用素材，可同时模糊人物并变音或静音。</p><small>适合：遮盖主体 + 声音处理</small></div>
           </article>
           <article>
             <span className="scenario-icon"><MapPin /></span>
@@ -1466,7 +1636,7 @@ export default function PrivacyStudio() {
         <h2 id="how-title">三步，保护每一帧。</h2>
         <div className="steps">
           <article><span>01</span><div className="step-icon"><FileVideo /></div><h3>上传视频</h3><p>从手机或电脑选择视频，文件只在本机打开。</p></article>
-          <article><span>02</span><div className="step-icon"><EyeOff /></div><h3>选择实体</h3><p>勾选人物、车辆或宠物，预览自动打码效果。</p></article>
+          <article><span>02</span><div className="step-icon"><EyeOff /></div><h3>设置隐私处理</h3><p>选择画面遮盖范围，并决定保留原声、变音或静音。</p></article>
           <article><span>03</span><div className="step-icon"><ArrowDownToLine /></div><h3>下载结果</h3><p>浏览器逐帧完成处理，然后直接保存到设备。</p></article>
         </div>
       </section>
