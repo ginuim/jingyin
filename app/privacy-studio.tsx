@@ -25,6 +25,7 @@ type EntityKey = "person" | "vehicle" | "pet";
 type QualityMode = "fast" | "balanced" | "precise";
 type MaskScope = "subjects" | "background" | "full";
 type FullFrameStyle = "blur" | "pixel" | "ascii";
+type SettingsTab = "general" | "subjects";
 type TrackedDetection = DetectedObject & { trackId: string };
 type SubjectItem = { id: string; key: EntityKey; label: string; thumbnail: string };
 type TrackState = { id: string; className: string; bbox: [number, number, number, number]; lastSeen: number };
@@ -133,6 +134,7 @@ export default function PrivacyStudio() {
   const [quality, setQuality] = useState<QualityMode>("balanced");
   const [maskScope, setMaskScope] = useState<MaskScope>("full");
   const [fullFrameStyle, setFullFrameStyle] = useState<FullFrameStyle>("blur");
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
   const [effectStrength, setEffectStrength] = useState(46);
   const [highLoadRequested, setHighLoadRequested] = useState(false);
   const [modelState, setModelState] = useState<"idle" | "loading" | "ready" | "error">("idle");
@@ -1187,11 +1189,14 @@ export default function PrivacyStudio() {
             </div>
 
             <aside className="settings-panel">
-              <div className="settings-head">
-                <div><span>STEP 2</span><h2>设置隐私遮罩</h2></div>
+              <div className="settings-toolbar">
+                <div className="settings-tabs" role="tablist" aria-label="设置分类">
+                  <button type="button" role="tab" aria-selected={settingsTab === "general"} className={settingsTab === "general" ? "active" : ""} onClick={() => setSettingsTab("general")}>通用设置</button>
+                  <button type="button" role="tab" aria-selected={settingsTab === "subjects"} className={settingsTab === "subjects" ? "active" : ""} onClick={() => setSettingsTab("subjects")}>选择主体</button>
+                </div>
                 <button type="button" onClick={reset} disabled={exporting} aria-label="移除视频"><X size={19} /></button>
               </div>
-              <p className="settings-copy">先选择遮盖范围；全画面模式不需要 AI 识别，主体模式再选择精度与具体实体。</p>
+              {settingsTab === "general" && <>
               <div className="control-block">
                 <div className="control-title"><span>遮盖范围</span><small>{maskScope === "background" ? "反选已开启" : maskScope === "full" ? "无需 AI 识别" : "常规"}</small></div>
                 <div className="segmented-control scope-control" aria-label="遮盖范围">
@@ -1256,7 +1261,8 @@ export default function PrivacyStudio() {
                 </div>
               </>}
               <div className="watermark-note"><LockKeyhole size={14} /><span><strong>网页版默认添加右下角水印</strong><small>后续可通过广告权益或一次买断移除；当前版本暂不提供付费入口。</small></span></div>
-              {maskScope !== "full" && <>
+              </>}
+              {settingsTab === "subjects" && maskScope !== "full" && <>
                 <div className="entity-heading"><span>{maskScope === "background" ? "选择要保留清晰的主体" : "选择要遮盖的主体"}</span><small>可多选</small></div>
                 <div className="entity-list">
                 {ENTITY_GROUPS.map((group) => {
@@ -1311,6 +1317,8 @@ export default function PrivacyStudio() {
               ) : <p className="subject-empty">加载后会在这里列出人物、车辆和宠物，可逐个勾选。</p>}
                 <p className="tracking-note">主体编号由本地跟踪生成；多人交叉遮挡或离开后重新出现时，可能生成新编号。</p>
               </>}
+              {settingsTab === "subjects" && maskScope === "full" && <div className="subject-empty subject-tab-disabled">全画面模式不需要选择主体</div>}
+              {settingsTab === "subjects" && <>
               <div className="coming-soon"><span>人脸与车牌</span><small>精细识别模型 · 即将支持</small></div>
               <div className="app-upsell" id="app-preview">
                 <span className="app-kicker">NATIVE APP · ULTRA</span>
@@ -1318,6 +1326,7 @@ export default function PrivacyStudio() {
                 <small>原生 GPU/NPU 推理、硬件编解码和时序跟踪，更适合长视频、4K 与低耗电处理。</small>
                 <button type="button" onClick={() => setMessage("App 超精细版正在规划中，网页端会继续保持免费的性能平衡模式")}>查看 App 版计划</button>
               </div>
+              </>}
               <div className="privacy-note"><ShieldCheck size={18} /><span><strong>只在你的浏览器中运行</strong><small>原视频和处理结果都不会上传。</small></span></div>
               {exporting ? (
                 <div className="export-progress">
