@@ -1190,13 +1190,8 @@ export default function PrivacyStudio() {
 
             <aside className="settings-panel">
               <div className="settings-toolbar">
-                <div className="settings-tabs" role="tablist" aria-label="设置分类">
-                  <button type="button" role="tab" aria-selected={settingsTab === "general"} className={settingsTab === "general" ? "active" : ""} onClick={() => setSettingsTab("general")}>通用设置</button>
-                  <button type="button" role="tab" aria-selected={settingsTab === "subjects"} className={settingsTab === "subjects" ? "active" : ""} onClick={() => setSettingsTab("subjects")}>选择主体</button>
-                </div>
                 <button type="button" onClick={reset} disabled={exporting} aria-label="移除视频"><X size={19} /></button>
               </div>
-              {settingsTab === "general" && <>
               <div className="control-block">
                 <div className="control-title"><span>遮盖范围</span><small>{maskScope === "background" ? "反选已开启" : maskScope === "full" ? "无需 AI 识别" : "常规"}</small></div>
                 <div className="segmented-control scope-control" aria-label="遮盖范围">
@@ -1205,6 +1200,13 @@ export default function PrivacyStudio() {
                   <button type="button" disabled={exporting} className={maskScope === "background" ? "active" : ""} aria-pressed={maskScope === "background"} onClick={() => { if (maskScope === "full" && fullFrameStyle !== "blur") setEffectStrength(46); setMaskScope("background"); void loadModel().then(() => { if (videoRef.current) void analyzeCurrentFrame(videoRef.current); }); }}>遮盖主体之外</button>
                 </div>
               </div>
+
+              {maskScope !== "full" && (
+                <div className="settings-tabs" role="tablist" aria-label="设置分类">
+                  <button type="button" role="tab" aria-selected={settingsTab === "general"} className={settingsTab === "general" ? "active" : ""} onClick={() => setSettingsTab("general")}>通用设置</button>
+                  <button type="button" role="tab" aria-selected={settingsTab === "subjects"} className={settingsTab === "subjects" ? "active" : ""} onClick={() => setSettingsTab("subjects")}>选择主体</button>
+                </div>
+              )}
 
               {maskScope === "full" ? (
                 <div className="control-block effect-control">
@@ -1223,6 +1225,7 @@ export default function PrivacyStudio() {
                   )}
                 </div>
               ) : <>
+                {settingsTab === "general" && <>
                 <div className="control-block">
                   <div className="control-title"><span>处理精度</span><small>{quality === "precise" ? "逐帧最稳" : quality === "balanced" ? "轮廓实时" : "轻量人形"}</small></div>
                   <div className="segmented-control quality-control" aria-label="处理精度">
@@ -1259,8 +1262,8 @@ export default function PrivacyStudio() {
                     <span>64</span>
                   </div>
                 </div>
-              </>}
-              <div className="watermark-note"><LockKeyhole size={14} /><span><strong>网页版默认添加右下角水印</strong><small>后续可通过广告权益或一次买断移除；当前版本暂不提供付费入口。</small></span></div>
+                <div className="watermark-note"><LockKeyhole size={14} /><span><strong>网页版默认添加右下角水印</strong><small>后续可通过广告权益或一次买断移除；当前版本暂不提供付费入口。</small></span></div>
+                </>}
               </>}
               {settingsTab === "subjects" && maskScope !== "full" && <>
                 <div className="entity-heading"><span>{maskScope === "background" ? "选择要保留清晰的主体" : "选择要遮盖的主体"}</span><small>可多选</small></div>
@@ -1317,8 +1320,7 @@ export default function PrivacyStudio() {
               ) : <p className="subject-empty">加载后会在这里列出人物、车辆和宠物，可逐个勾选。</p>}
                 <p className="tracking-note">主体编号由本地跟踪生成；多人交叉遮挡或离开后重新出现时，可能生成新编号。</p>
               </>}
-              {settingsTab === "subjects" && maskScope === "full" && <div className="subject-empty subject-tab-disabled">全画面模式不需要选择主体</div>}
-              {settingsTab === "subjects" && <>
+              {settingsTab === "subjects" && maskScope !== "full" && <>
               <div className="coming-soon"><span>人脸与车牌</span><small>精细识别模型 · 即将支持</small></div>
               <div className="app-upsell" id="app-preview">
                 <span className="app-kicker">NATIVE APP · ULTRA</span>
