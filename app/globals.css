@@ -62,6 +62,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .video-shell { position: relative; overflow: hidden; width: 100%; aspect-ratio: 16 / 10; border-radius: 14px; background: #0e1413; box-shadow: 0 18px 42px rgba(0,0,0,.2); }
 .video-shell video { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
 .video-shell canvas { display: block; width: 100%; height: 100%; object-fit: contain; }
+.video-close-mobile { display: none; }
 .model-loading, .detect-pill { position: absolute; z-index: 2; left: 14px; top: 14px; max-width: calc(100% - 28px); display: inline-flex; align-items: center; gap: 8px; padding: 8px 11px; border-radius: 9px; color: #f1f8f5; background: rgba(17,29,26,.78); backdrop-filter: blur(10px); font-size: 12px; }
 .model-loading span { width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.35); border-top-color: var(--mint); border-radius: 50%; animation: spin .8s linear infinite; }
 .detect-pill span { width: 7px; height: 7px; background: var(--mint); border-radius: 50%; box-shadow: 0 0 0 4px rgba(88,211,164,.14); }
@@ -187,6 +188,8 @@ footer button { margin-left: auto; display: flex; align-items: center; gap: 6px;
   .workspace { grid-template-columns: 1fr; }
   .preview-column { min-height: 420px; border-radius: 18px 18px 0 0; }
   .settings-panel { padding: 26px 24px 22px; }
+  .settings-toolbar { display: none; }
+  .video-close-mobile { position: absolute; top: 10px; right: 10px; z-index: 4; width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 10px; background: rgba(237,240,236,.88); color: #69736f; opacity: .6; cursor: pointer; backdrop-filter: blur(8px); }
   .studio { padding: 10px; }
   .steps { grid-template-columns: 1fr; }
   .privacy-banner { padding: 35px; }
@@ -209,7 +212,6 @@ footer button { margin-left: auto; display: flex; align-items: center; gap: 6px;
   .video-shell { aspect-ratio: 4 / 3; }
   .player-controls { margin: 12px 3px 4px; grid-template-columns: 34px 38px 1fr 38px; gap: 7px; }
   .settings-panel { padding: 24px 15px 16px; }
-  .settings-toolbar { margin-bottom: 10px; }
   .settings-tabs { gap: 5px; }
   .settings-tabs button { min-height: 40px; font-size: 12px; }
   .settings-head h2 { font-size: 20px; }

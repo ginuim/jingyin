@@ -1162,6 +1162,7 @@ export default function PrivacyStudio() {
                   aria-label="原始视频（隐藏显示）"
                 />
                 <canvas ref={canvasRef} aria-label="隐私打码预览" />
+                <button className="video-close-mobile" type="button" onClick={reset} disabled={exporting} aria-label="移除视频"><X size={18} /></button>
                 {modelLoadingVisible && maskScope !== "full" && (
                   <div className="model-loading">
                     <span />
@@ -1190,7 +1191,7 @@ export default function PrivacyStudio() {
 
             <aside className="settings-panel">
               <div className="settings-toolbar">
-                <button type="button" onClick={reset} disabled={exporting} aria-label="移除视频"><X size={19} /></button>
+                <button className="desktop-close" type="button" onClick={reset} disabled={exporting} aria-label="移除视频"><X size={19} /></button>
               </div>
               <div className="control-block">
                 <div className="control-title"><span>遮盖范围</span><small>{maskScope === "background" ? "反选已开启" : maskScope === "full" ? "无需 AI 识别" : "常规"}</small></div>
