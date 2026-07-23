@@ -1505,8 +1505,8 @@ export default function PrivacyStudio() {
             <button type="button" className={locale === "zh" ? "active" : ""} aria-pressed={locale === "zh"} onClick={() => setLocale("zh")}>{copy.header.langZh}</button>
             <button type="button" className={locale === "en" ? "active" : ""} aria-pressed={locale === "en"} onClick={() => setLocale("en")}>{copy.header.langEn}</button>
           </div>
-          <div className="local-badge"><LockKeyhole size={14} /> {copy.header.localBadge}</div>
         </div>
+        <div className="local-badge local-badge-header"><LockKeyhole size={14} /> {copy.header.localBadge}</div>
       </header>
 
       <section className="hero" id="top">
@@ -1532,6 +1532,7 @@ export default function PrivacyStudio() {
             <span className="upload-icon"><Upload size={30} /></span>
             <strong>{copy.studio.uploadTitle}</strong>
             <span>{copy.studio.uploadHint}</span>
+            <span className="local-badge local-badge-upload"><LockKeyhole size={14} /> {copy.header.localBadge}</span>
             <span className="upload-button">{copy.studio.uploadButton} <ChevronRight size={17} /></span>
             <small>{copy.studio.uploadFormats}</small>
           </button>
