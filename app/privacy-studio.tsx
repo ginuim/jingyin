@@ -45,6 +45,10 @@ type VoiceAudioGraph = {
 type BiquadCoefficients = { b0: number; b1: number; b2: number; a1: number; a2: number };
 type BiquadState = { x1: number; x2: number; y1: number; y2: number };
 
+// High precision remains implemented for future iteration, but its current
+// visual quality is not strong enough to expose in the product.
+const PRECISE_MODE_ENABLED = false;
+
 function formatTime(seconds: number) {
   if (!Number.isFinite(seconds)) return "00:00";
   const m = Math.floor(seconds / 60).toString().padStart(2, "0");
@@ -1622,20 +1626,20 @@ export default function PrivacyStudio() {
                 {settingsTab === "general" && <>
                 <div className="control-block">
                   <div className="control-title"><span>{copy.quality.title}</span><small>{quality === "precise" ? copy.quality.precise : quality === "balanced" ? copy.quality.balanced : copy.quality.fast}</small></div>
-                  <div className="segmented-control quality-control" aria-label={copy.quality.aria}>
+                  <div className={`segmented-control quality-control ${PRECISE_MODE_ENABLED ? "has-precise" : ""}`} aria-label={copy.quality.aria}>
                     <button type="button" disabled={exporting} className={quality === "fast" ? "active" : ""} aria-pressed={quality === "fast"} onClick={() => setQuality("fast")}>{copy.quality.low} <small>{copy.quality.lowSub}</small></button>
                     <button type="button" disabled={exporting} className={quality === "balanced" ? "active" : ""} aria-pressed={quality === "balanced"} onClick={() => setQuality("balanced")}>{copy.quality.mid} <small>{copy.quality.midSub}</small></button>
-                    <button type="button" disabled={exporting} className={quality === "precise" ? "active" : ""} aria-pressed={quality === "precise"} onClick={() => {
+                    {PRECISE_MODE_ENABLED && <button type="button" disabled={exporting} className={quality === "precise" ? "active" : ""} aria-pressed={quality === "precise"} onClick={() => {
                       if (!supportsPreciseWebMode()) {
                         setMessage(msg.mobileHighDisabled);
                         return;
                       }
                       setQuality("precise");
                       if (preciseModelState !== "ready") setMessage(msg.highModelSizeHint);
-                    }}>{copy.quality.high} <small>{copy.quality.highSub}</small></button>
+                    }}>{copy.quality.high} <small>{copy.quality.highSub}</small></button>}
                   </div>
                 </div>
-                {quality === "precise" && (
+                {PRECISE_MODE_ENABLED && quality === "precise" && (
                   <div className="offline-notice">
                     <strong>{copy.quality.preciseNoticeTitle}</strong>
                     <span>{copy.quality.preciseNoticeBodyReady}{preciseModelState === "ready" ? (estimatedHighSeconds === null ? copy.quality.preciseNoticeBodyBenchmarking : copy.quality.preciseEstimateDone(formatTime(estimatedHighSeconds))) : copy.quality.preciseNoticeBodyIdle}</span>
