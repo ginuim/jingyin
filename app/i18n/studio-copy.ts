@@ -11,6 +11,7 @@ export type StudioCopy = {
     langZh: string;
     langEn: string;
     langSwitchAria: string;
+    themeToggleAria: string;
   };
   hero: {
     eyebrow: string;
@@ -168,7 +169,6 @@ export type StudioCopy = {
     tagline: string;
     reaidea: string;
     reaideaAria: string;
-    newVideo: string;
   };
   msg: {
     inferenceSecurity: string;
@@ -223,6 +223,7 @@ const zh: StudioCopy = {
     langZh: "中文",
     langEn: "EN",
     langSwitchAria: "切换语言",
+    themeToggleAria: "切换浅色/深色显示",
   },
   hero: {
     eyebrow: "LOCAL-FIRST VIDEO PRIVACY",
@@ -412,7 +413,6 @@ const zh: StudioCopy = {
     tagline: "浏览器里的视频隐私保护工具",
     reaidea: "reaidea.com",
     reaideaAria: "访问 reaidea 主站",
-    newVideo: "处理一个新视频",
   },
   msg: {
     inferenceSecurity: "浏览器拒绝读取当前视频帧，已安全跳过；请重新选择原始本地视频，避免从网页播放器直接分享的临时文件",
@@ -467,6 +467,7 @@ const en: StudioCopy = {
     langZh: "中文",
     langEn: "EN",
     langSwitchAria: "Switch language",
+    themeToggleAria: "Toggle light/dark appearance",
   },
   hero: {
     eyebrow: "LOCAL-FIRST VIDEO PRIVACY",
@@ -656,7 +657,6 @@ const en: StudioCopy = {
     tagline: "Video privacy tools in the browser",
     reaidea: "reaidea.com",
     reaideaAria: "Visit reaidea.com",
-    newVideo: "Process another video",
   },
   msg: {
     inferenceSecurity: "The browser blocked reading this frame (safe skip). Re-select the original local file—not a temporary share from another web player.",

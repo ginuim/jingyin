@@ -9,12 +9,13 @@ import {
   EyeOff,
   FileVideo,
   LockKeyhole,
+  Moon,
   Pause,
   Play,
-  RotateCcw,
   ScanFace,
   ShieldCheck,
   Sparkles,
+  Sun,
   Upload,
   MapPin,
   Users,
@@ -25,6 +26,7 @@ import type { BodyPix, PersonSegmentation, SemanticPersonSegmentation } from "@t
 import soundTouchProcessorUrl from "@soundtouchjs/audio-worklet/processor?url";
 import { loadYoloSegModel, segmentWithYolo, supportsPreciseWebMode, supportsWebGpu, type YoloLoadProgress, type YoloMask } from "./yolo-seg";
 import { useLocale } from "./i18n/locale";
+import { useTheme } from "./i18n/theme";
 import { ENTITY_CLASS_GROUPS, entityKeyForClass, getStudioCopy, type EntityKey } from "./i18n/studio-copy";
 
 type QualityMode = "fast" | "balanced" | "precise";
@@ -164,6 +166,7 @@ function applyBiquad(value: number, state: BiquadState, coefficients: BiquadCoef
 
 export default function PrivacyStudio() {
   const { locale, setLocale } = useLocale();
+  const { theme, toggleTheme } = useTheme();
   const copy = getStudioCopy(locale);
   const msg = copy.msg;
 
@@ -1482,6 +1485,18 @@ export default function PrivacyStudio() {
           <span>{copy.brand}</span>
         </a>
         <div className="header-actions">
+          <button
+            type="button"
+            className="theme-toggle"
+            data-theme-toggle
+            aria-label={copy.header.themeToggleAria}
+            aria-pressed={theme === "dark"}
+            title={copy.header.themeToggleAria}
+            onClick={toggleTheme}
+          >
+            <span className="theme-toggle-icon theme-toggle-moon" aria-hidden="true"><Moon size={17} /></span>
+            <span className="theme-toggle-icon theme-toggle-sun" aria-hidden="true"><Sun size={17} /></span>
+          </button>
           <div className="lang-switch" role="group" aria-label={copy.header.langSwitchAria}>
             <button type="button" className={locale === "zh" ? "active" : ""} aria-pressed={locale === "zh"} onClick={() => setLocale("zh")}>{copy.header.langZh}</button>
             <button type="button" className={locale === "en" ? "active" : ""} aria-pressed={locale === "en"} onClick={() => setLocale("en")}>{copy.header.langEn}</button>
@@ -1794,7 +1809,6 @@ export default function PrivacyStudio() {
         <a className="brand" href="#top"><span className="brand-mark"><EyeOff size={18} /></span><span>{copy.brand}</span></a>
         <p>{copy.footer.tagline}</p>
         <a className="reaidea-link" href="https://reaidea.com" rel="noopener noreferrer" aria-label={copy.footer.reaideaAria}>{copy.footer.reaidea}</a>
-        <button type="button" onClick={() => { reset(); inputRef.current?.click(); }}><RotateCcw size={15} /> {copy.footer.newVideo}</button>
       </footer>
     </main>
   );
