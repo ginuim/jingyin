@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { headers } from "next/headers";
 import "./globals.css";
+import { GoogleAdsense } from "./google-adsense";
 import { REAIDEA_THEME_BOOT_SCRIPT } from "./i18n/reaidea-theme";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -51,11 +52,15 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("x-forwarded-host") || requestHeaders.get("host") || "";
+
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: REAIDEA_THEME_BOOT_SCRIPT }} />
+        <GoogleAdsense host={host} />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable}`}>{children}</body>
     </html>

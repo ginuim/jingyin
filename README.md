@@ -92,6 +92,20 @@ actions tied to the current ChatGPT user. Leave public content anonymous.
 - `npm test`: build the starter and verify its rendered loading skeleton
 - `npm run db:generate`: generate Drizzle migrations after schema changes
 
+## AdSense
+
+The production host `lenshide.reaidea.com` loads AdSense with publisher
+`ca-pub-1445418365552396`. Local development and preview deployments do not
+request ads.
+
+- Override the publisher with `NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT`.
+- Set `NEXT_PUBLIC_GOOGLE_ADSENSE_ENABLED=true` to test script injection on a
+  non-production host, or `false` to disable it everywhere.
+- Configure a low-frequency Offerwall with the rewarded-ad choice in AdSense
+  under **Privacy & messaging**. Google controls whether it appears and skips it
+  when no rewarded inventory is available; the video export flow must remain
+  usable when it does not appear.
+
 ## Learn More
 
 - [vinext Documentation](https://github.com/cloudflare/vinext)
