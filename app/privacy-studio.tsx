@@ -24,8 +24,9 @@ import type { ObjectDetection, DetectedObject } from "@tensorflow-models/coco-ss
 import type { BodyPix, PersonSegmentation, SemanticPersonSegmentation } from "@tensorflow-models/body-pix";
 import soundTouchProcessorUrl from "@soundtouchjs/audio-worklet/processor?url";
 import { loadYoloSegModel, segmentWithYolo, supportsPreciseWebMode, supportsWebGpu, type YoloLoadProgress, type YoloMask } from "./yolo-seg";
+import { useLocale } from "./i18n/locale";
+import { ENTITY_CLASS_GROUPS, entityKeyForClass, getStudioCopy, type EntityKey } from "./i18n/studio-copy";
 
-type EntityKey = "person" | "vehicle" | "pet";
 type QualityMode = "fast" | "balanced" | "precise";
 type MaskScope = "subjects" | "background" | "full";
 type FullFrameStyle = "blur" | "pixel" | "ascii";
@@ -41,12 +42,6 @@ type VoiceAudioGraph = {
 };
 type BiquadCoefficients = { b0: number; b1: number; b2: number; a1: number; a2: number };
 type BiquadState = { x1: number; x2: number; y1: number; y2: number };
-
-const ENTITY_GROUPS: Array<{ key: EntityKey; label: string; sub: string; classes: string[] }> = [
-  { key: "person", label: "人物", sub: "全身与半身", classes: ["person"] },
-  { key: "vehicle", label: "车辆", sub: "汽车、摩托与公交", classes: ["car", "truck", "bus", "motorcycle", "bicycle"] },
-  { key: "pet", label: "宠物", sub: "猫与狗", classes: ["cat", "dog"] },
-];
 
 function formatTime(seconds: number) {
   if (!Number.isFinite(seconds)) return "00:00";
@@ -128,10 +123,6 @@ async function finalizeRecordedMedia(blob: Blob, mimeType: string, onProgress?: 
   }
 }
 
-function entityKeyForClass(className: string) {
-  return ENTITY_GROUPS.find((group) => group.classes.includes(className))?.key;
-}
-
 function intersectionOverUnion(a: number[], b: number[]) {
   const left = Math.max(a[0], b[0]);
   const top = Math.max(a[1], b[1]);
@@ -172,6 +163,10 @@ function applyBiquad(value: number, state: BiquadState, coefficients: BiquadCoef
 }
 
 export default function PrivacyStudio() {
+  const { locale, setLocale } = useLocale();
+  const copy = getStudioCopy(locale);
+  const msg = copy.msg;
+
   const inputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -272,8 +267,14 @@ export default function PrivacyStudio() {
     voiceAudioGraphRef.current = null;
   }, []);
 
+  const watermarkTextRef = useRef("LensHide · PRIVACY");
+
+  useEffect(() => {
+    watermarkTextRef.current = `${copy.brand} · PRIVACY`;
+  }, [copy.brand]);
+
   const isSelectedClass = useCallback((className: string) => {
-    return ENTITY_GROUPS.some((group) => selectedRef.current.has(group.key) && group.classes.includes(className));
+    return ENTITY_CLASS_GROUPS.some((group) => selectedRef.current.has(group.key) && group.classes.includes(className));
   }, []);
 
   const getSegmentationModel = useCallback(() => {
@@ -313,10 +314,8 @@ export default function PrivacyStudio() {
     if (now - lastInferenceErrorRef.current < 4000) return;
     lastInferenceErrorRef.current = now;
     const securityError = isTaintedCanvasError(error);
-    setMessage(securityError
-      ? "浏览器拒绝读取当前视频帧，已安全跳过；请重新选择原始本地视频，避免从网页播放器直接分享的临时文件"
-      : "当前帧识别失败，已自动跳过并继续处理");
-  }, []);
+    setMessage(securityError ? msg.inferenceSecurity : msg.inferenceFailed);
+  }, [msg.inferenceFailed, msg.inferenceSecurity]);
 
   const assignTracks = useCallback((detections: DetectedObject[]) => {
     trackingFrameRef.current += 1;
@@ -363,7 +362,8 @@ export default function PrivacyStudio() {
         cropCtx.drawImage(source, Math.max(0, x), Math.max(0, y), Math.max(1, w), Math.max(1, h), 0, 0, 72, 72);
       }
       const number = Number(item.trackId.split("-").pop()) || 1;
-      const label = `${ENTITY_GROUPS.find((group) => group.key === key)?.label || "主体"} ${number}`;
+      const entityLabel = copy.entities[key]?.label || copy.entityFallback;
+      const label = `${entityLabel} ${number}`;
       additions.push({ id: item.trackId, key, label, thumbnail: crop.toDataURL("image/jpeg", 0.72) });
       knownSubjectIdsRef.current.add(item.trackId);
     });
@@ -375,7 +375,7 @@ export default function PrivacyStudio() {
         return next;
       });
     }
-  }, []);
+  }, [copy.entities, copy.entityFallback]);
 
   const isSelectedDetection = useCallback((item: TrackedDetection) => {
     return isSelectedClass(item.class) && (!knownSubjectIdsRef.current.has(item.trackId) || selectedSubjectIdsRef.current.has(item.trackId));
@@ -644,7 +644,7 @@ export default function PrivacyStudio() {
     const watermarkSize = Math.max(14, Math.min(30, width * 0.022));
     const watermarkPaddingX = watermarkSize * 0.72;
     const watermarkPaddingY = watermarkSize * 0.48;
-    const watermarkText = "镜隐 · PRIVACY";
+    const watermarkText = watermarkTextRef.current;
     ctx.save();
     ctx.font = `650 ${watermarkSize}px system-ui, sans-serif`;
     const watermarkWidth = ctx.measureText(watermarkText).width + watermarkPaddingX * 2;
@@ -677,9 +677,9 @@ export default function PrivacyStudio() {
     try {
       const model = await loadYoloSegModel((nextProgress) => {
         setPreciseLoadProgress(nextProgress);
-        if (nextProgress.stage === "download") setMessage(`正在下载网页高档模型 ${nextProgress.percent}%`);
-        if (nextProgress.stage === "compile") setMessage("模型下载完成，正在编译 WebGPU 运算图（最长 45 秒）");
-        if (nextProgress.stage === "warmup") setMessage("WebGPU 编译完成，正在进行首次预热（最长 30 秒）");
+        if (nextProgress.stage === "download") setMessage(msg.yoloDownload(nextProgress.percent));
+        if (nextProgress.stage === "compile") setMessage(msg.yoloCompile);
+        if (nextProgress.stage === "warmup") setMessage(msg.yoloWarmup);
       });
       setPreciseModelState("ready");
       return model;
@@ -688,7 +688,7 @@ export default function PrivacyStudio() {
       setPreciseModelState("error");
       throw error;
     }
-  }, []);
+  }, [msg.yoloCompile, msg.yoloDownload, msg.yoloWarmup]);
 
   const renderLoop = useCallback((time: number) => {
     const video = videoRef.current;
@@ -806,21 +806,21 @@ export default function PrivacyStudio() {
 
   useEffect(() => {
     if (!highLoadRequested || quality !== "precise" || modelState !== "ready" || (preciseModelState !== "idle" && preciseModelState !== "error")) return;
-    setMessage("正在后台加载 YOLO 实例分割模型；中、低档已经可以使用");
+    setMessage(msg.yoloBackgroundLoad);
     void loadPreciseModel()
       .then(() => {
         setHighLoadRequested(false);
-        setMessage(supportsWebGpu() ? "YOLO WebGPU 实例分割已就绪" : "当前设备无 WebGPU，将使用兼容模式；建议切换中档或使用 App");
+        setMessage(supportsWebGpu() ? msg.yoloReadyWebGpu : msg.yoloReadyCompat);
       })
       .catch((error) => {
         setHighLoadRequested(false);
         const code = error instanceof Error ? error.message : "";
-        if (code === "MOBILE_WEBGPU_DISABLED") setMessage("为避免手机卡死和发热，网页高档已在移动端停用；请选择中档或使用 App");
-        else if (code === "WEBGPU_REQUIRED") setMessage("当前浏览器没有可用的 WebGPU，高档已停用；请选择中档或使用 App");
-        else if (code.includes("TIMEOUT")) setMessage("本机 WebGPU 初始化超过 75 秒，高档已自动停止；请选择中档或使用 App");
-        else setMessage("YOLO 模型初始化失败；请选择中档或使用 App");
+        if (code === "MOBILE_WEBGPU_DISABLED") setMessage(msg.mobileWebGpuDisabled);
+        else if (code === "WEBGPU_REQUIRED") setMessage(msg.webGpuRequired);
+        else if (code.includes("TIMEOUT")) setMessage(msg.webGpuTimeout);
+        else setMessage(msg.yoloInitFailed);
       });
-  }, [highLoadRequested, loadPreciseModel, modelState, preciseModelState, quality]);
+  }, [highLoadRequested, loadPreciseModel, modelState, msg, preciseModelState, quality]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -844,7 +844,7 @@ export default function PrivacyStudio() {
   const loadModel = useCallback(async () => {
     if (modelRef.current) return;
     setModelState("loading");
-    setMessage("正在加载本地 AI；首次使用需要下载模型，之后浏览器通常会缓存");
+    setMessage(msg.aiLoading);
     try {
       const tf = await import("@tensorflow/tfjs");
       if (tf.findBackend("webgl")) await tf.setBackend("webgl");
@@ -864,21 +864,21 @@ export default function PrivacyStudio() {
       ]);
       if (videoRef.current?.readyState && videoRef.current.readyState >= 2) await analyzeCurrentFrame(videoRef.current);
       setModelState("ready");
-      setMessage("已识别当前画面主体，可在下方逐个选择");
+      setMessage(msg.subjectsIdentified);
     } catch {
       setModelState("error");
-      setMessage("AI 模型加载失败，请检查网络后重试");
+      setMessage(msg.aiLoadFailed);
     }
-  }, [analyzeCurrentFrame]);
+  }, [analyzeCurrentFrame, msg.aiLoadFailed, msg.aiLoading, msg.subjectsIdentified]);
 
   const handleFile = async (nextFile?: File) => {
     if (!nextFile) return;
     if (!nextFile.type.startsWith("video/")) {
-      setMessage("请选择 MP4、MOV 或 WebM 视频");
+      setMessage(msg.invalidFormat);
       return;
     }
     if (nextFile.size > 500 * 1024 * 1024) {
-      setMessage("首期建议使用 500MB 以内的视频");
+      setMessage(msg.fileTooLarge);
       return;
     }
     if (videoUrl) URL.revokeObjectURL(videoUrl);
@@ -903,7 +903,7 @@ export default function PrivacyStudio() {
     }
     setFile(nextFile);
     setVideoUrl(URL.createObjectURL(nextFile));
-    setMessage("视频已在本地打开；请选择遮盖范围");
+    setMessage(msg.videoOpened);
   };
 
   const togglePlayback = async () => {
@@ -1078,7 +1078,7 @@ export default function PrivacyStudio() {
       setAudioMode("original");
       if (video) video.muted = false;
       routeAudioPreview("original");
-      setMessage("当前浏览器无法实时预览变音，请选择保留原声或静音");
+      setMessage(msg.voicePreviewUnsupported);
     }
   };
 
@@ -1133,15 +1133,15 @@ export default function PrivacyStudio() {
     const previewVideo = videoRef.current;
     if (!file || !bodyPixRef.current || !modelRef.current || !previewVideo) return;
     if (!("VideoEncoder" in window) || !("VideoDecoder" in window)) {
-      setMessage("当前浏览器不支持硬件逐帧编码，请使用最新版 Chrome、Edge 或切换快速模式");
+      setMessage(msg.hardwareEncodeUnsupported);
       return;
     }
 
-    setMessage("正在确认 YOLO WebGPU 实例分割模型…");
+    setMessage(msg.confirmingYolo);
     try {
       await loadPreciseModel();
     } catch {
-      setMessage("高精度模型加载失败，请检查网络或切换中档");
+      setMessage(msg.preciseModelFailed);
       return;
     }
 
@@ -1149,7 +1149,7 @@ export default function PrivacyStudio() {
     setDownloadUrl("");
     setProgress(0);
     setEtaSeconds(null);
-    setMessage("正在逐帧识别和编码；请勿锁屏、切换应用或关闭页面");
+    setMessage(msg.preciseProcessing);
     previewVideo.pause();
     cancelAnimationFrame(animationRef.current);
     setIsPlaying(false);
@@ -1341,13 +1341,13 @@ export default function PrivacyStudio() {
       setOutputExtension("mp4");
       setDownloadUrl(URL.createObjectURL(blob));
       setProgress(100);
-      setMessage("逐帧处理完成：每一帧都已等待遮罩生成后再编码");
+      setMessage(msg.preciseComplete);
       previewVideo.currentTime = 0;
       drawFrame();
     } catch (error) {
       const wasCanceled = error instanceof Error && error.name === "ConversionCanceledError";
       setProgress(0);
-      setMessage(wasCanceled ? "已停止逐帧处理" : "逐帧处理失败；可尝试最新版 Chrome 或切换快速模式");
+      setMessage(wasCanceled ? msg.preciseStopped : msg.preciseFailed);
     } finally {
       offlineConversionRef.current = null;
       exportStopRef.current = null;
@@ -1366,7 +1366,7 @@ export default function PrivacyStudio() {
       return;
     }
     if (!("MediaRecorder" in window) || !canvas.captureStream) {
-      setMessage("当前浏览器暂不支持导出，请使用最新版 Chrome 或 Edge");
+      setMessage(msg.exportUnsupported);
       return;
     }
     let voiceTrack: MediaStreamTrack | null = null;
@@ -1378,14 +1378,14 @@ export default function PrivacyStudio() {
         cleanupVoiceTrack = voiceOutput.cleanup;
       } catch (error) {
         console.error("Failed to initialize local voice filter", error);
-        setMessage("当前浏览器无法初始化隐私变音；请选择保留原声或静音");
+        setMessage(msg.voiceInitFailed);
         return;
       }
     }
     setExporting(true);
     setDownloadUrl("");
     setProgress(0);
-    setMessage("正在本地逐帧处理，请保持页面开启");
+    setMessage(msg.fastProcessing);
     video.loop = false;
     video.pause();
     if (video.currentTime > 0.01) {
@@ -1407,19 +1407,19 @@ export default function PrivacyStudio() {
       void (async () => {
         const recordedMime = mimeType || "video/webm";
         const recordedBlob = new Blob(chunks, { type: recordedMime });
-        setMessage(recordedMime.startsWith("video/mp4") ? "正在写入 MP4 时长与播放索引…" : "正在本地生成 H.264/AAC MP4…");
+        setMessage(recordedMime.startsWith("video/mp4") ? msg.writingMp4Index : msg.generatingMp4);
         try {
           const finalized = await finalizeRecordedMedia(recordedBlob, recordedMime, (value) => setProgress(99 + value));
           setOutputExtension(finalized.extension);
           setDownloadUrl(URL.createObjectURL(finalized.blob));
           setMessage(finalized.extension === "mp4"
-            ? `MP4 处理完成 · 时长 ${formatTime(finalized.duration)}`
-            : `处理完成 · 当前设备无 H.264/AAC 编码器，已保留 WebM · ${formatTime(finalized.duration)}`);
+            ? msg.completeMp4(formatTime(finalized.duration))
+            : msg.completeWebm(formatTime(finalized.duration)));
         } catch (error) {
           console.error("Failed to finalize recorded video metadata", error);
           setOutputExtension(recordedMime.startsWith("video/mp4") ? "mp4" : "webm");
           setDownloadUrl(URL.createObjectURL(recordedBlob));
-          setMessage("处理完成，但当前浏览器未能重写时长索引");
+          setMessage(msg.completeNoIndex);
         } finally {
           setExporting(false);
           setProgress(100);
@@ -1446,7 +1446,7 @@ export default function PrivacyStudio() {
       if (recorder.state !== "inactive") recorder.stop();
       setExporting(false);
       video.loop = true;
-      setMessage("无法开始视频播放，请重新打开视频后再试");
+      setMessage(msg.playbackFailed);
       return;
     }
     setIsPlaying(true);
@@ -1458,33 +1458,50 @@ export default function PrivacyStudio() {
   const modelLoadingVisible = modelState === "loading" || (quality === "precise" && preciseModelState === "loading");
   const activeEffectStyle = maskScope === "full" ? fullFrameStyle : "blur";
   const strengthRange = activeEffectStyle === "blur"
-    ? { min: 4, max: 64, unit: "px", label: "模糊半径" }
+    ? { min: 4, max: 64, unit: "px", label: copy.fullFrame.blurRadius }
     : activeEffectStyle === "pixel"
-      ? { min: 6, max: 48, unit: "px", label: "像素块大小" }
-      : { min: 8, max: 30, unit: "px", label: "字符尺寸" };
+      ? { min: 6, max: 48, unit: "px", label: copy.fullFrame.pixelSize }
+      : { min: 8, max: 30, unit: "px", label: copy.fullFrame.charSize };
+
+  useEffect(() => {
+    document.title = copy.documentTitle;
+  }, [copy.documentTitle]);
+
+  const entityGroups = (["person", "vehicle", "pet"] as const).map((key) => ({
+    key,
+    ...copy.entities[key],
+  }));
+
+  const hideModelStatus = message && maskScope === "full" && /(?:AI|模型|识别|model|detect|YOLO|WebGPU)/i.test(message);
 
   return (
     <main>
       <header className="site-header">
-        <a className="brand" href="#top" aria-label="镜隐首页">
+        <a className="brand" href="#top" aria-label={copy.header.homeAria}>
           <span className="brand-mark"><EyeOff size={20} strokeWidth={2.4} /></span>
-          <span>镜隐</span>
+          <span>{copy.brand}</span>
         </a>
-        <div className="local-badge"><LockKeyhole size={14} /> 本地处理 · 不上传</div>
+        <div className="header-actions">
+          <div className="lang-switch" role="group" aria-label={copy.header.langSwitchAria}>
+            <button type="button" className={locale === "zh" ? "active" : ""} aria-pressed={locale === "zh"} onClick={() => setLocale("zh")}>{copy.header.langZh}</button>
+            <button type="button" className={locale === "en" ? "active" : ""} aria-pressed={locale === "en"} onClick={() => setLocale("en")}>{copy.header.langEn}</button>
+          </div>
+          <div className="local-badge"><LockKeyhole size={14} /> {copy.header.localBadge}</div>
+        </div>
       </header>
 
       <section className="hero" id="top">
-        <div className="eyebrow"><Sparkles size={15} /> LOCAL-FIRST VIDEO PRIVACY</div>
-        <h1>想分享生活，<br /><span>先把隐私藏好。</span></h1>
-        <p>孩子的视频、家人的身影和清晰语音，都可能成为可被复制的身份素材。<br className="desktop-only" />镜隐在本机完成画面遮盖与声音处理，减少内容被截取、冒用或用于 AI 换脸与声音克隆的风险。</p>
+        <div className="eyebrow"><Sparkles size={15} /> {copy.hero.eyebrow}</div>
+        <h1>{copy.hero.titleLine1}<br /><span>{copy.hero.titleHighlight}</span></h1>
+        <p>{copy.hero.body}</p>
         <div className="trust-row">
-          <span><Check size={15} /> 无需注册</span>
-          <span><Check size={15} /> 免费使用</span>
-          <span><Check size={15} /> 视频不出设备</span>
+          <span><Check size={15} /> {copy.hero.trustNoSignup}</span>
+          <span><Check size={15} /> {copy.hero.trustFree}</span>
+          <span><Check size={15} /> {copy.hero.trustLocal}</span>
         </div>
       </section>
 
-      <section className={`studio ${file ? "has-video" : ""}`} aria-label="视频打码工作台">
+      <section className={`studio ${file ? "has-video" : ""}`} aria-label={copy.studio.ariaLabel}>
         {!file ? (
           <button
             className="upload-zone"
@@ -1494,10 +1511,10 @@ export default function PrivacyStudio() {
             onDrop={(event) => { event.preventDefault(); void handleFile(event.dataTransfer.files[0]); }}
           >
             <span className="upload-icon"><Upload size={30} /></span>
-            <strong>上传你的视频</strong>
-            <span>点击选择，或将文件拖到这里</span>
-            <span className="upload-button">选择视频 <ChevronRight size={17} /></span>
-            <small>支持 MP4、MOV、WebM · 建议 500MB 以内</small>
+            <strong>{copy.studio.uploadTitle}</strong>
+            <span>{copy.studio.uploadHint}</span>
+            <span className="upload-button">{copy.studio.uploadButton} <ChevronRight size={17} /></span>
+            <small>{copy.studio.uploadFormats}</small>
           </button>
         ) : (
           <div className="workspace">
@@ -1522,63 +1539,63 @@ export default function PrivacyStudio() {
                   }}
                   onSeeked={() => drawFrame()}
                   onPause={() => setIsPlaying(false)}
-                  aria-label="原始视频（隐藏显示）"
+                  aria-label={copy.studio.videoAria}
                 />
-                <canvas ref={canvasRef} aria-label="隐私打码预览" />
-                <button className="video-close-mobile" type="button" onClick={reset} disabled={exporting} aria-label="移除视频"><X size={18} /></button>
+                <canvas ref={canvasRef} aria-label={copy.studio.previewAria} />
+                <button className="video-close-mobile" type="button" onClick={reset} disabled={exporting} aria-label={copy.studio.removeVideo}><X size={18} /></button>
                 {modelLoadingVisible && maskScope !== "full" && (
                   <div className="model-loading">
                     <span />
                     {modelState === "loading"
-                      ? "首次加载基础模型…"
+                      ? copy.studio.modelLoadingBase
                       : preciseLoadProgress?.stage === "download"
-                        ? `下载轻量模型 ${preciseLoadProgress.percent}%`
+                        ? copy.studio.modelDownload(preciseLoadProgress.percent)
                         : preciseLoadProgress?.stage === "compile"
-                          ? "下载完成 · 编译 WebGPU…"
+                          ? copy.studio.modelCompile
                           : preciseLoadProgress?.stage === "warmup"
-                            ? "编译完成 · 首次预热…"
-                            : "准备 YOLO WebGPU…"}
+                            ? copy.studio.modelWarmup
+                            : copy.studio.modelYoloPrep}
                   </div>
                 )}
-                {detectedCount > 0 && !modelLoadingVisible && maskScope !== "full" && <div className="detect-pill"><span /> {maskScope === "background" ? `已保留 ${detectedCount} 个主体` : `已遮挡 ${detectedCount} 个实体`}</div>}
+                {detectedCount > 0 && !modelLoadingVisible && maskScope !== "full" && <div className="detect-pill"><span /> {maskScope === "background" ? copy.studio.detectKept(detectedCount) : copy.studio.detectMasked(detectedCount)}</div>}
               </div>
               <div className="player-controls">
-                <button type="button" className="play-button" onClick={togglePlayback} aria-label={isPlaying ? "暂停" : "播放"}>
+                <button type="button" className="play-button" onClick={togglePlayback} aria-label={isPlaying ? copy.studio.pause : copy.studio.play}>
                   {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
                 </button>
                 <span>{formatTime(currentTime)}</span>
-                <input aria-label="视频进度" type="range" min="0" max={duration || 0} step="0.01" value={Math.min(currentTime, duration || 0)} onChange={(event) => seek(Number(event.target.value))} />
+                <input aria-label={copy.studio.progressAria} type="range" min="0" max={duration || 0} step="0.01" value={Math.min(currentTime, duration || 0)} onChange={(event) => seek(Number(event.target.value))} />
                 <span>{formatTime(duration)}</span>
               </div>
             </div>
 
             <aside className="settings-panel">
               <div className="settings-toolbar">
-                <button className="desktop-close" type="button" onClick={reset} disabled={exporting} aria-label="移除视频"><X size={19} /></button>
+                <button className="desktop-close" type="button" onClick={reset} disabled={exporting} aria-label={copy.studio.removeVideo}><X size={19} /></button>
               </div>
               <div className="control-block">
-                <div className="control-title"><span>遮盖范围</span><small>{maskScope === "background" ? "反选已开启" : maskScope === "full" ? "无需 AI 识别" : "常规"}</small></div>
-                <div className="segmented-control scope-control" aria-label="遮盖范围">
-                  <button type="button" disabled={exporting} className={maskScope === "full" ? "active" : ""} aria-pressed={maskScope === "full"} onClick={() => { if (maskScope !== "full") setEffectStrength(fullFrameStyle === "blur" ? 46 : fullFrameStyle === "pixel" ? 18 : 14); setMaskScope("full"); }}>全画面</button>
-                  <button type="button" disabled={exporting} className={maskScope === "subjects" ? "active" : ""} aria-pressed={maskScope === "subjects"} onClick={() => { if (maskScope === "full" && fullFrameStyle !== "blur") setEffectStrength(46); setMaskScope("subjects"); void loadModel().then(() => videoRef.current ? analyzeCurrentFrame(videoRef.current) : undefined).catch(handleInferenceError); }}>遮盖主体</button>
-                  <button type="button" disabled={exporting} className={maskScope === "background" ? "active" : ""} aria-pressed={maskScope === "background"} onClick={() => { if (maskScope === "full" && fullFrameStyle !== "blur") setEffectStrength(46); setMaskScope("background"); void loadModel().then(() => videoRef.current ? analyzeCurrentFrame(videoRef.current) : undefined).catch(handleInferenceError); }}>遮盖主体之外</button>
+                <div className="control-title"><span>{copy.scope.title}</span><small>{maskScope === "background" ? copy.scope.invertOn : maskScope === "full" ? copy.scope.noAi : copy.scope.normal}</small></div>
+                <div className="segmented-control scope-control" aria-label={copy.scope.aria}>
+                  <button type="button" disabled={exporting} className={maskScope === "full" ? "active" : ""} aria-pressed={maskScope === "full"} onClick={() => { if (maskScope !== "full") setEffectStrength(fullFrameStyle === "blur" ? 46 : fullFrameStyle === "pixel" ? 18 : 14); setMaskScope("full"); }}>{copy.scope.full}</button>
+                  <button type="button" disabled={exporting} className={maskScope === "subjects" ? "active" : ""} aria-pressed={maskScope === "subjects"} onClick={() => { if (maskScope === "full" && fullFrameStyle !== "blur") setEffectStrength(46); setMaskScope("subjects"); void loadModel().then(() => videoRef.current ? analyzeCurrentFrame(videoRef.current) : undefined).catch(handleInferenceError); }}>{copy.scope.subjects}</button>
+                  <button type="button" disabled={exporting} className={maskScope === "background" ? "active" : ""} aria-pressed={maskScope === "background"} onClick={() => { if (maskScope === "full" && fullFrameStyle !== "blur") setEffectStrength(46); setMaskScope("background"); void loadModel().then(() => videoRef.current ? analyzeCurrentFrame(videoRef.current) : undefined).catch(handleInferenceError); }}>{copy.scope.background}</button>
                 </div>
               </div>
 
               {maskScope !== "full" && (
-                <div className="settings-tabs" role="tablist" aria-label="设置分类">
-                  <button type="button" role="tab" aria-selected={settingsTab === "general"} className={settingsTab === "general" ? "active" : ""} onClick={() => setSettingsTab("general")}>通用设置</button>
-                  <button type="button" role="tab" aria-selected={settingsTab === "subjects"} className={settingsTab === "subjects" ? "active" : ""} onClick={() => setSettingsTab("subjects")}>选择主体</button>
+                <div className="settings-tabs" role="tablist" aria-label={copy.settings.tabsAria}>
+                  <button type="button" role="tab" aria-selected={settingsTab === "general"} className={settingsTab === "general" ? "active" : ""} onClick={() => setSettingsTab("general")}>{copy.settings.general}</button>
+                  <button type="button" role="tab" aria-selected={settingsTab === "subjects"} className={settingsTab === "subjects" ? "active" : ""} onClick={() => setSettingsTab("subjects")}>{copy.settings.subjects}</button>
                 </div>
               )}
 
               {maskScope === "full" ? (
                 <div className="control-block effect-control">
-                  <div className="control-title"><span>全画面风格</span><small>{fullFrameStyle === "ascii" ? `黑白字符画 · ${effectStrength}px` : `${strengthRange.label} ${effectStrength}${strengthRange.unit}`}</small></div>
-                  <div className="segmented-control effect-style-control" aria-label="全画面风格">
-                    <button type="button" disabled={exporting} className={fullFrameStyle === "blur" ? "active" : ""} aria-pressed={fullFrameStyle === "blur"} onClick={() => { setFullFrameStyle("blur"); setEffectStrength(46); }}>模糊</button>
-                    <button type="button" disabled={exporting} className={fullFrameStyle === "pixel" ? "active" : ""} aria-pressed={fullFrameStyle === "pixel"} onClick={() => { setFullFrameStyle("pixel"); setEffectStrength(18); }}>低像素</button>
-                    <button type="button" disabled={exporting} className={fullFrameStyle === "ascii" ? "active" : ""} aria-pressed={fullFrameStyle === "ascii"} onClick={() => { setFullFrameStyle("ascii"); setEffectStrength(14); }}>ASCII</button>
+                  <div className="control-title"><span>{copy.fullFrame.title}</span><small>{fullFrameStyle === "ascii" ? copy.fullFrame.asciiMeta(effectStrength) : copy.fullFrame.strengthMeta(strengthRange.label, effectStrength, strengthRange.unit)}</small></div>
+                  <div className="segmented-control effect-style-control" aria-label={copy.fullFrame.aria}>
+                    <button type="button" disabled={exporting} className={fullFrameStyle === "blur" ? "active" : ""} aria-pressed={fullFrameStyle === "blur"} onClick={() => { setFullFrameStyle("blur"); setEffectStrength(46); }}>{copy.fullFrame.blur}</button>
+                    <button type="button" disabled={exporting} className={fullFrameStyle === "pixel" ? "active" : ""} aria-pressed={fullFrameStyle === "pixel"} onClick={() => { setFullFrameStyle("pixel"); setEffectStrength(18); }}>{copy.fullFrame.pixel}</button>
+                    <button type="button" disabled={exporting} className={fullFrameStyle === "ascii" ? "active" : ""} aria-pressed={fullFrameStyle === "ascii"} onClick={() => { setFullFrameStyle("ascii"); setEffectStrength(14); }}>{copy.fullFrame.ascii}</button>
                   </div>
                   <div className="strength-slider">
                     <span>{strengthRange.min}</span>
@@ -1589,66 +1606,66 @@ export default function PrivacyStudio() {
               ) : <>
                 {settingsTab === "general" && <>
                 <div className="control-block">
-                  <div className="control-title"><span>处理精度</span><small>{quality === "precise" ? "逐帧最稳" : quality === "balanced" ? "轮廓实时" : "轻量人形"}</small></div>
-                  <div className="segmented-control quality-control" aria-label="处理精度">
-                    <button type="button" disabled={exporting} className={quality === "fast" ? "active" : ""} aria-pressed={quality === "fast"} onClick={() => setQuality("fast")}>低 <small>省性能</small></button>
-                    <button type="button" disabled={exporting} className={quality === "balanced" ? "active" : ""} aria-pressed={quality === "balanced"} onClick={() => setQuality("balanced")}>中 <small>轮廓</small></button>
+                  <div className="control-title"><span>{copy.quality.title}</span><small>{quality === "precise" ? copy.quality.precise : quality === "balanced" ? copy.quality.balanced : copy.quality.fast}</small></div>
+                  <div className="segmented-control quality-control" aria-label={copy.quality.aria}>
+                    <button type="button" disabled={exporting} className={quality === "fast" ? "active" : ""} aria-pressed={quality === "fast"} onClick={() => setQuality("fast")}>{copy.quality.low} <small>{copy.quality.lowSub}</small></button>
+                    <button type="button" disabled={exporting} className={quality === "balanced" ? "active" : ""} aria-pressed={quality === "balanced"} onClick={() => setQuality("balanced")}>{copy.quality.mid} <small>{copy.quality.midSub}</small></button>
                     <button type="button" disabled={exporting} className={quality === "precise" ? "active" : ""} aria-pressed={quality === "precise"} onClick={() => {
                       if (!supportsPreciseWebMode()) {
-                        setMessage("为避免手机页面卡死和严重发热，网页高档仅支持桌面 WebGPU；手机请选择中档或使用 App");
+                        setMessage(msg.mobileHighDisabled);
                         return;
                       }
                       setQuality("precise");
-                      if (preciseModelState !== "ready") setMessage("高档模型约 11MB；桌面浏览器首次编译可能短暂停顿，请确认后再加载");
-                    }}>高 <small>桌面</small></button>
+                      if (preciseModelState !== "ready") setMessage(msg.highModelSizeHint);
+                    }}>{copy.quality.high} <small>{copy.quality.highSub}</small></button>
                   </div>
                 </div>
                 {quality === "precise" && (
                   <div className="offline-notice">
-                    <strong>网页高档 · YOLO 实例轮廓</strong>
-                    <span>统一识别人、宠物与车辆，使用 WebGPU 逐帧生成独立轮廓。{preciseModelState === "ready" ? (estimatedHighSeconds === null ? "模型已就绪，正在测速。" : `本机预计约 ${formatTime(estimatedHighSeconds)} 完成。`) : "为避免手机刚切换档位就卡住，模型不会自动加载。"}</span>
+                    <strong>{copy.quality.preciseNoticeTitle}</strong>
+                    <span>{copy.quality.preciseNoticeBodyReady}{preciseModelState === "ready" ? (estimatedHighSeconds === null ? copy.quality.preciseNoticeBodyBenchmarking : copy.quality.preciseEstimateDone(formatTime(estimatedHighSeconds))) : copy.quality.preciseNoticeBodyIdle}</span>
                     {(preciseModelState === "idle" || preciseModelState === "error") && (
                       <button className="high-model-trigger" type="button" disabled={modelState !== "ready" || highLoadRequested} onClick={() => {
-                        setMessage("即将初始化高档 WebGPU 模型；手机页面可能短暂停顿，请勿切换应用");
+                        setMessage(msg.highModelInitSoon);
                         setHighLoadRequested(true);
-                      }}>{preciseModelState === "error" ? "重新加载高档模型" : "确认加载高档模型"}</button>
+                      }}>{preciseModelState === "error" ? copy.quality.preciseReload : copy.quality.preciseConfirmLoad}</button>
                     )}
-                    {estimatedHighSeconds !== null && estimatedHighSeconds > 360 && <span className="estimate-warning">本机预计超过 6 分钟，已停用高档；请选择中档或等待 App 超精细版。</span>}
+                    {estimatedHighSeconds !== null && estimatedHighSeconds > 360 && <span className="estimate-warning">{copy.quality.preciseEstimateWarning}</span>}
                   </div>
                 )}
                 <div className="control-block effect-control">
-                  <div className="control-title"><span>模糊强度</span><small>模糊半径 {effectStrength}px</small></div>
+                  <div className="control-title"><span>{copy.quality.blurStrength}</span><small>{copy.quality.blurRadius(effectStrength)}</small></div>
                   <div className="strength-slider">
                     <span>4</span>
-                    <input aria-label="模糊半径" type="range" min="4" max="64" step="1" value={Math.max(4, Math.min(64, effectStrength))} disabled={exporting} onChange={(event) => setEffectStrength(Number(event.target.value))} />
+                    <input aria-label={copy.fullFrame.blurRadius} type="range" min="4" max="64" step="1" value={Math.max(4, Math.min(64, effectStrength))} disabled={exporting} onChange={(event) => setEffectStrength(Number(event.target.value))} />
                     <span>64</span>
                   </div>
                 </div>
-                <div className="watermark-note"><LockKeyhole size={14} /><span><strong>网页版默认添加右下角水印</strong><small>后续可通过广告权益或一次买断移除；当前版本暂不提供付费入口。</small></span></div>
+                <div className="watermark-note"><LockKeyhole size={14} /><span><strong>{copy.quality.watermarkTitle}</strong><small>{copy.quality.watermarkSub}</small></span></div>
                 </>}
               </>}
               {(maskScope === "full" || settingsTab === "general") && (
                 <div className="control-block audio-privacy-control">
-                  <div className="control-title"><span>声音处理</span><small>{audioMode === "voice" ? `音调 ${voicePitch > 0 ? "+" : ""}${voicePitch} 半音` : audioMode === "mute" ? "导出无音轨" : "保留视频原声"}</small></div>
-                  <div className="segmented-control audio-mode-control" aria-label="声音隐私">
-                    <button type="button" disabled={exporting} className={audioMode === "original" ? "active" : ""} aria-pressed={audioMode === "original"} onClick={() => { void selectAudioMode("original"); }}>原声 <small>保留</small></button>
-                    <button type="button" disabled={exporting} className={audioMode === "voice" ? "active" : ""} aria-pressed={audioMode === "voice"} onClick={() => { void selectAudioMode("voice"); }}>变音 <small>音调偏移</small></button>
-                    <button type="button" disabled={exporting} className={audioMode === "mute" ? "active" : ""} aria-pressed={audioMode === "mute"} onClick={() => { void selectAudioMode("mute"); }}>静音 <small>无音轨</small></button>
+                  <div className="control-title"><span>{copy.audio.title}</span><small>{audioMode === "voice" ? copy.audio.pitchMeta(voicePitch) : audioMode === "mute" ? copy.audio.muteMeta : copy.audio.originalMeta}</small></div>
+                  <div className="segmented-control audio-mode-control" aria-label={copy.audio.aria}>
+                    <button type="button" disabled={exporting} className={audioMode === "original" ? "active" : ""} aria-pressed={audioMode === "original"} onClick={() => { void selectAudioMode("original"); }}>{copy.audio.original} <small>{copy.audio.originalSub}</small></button>
+                    <button type="button" disabled={exporting} className={audioMode === "voice" ? "active" : ""} aria-pressed={audioMode === "voice"} onClick={() => { void selectAudioMode("voice"); }}>{copy.audio.voice} <small>{copy.audio.voiceSub}</small></button>
+                    <button type="button" disabled={exporting} className={audioMode === "mute" ? "active" : ""} aria-pressed={audioMode === "mute"} onClick={() => { void selectAudioMode("mute"); }}>{copy.audio.mute} <small>{copy.audio.muteSub}</small></button>
                   </div>
                   {audioMode === "voice" && (
                     <div className="strength-slider voice-pitch-slider">
-                      <span>低</span>
-                      <input aria-label="变声音调" type="range" min="-8" max="8" step="1" value={voicePitch} disabled={exporting} onChange={(event) => updateVoicePitch(Number(event.target.value))} />
-                      <span>高</span>
+                      <span>{copy.audio.pitchLow}</span>
+                      <input aria-label={copy.audio.pitchAria} type="range" min="-8" max="8" step="1" value={voicePitch} disabled={exporting} onChange={(event) => updateVoicePitch(Number(event.target.value))} />
+                      <span>{copy.audio.pitchHigh}</span>
                     </div>
                   )}
-                  <p className="audio-mode-note">真正改变音调，不改变语速；播放时拖动可实时试听。</p>
+                  <p className="audio-mode-note">{copy.audio.note}</p>
                 </div>
               )}
               {settingsTab === "subjects" && maskScope !== "full" && <>
-                <div className="entity-heading"><span>{maskScope === "background" ? "选择要保留清晰的主体" : "选择要遮盖的主体"}</span><small>可多选</small></div>
+                <div className="entity-heading"><span>{maskScope === "background" ? copy.subjects.headingKeep : copy.subjects.headingMask}</span><small>{copy.subjects.multiSelect}</small></div>
                 <div className="entity-list">
-                {ENTITY_GROUPS.map((group) => {
+                {entityGroups.map((group) => {
                   const active = selected.has(group.key);
                   return (
                     <button
@@ -1663,7 +1680,7 @@ export default function PrivacyStudio() {
                         return next;
                       })}
                     >
-                      <span className="entity-icon">{group.key === "person" ? "人" : group.key === "vehicle" ? "车" : "宠"}</span>
+                      <span className="entity-icon">{group.icon}</span>
                       <span><strong>{group.label}</strong><small>{group.sub}</small></span>
                       <span className="check-box">{active && <Check size={15} />}</span>
                     </button>
@@ -1671,7 +1688,7 @@ export default function PrivacyStudio() {
                 })}
                 </div>
                 <div className="subject-heading">
-                <span>当前画面识别到的主体</span><small>{subjects.length ? `${subjects.length} 个` : "等待识别"}</small>
+                <span>{copy.subjects.detectedTitle}</span><small>{subjects.length ? copy.subjects.detectedCount(subjects.length) : copy.subjects.waiting}</small>
                 </div>
               {subjects.length > 0 ? (
                 <div className="subject-grid">
@@ -1697,36 +1714,36 @@ export default function PrivacyStudio() {
                     );
                   })}
                 </div>
-              ) : <p className="subject-empty">加载后会在这里列出人物、车辆和宠物，可逐个勾选。</p>}
-                <p className="tracking-note">主体编号由本地跟踪生成；多人交叉遮挡或离开后重新出现时，可能生成新编号。</p>
+              ) : <p className="subject-empty">{copy.subjects.empty}</p>}
+                <p className="tracking-note">{copy.subjects.trackingNote}</p>
               </>}
               {settingsTab === "subjects" && maskScope !== "full" && <>
-              <div className="coming-soon"><span>人脸与车牌</span><small>精细识别模型 · 即将支持</small></div>
+              <div className="coming-soon"><span>{copy.comingSoon.title}</span><small>{copy.comingSoon.sub}</small></div>
               <div className="app-upsell" id="app-preview">
-                <span className="app-kicker">NATIVE APP · ULTRA</span>
-                <strong>超精细视频遮罩，交给原生 App</strong>
-                <small>原生 GPU/NPU 推理、硬件编解码和时序跟踪，更适合长视频、4K 与低耗电处理。</small>
-                <button type="button" onClick={() => setMessage("App 超精细版正在规划中，网页端会继续保持免费的性能平衡模式")}>查看 App 版计划</button>
+                <span className="app-kicker">{copy.appUpsell.kicker}</span>
+                <strong>{copy.appUpsell.title}</strong>
+                <small>{copy.appUpsell.body}</small>
+                <button type="button" onClick={() => setMessage(msg.appPlanMessage)}>{copy.appUpsell.button}</button>
               </div>
               </>}
-              <div className="privacy-note"><ShieldCheck size={18} /><span><strong>只在你的浏览器中运行</strong><small>原视频和处理结果都不会上传。</small></span></div>
+              <div className="privacy-note"><ShieldCheck size={18} /><span><strong>{copy.privacyNote.title}</strong><small>{copy.privacyNote.sub}</small></span></div>
               {exporting ? (
                 <div className="export-progress">
-                  <div><span>{quality === "precise" ? "正在逐帧分析与编码" : "正在处理视频"}</span><strong>{Math.round(progress)}%</strong></div>
+                  <div><span>{quality === "precise" ? copy.export.preciseProgress : copy.export.fastProgress}</span><strong>{Math.round(progress)}%</strong></div>
                   <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
-                  {quality === "precise" && <p>{etaSeconds === null ? "正在估算剩余时间…" : `预计还需约 ${formatTime(etaSeconds)}`}</p>}
-                  <button type="button" onClick={() => exportStopRef.current?.()}>停止处理</button>
+                  {quality === "precise" && <p>{etaSeconds === null ? copy.export.etaUnknown : copy.export.eta(formatTime(etaSeconds))}</p>}
+                  <button type="button" onClick={() => exportStopRef.current?.()}>{copy.export.stop}</button>
                 </div>
               ) : downloadUrl ? (
-                <a className="primary-action success" href={downloadUrl} download={`${fileBase}-已打码.${outputExtension}`}>
-                  <ArrowDownToLine size={19} /> 下载处理后的视频
+                <a className="primary-action success" href={downloadUrl} download={`${fileBase}-${copy.export.downloadSuffix}.${outputExtension}`}>
+                  <ArrowDownToLine size={19} /> {copy.export.download}
                 </a>
               ) : (
                 <button className="primary-action" type="button" disabled={maskScope !== "full" && (modelState !== "ready" || selected.size === 0 || (quality === "precise" && (preciseModelState !== "ready" || (estimatedHighSeconds !== null && estimatedHighSeconds > 360))))} onClick={exportVideo}>
-                  {maskScope === "full" ? "开始全画面处理" : modelState === "loading" ? "AI 准备中…" : quality === "precise" && preciseModelState !== "ready" ? "请先确认加载高档模型" : quality === "precise" && estimatedHighSeconds !== null && estimatedHighSeconds > 360 ? "本机较慢 · 建议 App" : quality === "precise" ? "开始逐帧处理" : "开始快速处理"} <ChevronRight size={18} />
+                  {maskScope === "full" ? copy.export.startFull : modelState === "loading" ? copy.export.aiPreparing : quality === "precise" && preciseModelState !== "ready" ? copy.export.confirmHighModel : quality === "precise" && estimatedHighSeconds !== null && estimatedHighSeconds > 360 ? copy.export.slowMachine : quality === "precise" ? copy.export.startPrecise : copy.export.startFast} <ChevronRight size={18} />
                 </button>
               )}
-              {message && !(maskScope === "full" && /(AI|模型|识别)/.test(message)) && <p className={`status-message ${modelState === "error" ? "error" : ""}`}>{message}</p>}
+              {message && !hideModelStatus && <p className={`status-message ${modelState === "error" ? "error" : ""}`}>{message}</p>}
             </aside>
           </div>
         )}
@@ -1735,50 +1752,49 @@ export default function PrivacyStudio() {
 
       <section className="privacy-scenarios" aria-labelledby="privacy-scenarios-title">
         <div className="privacy-scenarios-intro">
-          <div className="section-label">BEFORE YOU SHARE</div>
-          <h2 id="privacy-scenarios-title">不是不分享，<br />是分享前先保护好。</h2>
-          <p>照片和视频一旦公开，就可能被保存、裁剪和再次传播。先遮住不需要出现的主体或环境，让分享保留快乐，不留下多余的身份线索。</p>
-          <div className="local-proof"><ShieldCheck size={17} /><span><strong>视频不上传</strong><small>识别、遮盖和导出都在当前设备完成</small></span></div>
+          <div className="section-label">{copy.scenarios.label}</div>
+          <h2 id="privacy-scenarios-title">{copy.scenarios.titleLine1}<br />{copy.scenarios.titleLine2}</h2>
+          <p>{copy.scenarios.intro}</p>
+          <div className="local-proof"><ShieldCheck size={17} /><span><strong>{copy.scenarios.localProofTitle}</strong><small>{copy.scenarios.localProofSub}</small></span></div>
         </div>
         <div className="scenario-grid">
-          <article>
-            <span className="scenario-icon"><Baby /></span>
-            <div><h3>分享孩子的成长</h3><p>公开发布前隐藏孩子、同伴或旁观者，减少清晰人像在未知渠道中继续流传。</p><small>适合：遮盖主体</small></div>
-          </article>
-          <article>
-            <span className="scenario-icon"><ScanFace /></span>
-            <div><h3>降低 AI 换脸与声音克隆风险</h3><p>高质量正脸、连续动作和清晰语音都可能成为可复用素材，可同时模糊人物并变音或静音。</p><small>适合：遮盖主体 + 声音处理</small></div>
-          </article>
-          <article>
-            <span className="scenario-icon"><MapPin /></span>
-            <div><h3>不暴露生活环境</h3><p>家庭陈设、学校周边、常走路线都可能透露位置和生活规律，可反选主体，只遮盖环境。</p><small>适合：遮盖主体之外</small></div>
-          </article>
-          <article>
-            <span className="scenario-icon"><Users /></span>
-            <div><h3>避免路人和家人被公开</h3><p>聚会、旅行和街拍里常有无关人员入镜。发布前处理，让没有同意出镜的人保持匿名。</p><small>适合：选择主体</small></div>
-          </article>
+          {[Baby, ScanFace, MapPin, Users].map((Icon, index) => {
+            const card = copy.scenarios.cards[index];
+            if (!card) return null;
+            return (
+              <article key={card.title}>
+                <span className="scenario-icon"><Icon /></span>
+                <div><h3>{card.title}</h3><p>{card.body}</p><small>{card.fit}</small></div>
+              </article>
+            );
+          })}
         </div>
       </section>
 
       <section className="how-it-works" aria-labelledby="how-title">
-        <div className="section-label">HOW IT WORKS</div>
-        <h2 id="how-title">三步，保护每一帧。</h2>
+        <div className="section-label">{copy.how.label}</div>
+        <h2 id="how-title">{copy.how.title}</h2>
         <div className="steps">
-          <article><span>01</span><div className="step-icon"><FileVideo /></div><h3>上传视频</h3><p>从手机或电脑选择视频，文件只在本机打开。</p></article>
-          <article><span>02</span><div className="step-icon"><EyeOff /></div><h3>设置隐私处理</h3><p>选择画面遮盖范围，并决定保留原声、变音或静音。</p></article>
-          <article><span>03</span><div className="step-icon"><ArrowDownToLine /></div><h3>下载结果</h3><p>浏览器逐帧完成处理，然后直接保存到设备。</p></article>
+          {[FileVideo, EyeOff, ArrowDownToLine].map((Icon, index) => {
+            const step = copy.how.steps[index];
+            if (!step) return null;
+            return (
+              <article key={step.title}><span>{String(index + 1).padStart(2, "0")}</span><div className="step-icon"><Icon /></div><h3>{step.title}</h3><p>{step.body}</p></article>
+            );
+          })}
         </div>
       </section>
 
       <section className="privacy-banner">
         <div className="shield-large"><ShieldCheck /></div>
-        <div><span>PRIVACY BY DESIGN</span><h2>你的视频，始终是你的。</h2><p>没有上传、没有云端副本、没有账号。关闭页面后，本次数据随即消失。</p></div>
+        <div><span>{copy.banner.label}</span><h2>{copy.banner.title}</h2><p>{copy.banner.body}</p></div>
       </section>
 
       <footer>
-        <a className="brand" href="#top"><span className="brand-mark"><EyeOff size={18} /></span><span>镜隐</span></a>
-        <p>浏览器里的视频隐私保护工具</p>
-        <button type="button" onClick={() => { reset(); inputRef.current?.click(); }}><RotateCcw size={15} /> 处理一个新视频</button>
+        <a className="brand" href="#top"><span className="brand-mark"><EyeOff size={18} /></span><span>{copy.brand}</span></a>
+        <p>{copy.footer.tagline}</p>
+        <a className="reaidea-link" href="https://reaidea.com" rel="noopener noreferrer" aria-label={copy.footer.reaideaAria}>{copy.footer.reaidea}</a>
+        <button type="button" onClick={() => { reset(); inputRef.current?.click(); }}><RotateCcw size={15} /> {copy.footer.newVideo}</button>
       </footer>
     </main>
   );

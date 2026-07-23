@@ -13,10 +13,10 @@ export async function generateMetadata(): Promise<Metadata> {
   const origin = `${protocol}://${host}`;
   return {
     metadataBase: new URL(origin),
-    title: { default: "镜隐｜在线视频隐私打码工具", template: "%s｜镜隐" },
-    description: "免费的在线视频隐私工具。发布孩子或家人视频前，本地隐藏人物与环境，并进行视频变音或静音，降低 AI 换脸与声音克隆素材风险。",
+    title: { default: "镜隐 LensHide｜本地视频隐私打码", template: "%s｜镜隐 LensHide" },
+    description: "免费的在线视频隐私工具：浏览器本地打码、变音或静音，视频不上传。Free local video blur, pitch shift, and mute—nothing leaves your device.",
     keywords: ["视频打码", "视频变音", "视频静音", "声音隐私", "儿童视频隐私", "AI 换脸防护", "声音克隆防护", "视频人物打码", "在线视频模糊", "隐私保护", "video blur"],
-    applicationName: "镜隐",
+    applicationName: "镜隐 LensHide",
     authors: [{ name: "镜隐" }],
     creator: "镜隐",
     alternates: { canonical: "/" },

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import PrivacyStudio from "./privacy-studio";
+import { LocaleProvider } from "./i18n/locale";
 
 export const metadata: Metadata = {
   title: "在线视频隐私打码｜保护孩子与家人的视频",
@@ -23,7 +24,9 @@ export default function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <PrivacyStudio />
+      <LocaleProvider>
+        <PrivacyStudio />
+      </LocaleProvider>
     </>
   );
 }
