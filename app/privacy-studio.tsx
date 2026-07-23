@@ -523,10 +523,33 @@ export default function PrivacyStudio() {
     const personSafetyObjects = precisePerson && qualityRef.current === "balanced" && scopeRef.current === "subjects" ? selectedObjects.filter((item) => item.class === "person") : [];
 
     const drawFullFrame = (blurred: boolean) => {
-      ctx.save();
-      ctx.filter = blurred ? `blur(${blurAmount}px)` : "none";
-      ctx.drawImage(source, 0, 0, width, height);
-      ctx.restore();
+      if (!blurred) {
+        ctx.drawImage(source, 0, 0, width, height);
+        return;
+      }
+      const pad = Math.ceil(blurAmount * 2);
+      if (!effectCanvasRef.current) effectCanvasRef.current = document.createElement("canvas");
+      const blurCanvas = effectCanvasRef.current;
+      const bufferedWidth = width + pad * 2;
+      const bufferedHeight = height + pad * 2;
+      if (blurCanvas.width !== bufferedWidth || blurCanvas.height !== bufferedHeight) {
+        blurCanvas.width = bufferedWidth;
+        blurCanvas.height = bufferedHeight;
+      }
+      const blurCtx = blurCanvas.getContext("2d");
+      if (!blurCtx) {
+        ctx.save();
+        ctx.filter = `blur(${blurAmount}px)`;
+        ctx.drawImage(source, 0, 0, width, height);
+        ctx.restore();
+        return;
+      }
+      blurCtx.setTransform(1, 0, 0, 1, 0, 0);
+      blurCtx.globalAlpha = 1;
+      blurCtx.filter = `blur(${blurAmount}px)`;
+      blurCtx.drawImage(source, 0, 0, bufferedWidth, bufferedHeight);
+      blurCtx.filter = "none";
+      ctx.drawImage(blurCanvas, pad, pad, width, height, 0, 0, width, height);
     };
 
     const drawPixelatedFullFrame = () => {
