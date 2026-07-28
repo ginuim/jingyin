@@ -813,6 +813,102 @@
         }
       }
     },
+    "quality.detail.fast": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "减少主体分析次数，速度优先"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "減少主體分析次數，速度優先"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Fewer subject analyses for faster processing"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "被写体の解析回数を減らし、速度を優先"}}
+      }
+    },
+    "quality.detail.balanced": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "兼顾处理速度和边缘稳定"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "兼顧處理速度與邊緣穩定性"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Balances processing speed and stable edges"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "処理速度と輪郭の安定性を両立"}}
+      }
+    },
+    "quality.detail.precise": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "逐帧分析并细化人物边缘，耗时最长"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "逐幀分析並細化人物邊緣，耗時最長"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Analyzes every frame and refines person edges; slowest"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "全フレームを解析して人物の輪郭を精細化。最も低速"}}
+      }
+    },
+    "export.title": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "导出设置"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "匯出設定"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Export Settings"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "書き出し設定"}}
+      }
+    },
+    "export.resolution": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "视频分辨率"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "影片解析度"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Resolution"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "解像度"}}
+      }
+    },
+    "export.resolutionHint": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "越高越清晰"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "越高越清晰"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Higher is sharper"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "高いほど鮮明"}}
+      }
+    },
+    "export.frameRate": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "帧率"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "幀率"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Frame Rate"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "フレームレート"}}
+      }
+    },
+    "export.frameRateHint": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "越高越流畅"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "越高越流暢"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Higher is smoother"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "高いほど滑らか"}}
+      }
+    },
+    "export.speedHint": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "降低分辨率或帧率，可以明显缩短处理时间。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "降低解析度或幀率，可以明顯縮短處理時間。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Lower resolution or frame rate can significantly reduce processing time."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "解像度やフレームレートを下げると、処理時間を大幅に短縮できます。"}}
+      }
+    },
+    "export.reading": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "正在读取视频信息…"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "正在讀取影片資訊…"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Reading video information…"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "動画情報を読み込み中…"}}
+      }
+    },
+    "export.cancel": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "取消"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "取消"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Cancel"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "キャンセル"}}
+      }
+    },
+    "export.start": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "开始导出"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "開始匯出"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Export"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "書き出す"}}
+      }
+    },
     "quality.fast": {
       "localizations": {
         "zh-Hans": {
@@ -2265,6 +2361,90 @@
           "stringUnit": {
             "state": "translated",
             "value": "音声合成に失敗。原音または消音で再試行"
+          }
+        }
+      }
+    },
+    "player.play": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再生"
+          }
+        }
+      }
+    },
+    "player.pause": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂停"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫停"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一時停止"
+          }
+        }
+      }
+    },
+    "player.progress": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "视频进度"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "影片進度"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video progress"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "動画の進行状況"
           }
         }
       }

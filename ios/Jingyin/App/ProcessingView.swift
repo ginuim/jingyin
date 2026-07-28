@@ -56,10 +56,12 @@ struct ProcessingView: View {
             }
 
             if let previewPlayer {
-                VideoPlayer(player: previewPlayer)
-                    .frame(height: 220)
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-                    .padding(.horizontal)
+                ControlledVideoPlayer(player: previewPlayer) {
+                    VideoPlayer(player: previewPlayer)
+                        .frame(height: 220)
+                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                }
+                .padding(.horizontal)
 
                 HStack {
                     Button {

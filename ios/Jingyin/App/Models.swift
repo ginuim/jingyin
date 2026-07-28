@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 
 enum QualityMode: String, CaseIterable, Identifiable {
@@ -21,6 +22,108 @@ enum QualityMode: String, CaseIterable, Identifiable {
         case .balanced: String(localized: "quality.balanced", bundle: bundle)
         case .precise: String(localized: "quality.precise", bundle: bundle)
         }
+    }
+
+    func detail(_ bundle: Bundle) -> String {
+        switch self {
+        case .fast: String(localized: "quality.detail.fast", bundle: bundle)
+        case .balanced: String(localized: "quality.detail.balanced", bundle: bundle)
+        case .precise: String(localized: "quality.detail.precise", bundle: bundle)
+        }
+    }
+}
+
+enum ExportResolution: Int, CaseIterable, Identifiable {
+    case p480 = 480
+    case p720 = 720
+    case p1080 = 1080
+    case p1440 = 1440
+    case p2160 = 2160
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .p480: "480p"
+        case .p720: "720p"
+        case .p1080: "1080p"
+        case .p1440: "2K"
+        case .p2160: "4K"
+        }
+    }
+
+    var exportPreset: String {
+        // The fixed WxH presets use a landscape bounding box and can silently
+        // shrink tall portrait videos below the selected short-edge resolution.
+        // The mutable composition already supplies the exact target size.
+        AVAssetExportPresetHighestQuality
+    }
+
+    static func available(for sourceShortEdge: CGFloat) -> [Self] {
+        let supported = allCases.filter {
+            CGFloat($0.rawValue) <= sourceShortEdge + 2
+        }
+        // AVFoundation never upscales with the chosen presets. Keeping one
+        // option also lets unusually small clips continue through the UI.
+        return supported.isEmpty ? [.p480] : supported
+    }
+
+    static func defaultValue(for sourceShortEdge: CGFloat) -> Self {
+        available(for: sourceShortEdge)
+            .last(where: { $0.rawValue <= 1080 })
+            ?? .p480
+    }
+}
+
+struct SourceVideoMetadata: Equatable {
+    static let commonFrameRates = [24, 30, 50, 60, 90, 120]
+
+    let displaySize: CGSize
+    let frameRate: Double
+
+    var shortEdge: CGFloat {
+        min(displaySize.width, displaySize.height)
+    }
+
+    var availableResolutions: [ExportResolution] {
+        ExportResolution.available(for: shortEdge)
+    }
+
+    var availableFrameRates: [Int] {
+        let sourceRate = max(1, Int(frameRate.rounded()))
+        let standard = Self.commonFrameRates.filter { $0 <= sourceRate }
+        if standard.contains(sourceRate) {
+            return standard
+        }
+        return Array(Set(standard + [sourceRate])).sorted()
+    }
+
+    var defaultFrameRate: Int {
+        availableFrameRates.last(where: { $0 <= 30 })
+            ?? availableFrameRates.first
+            ?? 24
+    }
+
+    static func load(from url: URL) async throws -> Self {
+        let asset = AVURLAsset(url: url)
+        guard let track = try await asset.loadTracks(withMediaType: .video).first else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        let naturalSize = try await track.load(.naturalSize)
+        let preferredTransform = try await track.load(.preferredTransform)
+        let nominalFrameRate = try await track.load(.nominalFrameRate)
+        let transformed = naturalSize.applying(preferredTransform)
+        let displaySize = CGSize(
+            width: abs(transformed.width),
+            height: abs(transformed.height)
+        )
+        let loadedFrameRate = Double(nominalFrameRate)
+        return Self(
+            displaySize: displaySize,
+            frameRate: loadedFrameRate.isFinite && loadedFrameRate > 0
+                ? loadedFrameRate
+                : 30
+        )
     }
 }
 
@@ -139,6 +242,8 @@ struct ProcessingOptions: Equatable {
     var voicePitch: Int = VoicePitchStore.load()
     var strength = 32.0
     var subjects: Set<SubjectKind> = [.person]
+    var exportResolution: ExportResolution = .p1080
+    var exportFrameRate = 30
 
     func audioMeta(bundle: Bundle) -> String {
         switch audio {

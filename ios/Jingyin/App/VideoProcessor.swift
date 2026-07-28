@@ -15,7 +15,11 @@ final class VideoProcessor: ObservableObject {
     @Published private(set) var estimatedRemainingSeconds: TimeInterval?
     private var exportSession: AVAssetExportSession?
     private var progressTask: Task<Void, Never>?
-    private var processingStartedAt: Date?
+    private var estimateStartedAt: Date?
+    private var estimateLastUpdatedAt: Date?
+    private var estimateAnchorProgress = 0.0
+    private var estimateTargetProgress = 1.0
+    private var estimateTailSeconds = 0.0
     private static let chunkDurationSeconds = 60.0
 
     var isRunning: Bool {
@@ -32,8 +36,7 @@ final class VideoProcessor: ObservableObject {
         }
         outputURL = nil
         advisory = nil
-        estimatedRemainingSeconds = nil
-        processingStartedAt = Date()
+        clearRemainingTimeEstimate()
         progress = 0
         stage = .reading
         var pendingDestination: URL?
@@ -85,9 +88,20 @@ final class VideoProcessor: ObservableObject {
 
             stage = .analyzing
             progress = 0.08
-            let composition = AVVideoComposition(asset: asset) { request in
-                request.finish(with: processor.render(request.sourceImage), context: nil)
+            let composition = AVMutableVideoComposition(asset: asset) { request in
+                request.finish(
+                    with: processor.render(
+                        request.sourceImage,
+                        renderSize: request.renderSize
+                    ),
+                    context: nil
+                )
             }
+            Self.configure(
+                composition,
+                resolution: effectiveOptions.exportResolution,
+                frameRate: effectiveOptions.exportFrameRate
+            )
 
             stage = .encoding
             // ASCII-only: Photos rejects / crashes on some non-ASCII temp paths.
@@ -105,15 +119,18 @@ final class VideoProcessor: ObservableObject {
                     sourceURL: sourceURL,
                     semitones: effectiveOptions.voicePitch,
                     destination: destination,
+                    exportPreset: effectiveOptions.exportResolution.exportPreset,
                     bundle: bundle
                 )
             case .original, .mute:
+                beginRemainingTimeEstimate(from: 0.1, through: 0.98)
                 try await exportProcessedVideo(
                     asset: asset,
                     composition: composition,
                     duration: duration,
                     muted: effectiveOptions.audio == .mute,
                     destination: destination,
+                    exportPreset: effectiveOptions.exportResolution.exportPreset,
                     progressStart: 0.1,
                     progressSpan: 0.88
                 )
@@ -122,16 +139,13 @@ final class VideoProcessor: ObservableObject {
             outputURL = destination
             pendingDestination = nil
             progress = 1
-            estimatedRemainingSeconds = nil
-            processingStartedAt = nil
+            clearRemainingTimeEstimate()
             stage = .completed(destination)
         } catch is CancellationError {
-            estimatedRemainingSeconds = nil
-            processingStartedAt = nil
+            clearRemainingTimeEstimate()
             stage = .failed(String(localized: "error.cancelled", bundle: bundle))
         } catch {
-            estimatedRemainingSeconds = nil
-            processingStartedAt = nil
+            clearRemainingTimeEstimate()
             stage = .failed(Self.message(for: error, bundle: bundle))
         }
     }
@@ -173,6 +187,7 @@ final class VideoProcessor: ObservableObject {
         sourceURL: URL,
         semitones: Int,
         destination: URL,
+        exportPreset: String,
         bundle: Bundle
     ) async throws {
         let mutedVideoURL = FileManager.default.temporaryDirectory
@@ -185,18 +200,29 @@ final class VideoProcessor: ObservableObject {
             }
         }
 
+        beginRemainingTimeEstimate(
+            from: 0.1,
+            through: 0.65,
+            tailSeconds: max(3, duration.seconds * 0.12)
+        )
         try await exportProcessedVideo(
             asset: asset,
             composition: composition,
             duration: duration,
             muted: true,
             destination: mutedVideoURL,
+            exportPreset: exportPreset,
             progressStart: 0.1,
             progressSpan: 0.55
         )
 
         try Task.checkCancellation()
         progress = 0.68
+        beginRemainingTimeEstimate(
+            from: 0.68,
+            through: 0.86,
+            tailSeconds: 2
+        )
 
         do {
             let audioURL = try await VoicePitchExporter.renderPitchedAudio(
@@ -209,6 +235,7 @@ final class VideoProcessor: ObservableObject {
             }
             pitchedAudioURL = audioURL
             progress = 0.88
+            estimatedRemainingSeconds = 2
             try await VoicePitchExporter.mux(
                 videoURL: mutedVideoURL,
                 audioURL: audioURL,
@@ -230,6 +257,7 @@ final class VideoProcessor: ObservableObject {
         duration: CMTime,
         muted: Bool,
         destination: URL,
+        exportPreset: String,
         progressStart: Double,
         progressSpan: Double
     ) async throws {
@@ -241,6 +269,7 @@ final class VideoProcessor: ObservableObject {
                 timeRange: nil,
                 muted: muted,
                 destination: destination,
+                exportPreset: exportPreset,
                 progressStart: progressStart,
                 progressSpan: progressSpan
             )
@@ -269,6 +298,7 @@ final class VideoProcessor: ObservableObject {
                 timeRange: ranges[index],
                 muted: muted,
                 destination: chunkURLs[index],
+                exportPreset: exportPreset,
                 progressStart: progressStart + Double(index) * chunkSpan,
                 progressSpan: chunkSpan
             )
@@ -289,12 +319,13 @@ final class VideoProcessor: ObservableObject {
         timeRange: CMTimeRange?,
         muted: Bool,
         destination: URL,
+        exportPreset: String,
         progressStart: Double,
         progressSpan: Double
     ) async throws {
         guard let session = AVAssetExportSession(
             asset: asset,
-            presetName: AVAssetExportPreset1920x1080
+            presetName: exportPreset
         ) else {
             throw ProcessorError.encoderUnavailable
         }
@@ -454,20 +485,87 @@ final class VideoProcessor: ObservableObject {
     }
 
     private func updateEstimatedRemainingTime() {
-        guard let processingStartedAt,
-              progress >= 0.03,
-              progress < 1 else {
+        guard let estimateStartedAt,
+              progress > estimateAnchorProgress,
+              progress < estimateTargetProgress else {
             return
         }
-        let elapsed = Date().timeIntervalSince(processingStartedAt)
-        guard elapsed >= 2 else { return }
-        let rawEstimate = elapsed / progress * (1 - progress)
+        let now = Date()
+        let elapsed = now.timeIntervalSince(estimateStartedAt)
+        let completedFraction = (progress - estimateAnchorProgress)
+            / (estimateTargetProgress - estimateAnchorProgress)
+        // The first few percent of AVAssetExportSession progress are dominated
+        // by setup and produce the misleading, ever-growing estimate we want
+        // to avoid showing.
+        guard elapsed >= 3, completedFraction >= 0.04 else { return }
+        if let lastUpdate = estimateLastUpdatedAt,
+           now.timeIntervalSince(lastUpdate) < 0.75 {
+            return
+        }
+        let rawEstimate = elapsed / completedFraction * (1 - completedFraction)
+            + estimateTailSeconds
         guard rawEstimate.isFinite, rawEstimate >= 0 else { return }
-        if let current = estimatedRemainingSeconds {
-            estimatedRemainingSeconds = current * 0.75 + rawEstimate * 0.25
+        if let current = estimatedRemainingSeconds,
+           let lastUpdate = estimateLastUpdatedAt {
+            let updateInterval = now.timeIntervalSince(lastUpdate)
+            let countdownValue = max(0, current - updateInterval)
+            let smoothed = countdownValue * 0.8 + rawEstimate * 0.2
+            // Real processing can slow down under thermal pressure, so allow a
+            // small correction without letting the visible ETA jump upward.
+            estimatedRemainingSeconds = min(
+                smoothed,
+                countdownValue + max(0.5, updateInterval * 0.25)
+            )
         } else {
             estimatedRemainingSeconds = rawEstimate
         }
+        estimateLastUpdatedAt = now
+    }
+
+    private func beginRemainingTimeEstimate(
+        from anchorProgress: Double,
+        through targetProgress: Double,
+        tailSeconds: TimeInterval = 0
+    ) {
+        estimateAnchorProgress = anchorProgress
+        estimateTargetProgress = targetProgress
+        estimateTailSeconds = tailSeconds
+        estimateStartedAt = Date()
+        estimateLastUpdatedAt = nil
+        estimatedRemainingSeconds = nil
+    }
+
+    private func clearRemainingTimeEstimate() {
+        estimateStartedAt = nil
+        estimateLastUpdatedAt = nil
+        estimateTailSeconds = 0
+        estimatedRemainingSeconds = nil
+    }
+
+    private static func configure(
+        _ composition: AVMutableVideoComposition,
+        resolution: ExportResolution,
+        frameRate: Int
+    ) {
+        let sourceSize = composition.renderSize
+        let sourceShortEdge = min(sourceSize.width, sourceSize.height)
+        let targetShortEdge = min(sourceShortEdge, CGFloat(resolution.rawValue))
+        if sourceShortEdge > 0, targetShortEdge < sourceShortEdge {
+            let scale = targetShortEdge / sourceShortEdge
+            composition.renderSize = CGSize(
+                width: evenPixelSize(sourceSize.width * scale),
+                height: evenPixelSize(sourceSize.height * scale)
+            )
+        }
+        composition.sourceTrackIDForFrameTiming = kCMPersistentTrackID_Invalid
+        composition.frameDuration = CMTime(
+            value: 1,
+            timescale: CMTimeScale(max(1, frameRate))
+        )
+    }
+
+    private static func evenPixelSize(_ value: CGFloat) -> CGFloat {
+        max(2, (value / 2).rounded(.down) * 2)
     }
 }
 
@@ -510,7 +608,8 @@ final class FrameEffectProcessor: @unchecked Sendable {
         _ = context.createCGImage(CIImage(color: .black).cropped(to: CGRect(x: 0, y: 0, width: 8, height: 8)), from: CGRect(x: 0, y: 0, width: 8, height: 8))
     }
 
-    func render(_ source: CIImage) -> CIImage {
+    func render(_ sourceImage: CIImage, renderSize: CGSize? = nil) -> CIImage {
+        let source = Self.scaledImage(sourceImage, to: renderSize)
         let extent = source.extent
         let effected: CIImage
         switch options.style {
@@ -562,6 +661,42 @@ final class FrameEffectProcessor: @unchecked Sendable {
             kCIInputBackgroundImageKey: source,
             kCIInputMaskImageKey: mask
         ]).cropped(to: extent)
+    }
+
+    private static func scaledImage(_ source: CIImage, to renderSize: CGSize?) -> CIImage {
+        guard let renderSize,
+              renderSize.width > 0,
+              renderSize.height > 0 else {
+            return source
+        }
+        let target = CGRect(origin: .zero, size: renderSize)
+        let extent = source.extent
+        guard extent.width > 0, extent.height > 0 else { return source }
+        let scale = min(
+            target.width / extent.width,
+            target.height / extent.height
+        )
+        if abs(scale - 1) < 0.001,
+           abs(extent.minX) < 0.001,
+           abs(extent.minY) < 0.001 {
+            return source.cropped(to: target)
+        }
+        let normalized = source.transformed(
+            by: CGAffineTransform(
+                translationX: -extent.minX,
+                y: -extent.minY
+            )
+        )
+        let scaled = normalized.transformed(
+            by: CGAffineTransform(scaleX: scale, y: scale)
+        )
+        let offset = CGAffineTransform(
+            translationX: (target.width - scaled.extent.width) / 2,
+            y: (target.height - scaled.extent.height) / 2
+        )
+        return scaled
+            .transformed(by: offset)
+            .cropped(to: target)
     }
 
     private func subjectMask(for image: CIImage, extent: CGRect) -> CIImage? {

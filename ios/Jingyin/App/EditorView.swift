@@ -8,6 +8,8 @@ struct EditorView: View {
     @State private var player: AVPlayer
     @State private var options = ProcessingOptions()
     @State private var showProcessing = false
+    @State private var showExportSettings = false
+    @State private var sourceMetadata: SourceVideoMetadata?
     @State private var previewGeneration = 0
     @StateObject private var voicePreview = VoicePreviewEngine()
     @State private var statusObserver: NSKeyValueObservation?
@@ -21,19 +23,21 @@ struct EditorView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 22) {
-                VideoPlayer(player: player)
-                    .aspectRatio(16 / 10, contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
-                    .overlay(alignment: .topTrailing) {
-                        Label(localization.t("editor.previewBadge"), systemImage: "eye.fill")
-                            .font(.caption.bold())
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(.black.opacity(0.65), in: Capsule())
-                            .padding(10)
-                    }
+                ControlledVideoPlayer(player: player) {
+                    VideoPlayer(player: player)
+                        .aspectRatio(16 / 10, contentMode: .fit)
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
+                        .overlay(alignment: .topTrailing) {
+                            Label(localization.t("editor.previewBadge"), systemImage: "eye.fill")
+                                .font(.caption.bold())
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(.black.opacity(0.65), in: Capsule())
+                                .padding(10)
+                        }
+                }
 
                 settings
 
@@ -52,7 +56,7 @@ struct EditorView: View {
                 Button {
                     player.pause()
                     voicePreview.stop(unload: true)
-                    showProcessing = true
+                    showExportSettings = true
                 } label: {
                     Label(localization.t("editor.start"), systemImage: "wand.and.stars")
                         .font(.headline)
@@ -73,18 +77,41 @@ struct EditorView: View {
         .navigationDestination(isPresented: $showProcessing) {
             ProcessingView(videoURL: videoURL, options: options)
         }
+        .sheet(isPresented: $showExportSettings) {
+            ExportSettingsSheet(
+                options: $options,
+                metadata: sourceMetadata,
+                onExport: {
+                    showExportSettings = false
+                    showProcessing = true
+                }
+            )
+            .environmentObject(localization)
+        }
         .task(id: videoEffectToken) {
             await applyPreview()
         }
         .task {
+            await loadSourceMetadata()
+        }
+        .task {
             // Simulator smoke-test hook. It keeps long-video verification
             // repeatable without affecting normal launches.
-            guard ProcessInfo.processInfo.arguments.contains("-demoProcess") else { return }
-            options.scope = .full
-            options.quality = .fast
-            options.audio = .original
-            player.pause()
-            showProcessing = true
+            let arguments = ProcessInfo.processInfo.arguments
+            if arguments.contains("-demoExportSettings") {
+                while sourceMetadata == nil, !Task.isCancelled {
+                    try? await Task.sleep(for: .milliseconds(50))
+                }
+                showExportSettings = true
+            } else if arguments.contains("-demoProcess") {
+                options.scope = .full
+                options.quality = .fast
+                options.audio = .original
+                options.exportResolution = .p480
+                options.exportFrameRate = 24
+                player.pause()
+                showProcessing = true
+            }
         }
         .onAppear {
             installPlayerObservers()
@@ -162,6 +189,10 @@ struct EditorView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    Text(options.quality.detail(bundle))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
@@ -244,6 +275,17 @@ struct EditorView: View {
         } else {
             options.subjects.insert(subject)
         }
+    }
+
+    @MainActor
+    private func loadSourceMetadata() async {
+        guard sourceMetadata == nil,
+              let metadata = try? await SourceVideoMetadata.load(from: videoURL) else {
+            return
+        }
+        sourceMetadata = metadata
+        options.exportResolution = .defaultValue(for: metadata.shortEdge)
+        options.exportFrameRate = metadata.defaultFrameRate
     }
 
     private var strengthRange: ClosedRange<Double> {
@@ -352,6 +394,113 @@ struct EditorView: View {
         default:
             break
         }
+    }
+}
+
+private struct ExportSettingsSheet: View {
+    @Binding var options: ProcessingOptions
+    let metadata: SourceVideoMetadata?
+    let onExport: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var localization: LocalizationManager
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if let metadata {
+                    ScrollView {
+                        VStack(spacing: 24) {
+                            exportChoice(
+                                title: localization.t("export.resolution"),
+                                hint: localization.t("export.resolutionHint"),
+                                values: metadata.availableResolutions,
+                                selection: $options.exportResolution,
+                                label: \.title
+                            )
+                            exportChoice(
+                                title: localization.t("export.frameRate"),
+                                hint: localization.t("export.frameRateHint"),
+                                values: metadata.availableFrameRates,
+                                selection: $options.exportFrameRate
+                            ) { "\($0) fps" }
+
+                            Label(
+                                localization.t("export.speedHint"),
+                                systemImage: "hare.fill"
+                            )
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding()
+                    }
+                } else {
+                    ProgressView(localization.t("export.reading"))
+                }
+            }
+            .navigationTitle(localization.t("export.title"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(localization.t("export.cancel")) {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(localization.t("export.start")) {
+                        onExport()
+                    }
+                    .disabled(metadata == nil)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func exportChoice<Value: Hashable>(
+        title: String,
+        hint: String,
+        values: [Value],
+        selection: Binding<Value>,
+        label: @escaping (Value) -> String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title)
+                    .font(.headline)
+                Spacer(minLength: 12)
+                Text(hint)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
+            }
+            HStack(spacing: 8) {
+                ForEach(values, id: \.self) { value in
+                    Button {
+                        selection.wrappedValue = value
+                    } label: {
+                        Text(label(value))
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 11)
+                            .background(
+                                selection.wrappedValue == value
+                                    ? Color.mint
+                                    : Color.white.opacity(0.08),
+                                in: RoundedRectangle(cornerRadius: 12)
+                            )
+                            .foregroundStyle(
+                                selection.wrappedValue == value ? .black : .primary
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding()
+        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 18))
     }
 }
 
