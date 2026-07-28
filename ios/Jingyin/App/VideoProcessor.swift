@@ -420,7 +420,11 @@ final class FrameEffectProcessor: @unchecked Sendable {
         }
     }
 
-    private func foregroundInstanceMask(for image: CIImage, extent: CGRect) -> CIImage? {
+    private func foregroundInstanceMask(
+        for image: CIImage,
+        extent: CGRect,
+        matching normalizedBoxes: [CGRect]? = nil
+    ) -> CIImage? {
         let request = VNGenerateForegroundInstanceMaskRequest()
         let handler = VNImageRequestHandler(ciImage: image, orientation: .up)
         do {
@@ -429,14 +433,127 @@ final class FrameEffectProcessor: @unchecked Sendable {
                   !observation.allInstances.isEmpty else {
                 return nil
             }
+            let instances: IndexSet
+            if let normalizedBoxes {
+                let matchedInstances = matchingForegroundInstances(
+                    in: observation.instanceMask,
+                    candidates: observation.allInstances,
+                    overlapping: normalizedBoxes
+                )
+                // A foreground-mask implementation may use an unexpected label
+                // format on a new OS/device. Using every foreground instance and
+                // clipping it to the detected pet box still preserves a pixel
+                // outline, while the rectangle below remains the final fallback.
+                instances = matchedInstances.isEmpty
+                    ? observation.allInstances
+                    : matchedInstances
+            } else {
+                instances = observation.allInstances
+            }
             let buffer = try observation.generateScaledMaskForImage(
-                forInstances: observation.allInstances,
+                forInstances: instances,
                 from: handler
             )
-            return scaledMask(from: buffer, to: extent)
+            let instanceMask = scaledMask(from: buffer, to: extent)
+            guard let normalizedBoxes,
+                  let animalRegion = boxMask(
+                    for: normalizedBoxes,
+                    extent: extent,
+                    padding: 0.025
+                  ) else {
+                return instanceMask
+            }
+            // Foreground lifting can occasionally group a nearby person and pet
+            // as one instance. Restrict the selected instance to the animal
+            // detector's padded region so choosing “pet” cannot mask the owner.
+            return instanceMask
+                .applyingFilter("CIMinimumCompositing", parameters: [
+                    kCIInputBackgroundImageKey: animalRegion
+                ])
+                .cropped(to: extent)
         } catch {
             return nil
         }
+    }
+
+    private func matchingForegroundInstances(
+        in instanceMask: CVPixelBuffer,
+        candidates: IndexSet,
+        overlapping boxes: [CGRect]
+    ) -> IndexSet {
+        let pixelFormat = CVPixelBufferGetPixelFormatType(instanceMask)
+        guard pixelFormat == kCVPixelFormatType_OneComponent8
+                || pixelFormat == kCVPixelFormatType_OneComponent32Float,
+              !boxes.isEmpty else {
+            return []
+        }
+
+        let width = CVPixelBufferGetWidth(instanceMask)
+        let height = CVPixelBufferGetHeight(instanceMask)
+        guard width > 0, height > 0 else { return [] }
+
+        let regions = boxes.map { box in
+            box.insetBy(
+                dx: -max(0.012, box.width * 0.08),
+                dy: -max(0.012, box.height * 0.08)
+            ).intersection(CGRect(x: 0, y: 0, width: 1, height: 1))
+        }
+        var totalCounts: [Int: Int] = [:]
+        var overlapCounts = Array(repeating: [Int: Int](), count: regions.count)
+
+        CVPixelBufferLockBaseAddress(instanceMask, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(instanceMask, .readOnly) }
+        guard let baseAddress = CVPixelBufferGetBaseAddress(instanceMask) else { return [] }
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(instanceMask)
+
+        for y in 0..<height {
+            let row = baseAddress.advanced(by: y * bytesPerRow)
+            // Vision bounding boxes use a bottom-left origin, while pixel-buffer
+            // rows are top-to-bottom.
+            let normalizedY = 1 - (CGFloat(y) + 0.5) / CGFloat(height)
+            for x in 0..<width {
+                let instance: Int
+                if pixelFormat == kCVPixelFormatType_OneComponent8 {
+                    instance = Int(row.assumingMemoryBound(to: UInt8.self)[x])
+                } else {
+                    instance = Int(
+                        row.assumingMemoryBound(to: Float.self)[x].rounded()
+                    )
+                }
+                guard instance > 0, candidates.contains(instance) else { continue }
+                totalCounts[instance, default: 0] += 1
+                let point = CGPoint(
+                    x: (CGFloat(x) + 0.5) / CGFloat(width),
+                    y: normalizedY
+                )
+                for index in regions.indices where regions[index].contains(point) {
+                    overlapCounts[index][instance, default: 0] += 1
+                }
+            }
+        }
+
+        var selected = IndexSet()
+        for (regionIndex, region) in regions.enumerated() {
+            let regionPixels = max(
+                1,
+                Int(region.width * CGFloat(width) * region.height * CGFloat(height))
+            )
+            var bestInstance: Int?
+            var bestIntersectionOverUnion = 0.0
+            for (instance, intersection) in overlapCounts[regionIndex] {
+                guard intersection >= 4, let total = totalCounts[instance] else { continue }
+                let union = max(1, total + regionPixels - intersection)
+                let intersectionOverUnion = Double(intersection) / Double(union)
+                if intersectionOverUnion > bestIntersectionOverUnion {
+                    bestIntersectionOverUnion = intersectionOverUnion
+                    bestInstance = instance
+                }
+            }
+            if bestIntersectionOverUnion >= 0.01, let bestInstance {
+                selected.insert(bestInstance)
+            }
+        }
+        return selected
     }
 
     private func faceMask(for image: CIImage, extent: CGRect) -> CIImage? {
@@ -459,11 +576,20 @@ final class FrameEffectProcessor: @unchecked Sendable {
         do {
             try handler.perform([request])
             guard let observations = request.results, !observations.isEmpty else { return nil }
-            return boxMask(
-                for: observations.filter { $0.confidence >= 0.35 }.map(\.boundingBox),
+            let boxes = observations
+                .filter { $0.confidence >= 0.35 }
+                .map(\.boundingBox)
+            guard !boxes.isEmpty else { return nil }
+            if let preciseMask = foregroundInstanceMask(
+                for: image,
                 extent: extent,
-                padding: 0.025
-            )
+                matching: boxes
+            ) {
+                return preciseMask
+            }
+            // Older/unsupported devices and frames without a foreground
+            // instance keep the previous privacy-safe rectangle fallback.
+            return boxMask(for: boxes, extent: extent, padding: 0.025)
         } catch {
             return nil
         }
