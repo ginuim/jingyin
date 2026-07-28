@@ -1,4 +1,5 @@
 import AVKit
+import CoreTransferable
 import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
@@ -7,9 +8,11 @@ struct ContentView: View {
     @EnvironmentObject private var localization: LocalizationManager
     @State private var pickedItem: PhotosPickerItem?
     @State private var importedURL: URL?
+    @State private var ownedInputURL: URL?
     @State private var showFileImporter = false
     @State private var loadingImport = false
     @State private var showSettings = false
+    @State private var hasCleanedTemporaryFiles = false
 
     var body: some View {
         NavigationStack {
@@ -94,6 +97,7 @@ struct ContentView: View {
                 EditorView(videoURL: url)
             }
             .task {
+                cleanupTemporaryFilesOnce()
                 await loadDemoVideoIfRequested()
             }
             .onChange(of: pickedItem) { _, item in
@@ -112,6 +116,22 @@ struct ContentView: View {
         .preferredColorScheme(.dark)
     }
 
+    @MainActor
+    private func cleanupTemporaryFilesOnce() {
+        guard !hasCleanedTemporaryFiles else { return }
+        hasCleanedTemporaryFiles = true
+        let directory = FileManager.default.temporaryDirectory
+        guard let urls = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil
+        ) else {
+            return
+        }
+        for url in urls where url.lastPathComponent.hasPrefix("jingyin-") {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
     /// Debug helper: `simctl launch … -demoVideo /path/to.mp4`
     @MainActor
     private func loadDemoVideoIfRequested() async {
@@ -126,16 +146,14 @@ struct ContentView: View {
     @MainActor
     private func importPhoto(_ item: PhotosPickerItem) async {
         loadingImport = true
-        defer { loadingImport = false }
-        guard let data = try? await item.loadTransferable(type: Data.self) else { return }
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("jingyin-input-\(UUID().uuidString).mov")
-        do {
-            try data.write(to: url, options: .atomic)
-            importedURL = url
-        } catch {
-            importedURL = nil
+        defer {
+            loadingImport = false
+            pickedItem = nil
         }
+        guard let video = try? await item.loadTransferable(type: ImportedVideo.self) else {
+            return
+        }
+        replaceImportedVideo(with: video.url)
     }
 
     @MainActor
@@ -144,14 +162,42 @@ struct ContentView: View {
         defer { loadingImport = false }
         let scoped = source.startAccessingSecurityScopedResource()
         defer { if scoped { source.stopAccessingSecurityScopedResource() } }
-        let destination = FileManager.default.temporaryDirectory
-            .appendingPathComponent("jingyin-input-\(UUID().uuidString).\(source.pathExtension)")
         do {
-            try FileManager.default.copyItem(at: source, to: destination)
-            importedURL = destination
+            let destination = try ImportedVideo.copyToTemporaryDirectory(source)
+            replaceImportedVideo(with: destination)
         } catch {
-            importedURL = nil
+            return
         }
+    }
+
+    @MainActor
+    private func replaceImportedVideo(with url: URL) {
+        if let ownedInputURL, ownedInputURL != url {
+            try? FileManager.default.removeItem(at: ownedInputURL)
+        }
+        ownedInputURL = url
+        importedURL = url
+    }
+}
+
+private struct ImportedVideo: Transferable {
+    let url: URL
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(contentType: .movie) { video in
+            SentTransferredFile(video.url)
+        } importing: { received in
+            Self(url: try copyToTemporaryDirectory(received.file))
+        }
+    }
+
+    static func copyToTemporaryDirectory(_ source: URL) throws -> URL {
+        let pathExtension = source.pathExtension.isEmpty ? "mov" : source.pathExtension
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent("jingyin-input-\(UUID().uuidString)")
+            .appendingPathExtension(pathExtension)
+        try FileManager.default.copyItem(at: source, to: destination)
+        return destination
     }
 }
 

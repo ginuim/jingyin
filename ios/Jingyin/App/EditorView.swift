@@ -76,6 +76,16 @@ struct EditorView: View {
         .task(id: videoEffectToken) {
             await applyPreview()
         }
+        .task {
+            // Simulator smoke-test hook. It keeps long-video verification
+            // repeatable without affecting normal launches.
+            guard ProcessInfo.processInfo.arguments.contains("-demoProcess") else { return }
+            options.scope = .full
+            options.quality = .fast
+            options.audio = .original
+            player.pause()
+            showProcessing = true
+        }
         .onAppear {
             installPlayerObservers()
             applyAudioMode()

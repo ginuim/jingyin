@@ -12,6 +12,7 @@ final class VideoProcessor: ObservableObject {
     @Published private(set) var advisory: String?
     private var exportSession: AVAssetExportSession?
     private var progressTask: Task<Void, Never>?
+    private static let chunkDurationSeconds = 60.0
 
     var isRunning: Bool {
         switch stage {
@@ -22,14 +23,23 @@ final class VideoProcessor: ObservableObject {
 
     func process(sourceURL: URL, options: ProcessingOptions, bundle: Bundle = .main) async {
         cancel()
+        if let outputURL {
+            try? FileManager.default.removeItem(at: outputURL)
+        }
         outputURL = nil
         advisory = nil
         progress = 0
         stage = .reading
+        var pendingDestination: URL?
         // Keep screen awake for the whole export; lock/sleep commonly yields
         // AVErrorOperationInterrupted ("The operation was interrupted").
         UIApplication.shared.isIdleTimerDisabled = true
-        defer { UIApplication.shared.isIdleTimerDisabled = false }
+        defer {
+            UIApplication.shared.isIdleTimerDisabled = false
+            if let pendingDestination {
+                try? FileManager.default.removeItem(at: pendingDestination)
+            }
+        }
 
         do {
             let asset = AVURLAsset(url: sourceURL)
@@ -37,17 +47,19 @@ final class VideoProcessor: ObservableObject {
             guard duration.seconds.isFinite, duration.seconds > 0 else {
                 throw ProcessorError.invalidVideo
             }
-            guard duration.seconds <= 300 else {
-                throw ProcessorError.videoTooLong
-            }
             let fileSize = try sourceURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-            guard fileSize <= 1_000_000_000 else {
-                throw ProcessorError.fileTooLarge
-            }
             let capacity = try FileManager.default.temporaryDirectory
                 .resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
                 .volumeAvailableCapacityForImportantUsage ?? 0
-            guard capacity == 0 || capacity > Int64(max(fileSize * 2, 250_000_000)) else {
+            // During chunked export both the processed chunks and their joined
+            // result briefly coexist. Reserve enough room for both plus margin.
+            let durationBasedCapacity = Int64(duration.seconds * 5_000_000)
+            let requiredCapacity = max(
+                Int64(fileSize) * 5,
+                durationBasedCapacity,
+                250_000_000
+            )
+            guard capacity == 0 || capacity > requiredCapacity else {
                 throw ProcessorError.insufficientStorage
             }
 
@@ -76,51 +88,33 @@ final class VideoProcessor: ObservableObject {
             let destination = FileManager.default.temporaryDirectory
                 .appendingPathComponent("jingyin-\(UUID().uuidString).mp4")
             try? FileManager.default.removeItem(at: destination)
+            pendingDestination = destination
 
             switch effectiveOptions.audio {
             case .voice:
                 try await exportWithVoicePitch(
                     asset: asset,
                     composition: composition,
+                    duration: duration,
                     sourceURL: sourceURL,
                     semitones: effectiveOptions.voicePitch,
                     destination: destination,
                     bundle: bundle
                 )
             case .original, .mute:
-                guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPreset1920x1080) else {
-                    throw ProcessorError.encoderUnavailable
-                }
-                exportSession = session
-                session.outputURL = destination
-                session.outputFileType = .mp4
-                session.videoComposition = composition
-                if effectiveOptions.audio == .mute {
-                    session.audioMix = try await Self.mutedAudioMix(for: asset)
-                }
-
-                progressTask = Task { [weak self, weak session] in
-                    while let session, !Task.isCancelled {
-                        let value = Double(session.progress)
-                        self?.progress = 0.1 + value * 0.88
-                        try? await Task.sleep(for: .milliseconds(150))
-                    }
-                }
-                await session.export()
-                progressTask?.cancel()
-                exportSession = nil
-
-                switch session.status {
-                case .completed:
-                    break
-                case .cancelled:
-                    throw CancellationError()
-                default:
-                    throw session.error ?? ProcessorError.exportFailed
-                }
+                try await exportProcessedVideo(
+                    asset: asset,
+                    composition: composition,
+                    duration: duration,
+                    muted: effectiveOptions.audio == .mute,
+                    destination: destination,
+                    progressStart: 0.1,
+                    progressSpan: 0.88
+                )
             }
 
             outputURL = destination
+            pendingDestination = nil
             progress = 1
             stage = .completed(destination)
         } catch is CancellationError {
@@ -132,6 +126,7 @@ final class VideoProcessor: ObservableObject {
 
     func cancel() {
         progressTask?.cancel()
+        progressTask = nil
         exportSession?.cancelExport()
         exportSession = nil
     }
@@ -162,6 +157,7 @@ final class VideoProcessor: ObservableObject {
     private func exportWithVoicePitch(
         asset: AVAsset,
         composition: AVVideoComposition,
+        duration: CMTime,
         sourceURL: URL,
         semitones: Int,
         destination: URL,
@@ -177,34 +173,15 @@ final class VideoProcessor: ObservableObject {
             }
         }
 
-        guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPreset1920x1080) else {
-            throw ProcessorError.encoderUnavailable
-        }
-        exportSession = session
-        session.outputURL = mutedVideoURL
-        session.outputFileType = .mp4
-        session.videoComposition = composition
-        session.audioMix = try await Self.mutedAudioMix(for: asset)
-
-        progressTask = Task { [weak self, weak session] in
-            while let session, !Task.isCancelled {
-                let value = Double(session.progress)
-                self?.progress = 0.1 + value * 0.55
-                try? await Task.sleep(for: .milliseconds(150))
-            }
-        }
-        await session.export()
-        progressTask?.cancel()
-        exportSession = nil
-
-        switch session.status {
-        case .completed:
-            break
-        case .cancelled:
-            throw CancellationError()
-        default:
-            throw session.error ?? ProcessorError.exportFailed
-        }
+        try await exportProcessedVideo(
+            asset: asset,
+            composition: composition,
+            duration: duration,
+            muted: true,
+            destination: mutedVideoURL,
+            progressStart: 0.1,
+            progressSpan: 0.55
+        )
 
         try Task.checkCancellation()
         progress = 0.68
@@ -233,6 +210,203 @@ final class VideoProcessor: ObservableObject {
         } catch {
             throw VoicePitchExporter.ExportError.renderFailed
         }
+    }
+
+    private func exportProcessedVideo(
+        asset: AVAsset,
+        composition: AVVideoComposition,
+        duration: CMTime,
+        muted: Bool,
+        destination: URL,
+        progressStart: Double,
+        progressSpan: Double
+    ) async throws {
+        let ranges = Self.chunkRanges(for: duration)
+        guard ranges.count > 1 else {
+            try await exportSegment(
+                asset: asset,
+                composition: composition,
+                timeRange: nil,
+                muted: muted,
+                destination: destination,
+                progressStart: progressStart,
+                progressSpan: progressSpan
+            )
+            return
+        }
+
+        let chunkURLs = ranges.indices.map { index in
+            FileManager.default.temporaryDirectory
+                .appendingPathComponent("jingyin-chunk-\(UUID().uuidString)-\(index).mp4")
+        }
+        defer {
+            for url in chunkURLs {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+
+        // Leave the final 8% of this phase for joining the already encoded
+        // chunks. The join uses passthrough and therefore does not re-render.
+        let encodingSpan = progressSpan * 0.92
+        let chunkSpan = encodingSpan / Double(ranges.count)
+        for index in ranges.indices {
+            try Task.checkCancellation()
+            try await exportSegment(
+                asset: asset,
+                composition: composition,
+                timeRange: ranges[index],
+                muted: muted,
+                destination: chunkURLs[index],
+                progressStart: progressStart + Double(index) * chunkSpan,
+                progressSpan: chunkSpan
+            )
+        }
+
+        try Task.checkCancellation()
+        try await joinChunks(
+            chunkURLs,
+            destination: destination,
+            progressStart: progressStart + encodingSpan,
+            progressSpan: progressSpan - encodingSpan
+        )
+    }
+
+    private func exportSegment(
+        asset: AVAsset,
+        composition: AVVideoComposition,
+        timeRange: CMTimeRange?,
+        muted: Bool,
+        destination: URL,
+        progressStart: Double,
+        progressSpan: Double
+    ) async throws {
+        guard let session = AVAssetExportSession(
+            asset: asset,
+            presetName: AVAssetExportPreset1920x1080
+        ) else {
+            throw ProcessorError.encoderUnavailable
+        }
+        try? FileManager.default.removeItem(at: destination)
+        session.outputURL = destination
+        session.outputFileType = .mp4
+        session.videoComposition = composition
+        if let timeRange {
+            session.timeRange = timeRange
+        }
+        if muted {
+            session.audioMix = try await Self.mutedAudioMix(for: asset)
+        }
+        try await run(
+            session,
+            progressStart: progressStart,
+            progressSpan: progressSpan
+        )
+    }
+
+    private func joinChunks(
+        _ urls: [URL],
+        destination: URL,
+        progressStart: Double,
+        progressSpan: Double
+    ) async throws {
+        let composition = AVMutableComposition()
+        guard let videoTrack = composition.addMutableTrack(
+            withMediaType: .video,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        ) else {
+            throw ProcessorError.exportFailed
+        }
+        let audioTrack = composition.addMutableTrack(
+            withMediaType: .audio,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        )
+        var insertionTime = CMTime.zero
+        var appliedTransform = false
+
+        for url in urls {
+            try Task.checkCancellation()
+            let chunk = AVURLAsset(url: url)
+            let chunkDuration = try await chunk.load(.duration)
+            let range = CMTimeRange(start: .zero, duration: chunkDuration)
+            guard let sourceVideoTrack = try await chunk.loadTracks(withMediaType: .video).first else {
+                throw ProcessorError.exportFailed
+            }
+            try videoTrack.insertTimeRange(range, of: sourceVideoTrack, at: insertionTime)
+            if !appliedTransform {
+                videoTrack.preferredTransform = try await sourceVideoTrack.load(.preferredTransform)
+                appliedTransform = true
+            }
+            if let sourceAudioTrack = try await chunk.loadTracks(withMediaType: .audio).first {
+                let audioDuration = try await sourceAudioTrack.load(.timeRange).duration
+                try audioTrack?.insertTimeRange(
+                    CMTimeRange(start: .zero, duration: CMTimeMinimum(chunkDuration, audioDuration)),
+                    of: sourceAudioTrack,
+                    at: insertionTime
+                )
+            }
+            insertionTime = CMTimeAdd(insertionTime, chunkDuration)
+        }
+
+        guard let session = AVAssetExportSession(
+            asset: composition,
+            presetName: AVAssetExportPresetPassthrough
+        ) else {
+            throw ProcessorError.encoderUnavailable
+        }
+        try? FileManager.default.removeItem(at: destination)
+        session.outputURL = destination
+        session.outputFileType = .mp4
+        try await run(
+            session,
+            progressStart: progressStart,
+            progressSpan: progressSpan
+        )
+    }
+
+    private func run(
+        _ session: AVAssetExportSession,
+        progressStart: Double,
+        progressSpan: Double
+    ) async throws {
+        exportSession = session
+        progressTask?.cancel()
+        progressTask = Task { [weak self, weak session] in
+            while let session, !Task.isCancelled {
+                self?.progress = progressStart + Double(session.progress) * progressSpan
+                try? await Task.sleep(for: .milliseconds(150))
+            }
+        }
+        await session.export()
+        progressTask?.cancel()
+        progressTask = nil
+        exportSession = nil
+
+        switch session.status {
+        case .completed:
+            progress = progressStart + progressSpan
+        case .cancelled:
+            throw CancellationError()
+        default:
+            throw session.error ?? ProcessorError.exportFailed
+        }
+    }
+
+    private static func chunkRanges(for duration: CMTime) -> [CMTimeRange] {
+        let totalSeconds = duration.seconds
+        guard totalSeconds.isFinite, totalSeconds > chunkDurationSeconds else {
+            return [CMTimeRange(start: .zero, duration: duration)]
+        }
+        var ranges: [CMTimeRange] = []
+        var startSeconds = 0.0
+        while startSeconds < totalSeconds {
+            let segmentSeconds = min(chunkDurationSeconds, totalSeconds - startSeconds)
+            ranges.append(CMTimeRange(
+                start: CMTime(seconds: startSeconds, preferredTimescale: 600),
+                duration: CMTime(seconds: segmentSeconds, preferredTimescale: 600)
+            ))
+            startSeconds += segmentSeconds
+        }
+        return ranges
     }
 
     private static func mutedAudioMix(for asset: AVAsset) async throws -> AVAudioMix {
@@ -270,8 +444,6 @@ final class VideoProcessor: ObservableObject {
 
 private enum ProcessorError: Error {
     case invalidVideo
-    case videoTooLong
-    case fileTooLarge
     case insufficientStorage
     case encoderUnavailable
     case exportFailed
@@ -280,10 +452,6 @@ private enum ProcessorError: Error {
         switch self {
         case .invalidVideo:
             String(localized: "error.invalidVideo", bundle: bundle)
-        case .videoTooLong:
-            String(localized: "error.videoTooLong", bundle: bundle)
-        case .fileTooLarge:
-            String(localized: "error.fileTooLarge", bundle: bundle)
         case .insufficientStorage:
             String(localized: "error.insufficientStorage", bundle: bundle)
         case .encoderUnavailable:
