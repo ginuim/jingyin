@@ -32,10 +32,19 @@ enum EffectStyle: String, CaseIterable, Identifiable {
 }
 
 enum AudioMode: String, CaseIterable, Identifiable {
-    case original = "保留原声"
+    case original = "原声"
+    case voice = "变音"
     case mute = "静音"
 
     var id: Self { self }
+
+    var meta: String {
+        switch self {
+        case .original: "保留视频原声"
+        case .voice: "音调偏移"
+        case .mute: "导出无音轨"
+        }
+    }
 }
 
 enum SubjectKind: String, CaseIterable, Identifiable, Hashable {
@@ -53,13 +62,46 @@ enum SubjectKind: String, CaseIterable, Identifiable, Hashable {
     }
 }
 
+enum VoicePitchStore {
+    static let key = "jingyin.voicePitch"
+    static let `default` = -4
+    static let range = -8...8
+
+    static func load() -> Int {
+        guard UserDefaults.standard.object(forKey: key) != nil else { return `default` }
+        return clamp(UserDefaults.standard.integer(forKey: key))
+    }
+
+    static func save(_ value: Int) {
+        UserDefaults.standard.set(clamp(value), forKey: key)
+    }
+
+    static func clamp(_ value: Int) -> Int {
+        min(max(value, range.lowerBound), range.upperBound)
+    }
+
+    static func metaLabel(_ semitones: Int) -> String {
+        let value = clamp(semitones)
+        return "音调 \(value > 0 ? "+" : "")\(value) 半音"
+    }
+}
+
 struct ProcessingOptions: Equatable {
     var quality: QualityMode = .balanced
     var scope: MaskScope = .subjects
     var style: EffectStyle = .blur
     var audio: AudioMode = .original
+    var voicePitch: Int = VoicePitchStore.load()
     var strength = 32.0
     var subjects: Set<SubjectKind> = [.person]
+
+    var audioMeta: String {
+        switch audio {
+        case .original: AudioMode.original.meta
+        case .mute: AudioMode.mute.meta
+        case .voice: VoicePitchStore.metaLabel(voicePitch)
+        }
+    }
 }
 
 enum ProcessingStage: Equatable {

@@ -1,3 +1,4 @@
+import AVFoundation
 import AVKit
 import SwiftUI
 
@@ -7,6 +8,9 @@ struct EditorView: View {
     @State private var options = ProcessingOptions()
     @State private var showProcessing = false
     @State private var previewGeneration = 0
+    @StateObject private var voicePreview = VoicePreviewEngine()
+    @State private var statusObserver: NSKeyValueObservation?
+    @State private var jumpObserver: NSObjectProtocol?
 
     init(videoURL: URL) {
         self.videoURL = videoURL
@@ -16,6 +20,7 @@ struct EditorView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 22) {
+                // Restored original preview surface + composition path.
                 VideoPlayer(player: player)
                     .aspectRatio(16 / 10, contentMode: .fit)
                     .clipShape(RoundedRectangle(cornerRadius: 20))
@@ -30,8 +35,16 @@ struct EditorView: View {
 
                 settings
 
+                if let message = voicePreview.previewUnsupportedMessage, options.audio == .voice {
+                    Label(message, systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote)
+                        .foregroundStyle(.yellow)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
                 Button {
                     player.pause()
+                    voicePreview.stop(unload: true)
                     showProcessing = true
                 } label: {
                     Label("开始本地处理", systemImage: "wand.and.stars")
@@ -51,10 +64,31 @@ struct EditorView: View {
         .navigationDestination(isPresented: $showProcessing) {
             ProcessingView(videoURL: videoURL, options: options)
         }
-        .task(id: options) {
+        .task(id: videoEffectToken) {
             await applyPreview()
         }
-        .onDisappear { player.pause() }
+        .onAppear {
+            installPlayerObservers()
+            applyAudioMode()
+        }
+        .onChange(of: options.audio) { _, _ in
+            applyAudioMode()
+        }
+        .onChange(of: options.voicePitch) { _, pitch in
+            VoicePitchStore.save(pitch)
+            voicePreview.setPitch(pitch)
+        }
+        .onDisappear {
+            removePlayerObservers()
+            player.pause()
+            voicePreview.stop(unload: true)
+        }
+    }
+
+    /// Exclude audio/pitch so voice slider does not rebuild the mask composition.
+    private var videoEffectToken: String {
+        let subjects = options.subjects.map(\.rawValue).sorted().joined(separator: ",")
+        return "\(options.quality.rawValue)|\(options.scope.rawValue)|\(options.style.rawValue)|\(options.strength)|\(subjects)"
     }
 
     private var settings: some View {
@@ -90,6 +124,13 @@ struct EditorView: View {
                         }
                     }
                 }
+
+                OptionSection(title: "处理档位", systemImage: "speedometer") {
+                    Picker("处理档位", selection: $options.quality) {
+                        ForEach(QualityMode.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                }
             }
 
             OptionSection(title: "画面效果", systemImage: "circle.lefthalf.filled") {
@@ -116,18 +157,38 @@ struct EditorView: View {
                     .foregroundStyle(.secondary)
             }
 
-            OptionSection(title: "处理档位", systemImage: "speedometer") {
-                Picker("处理档位", selection: $options.quality) {
-                    ForEach(QualityMode.allCases) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented)
-            }
-
-            OptionSection(title: "声音", systemImage: "speaker.wave.2") {
-                Picker("声音", selection: $options.audio) {
+            OptionSection(
+                title: "声音处理",
+                systemImage: "speaker.wave.2",
+                meta: options.audioMeta
+            ) {
+                Picker("声音处理", selection: $options.audio) {
                     ForEach(AudioMode.allCases) { Text($0.rawValue).tag($0) }
                 }
                 .pickerStyle(.segmented)
+
+                if options.audio == .voice {
+                    HStack {
+                        Text("低")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Slider(
+                            value: Binding(
+                                get: { Double(options.voicePitch) },
+                                set: { options.voicePitch = Int($0.rounded()) }
+                            ),
+                            in: Double(VoicePitchStore.range.lowerBound)...Double(VoicePitchStore.range.upperBound),
+                            step: 1
+                        )
+                        Text("高")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Text("真正改变音调，不改变语速；播放时拖动可实时试听。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -157,6 +218,7 @@ struct EditorView: View {
         }
     }
 
+    /// Exact preview composition path from the last known-good mask build.
     @MainActor
     private func applyPreview() async {
         previewGeneration += 1
@@ -177,8 +239,68 @@ struct EditorView: View {
         item.videoComposition = composition
         player.replaceCurrentItem(with: item)
         await player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero)
+        applyAudioMode()
         if wasPlaying {
             player.play()
+        }
+    }
+
+    private func applyAudioMode() {
+        switch options.audio {
+        case .original:
+            player.isMuted = false
+            voicePreview.stop(unload: true)
+        case .mute:
+            player.isMuted = true
+            voicePreview.stop(unload: true)
+        case .voice:
+            player.isMuted = true
+            voicePreview.configure(sourceURL: videoURL, semitones: options.voicePitch)
+            let seconds = player.currentTime().seconds.isFinite ? player.currentTime().seconds : 0
+            Task {
+                await voicePreview.sync(at: seconds, playing: player.timeControlStatus == .playing)
+            }
+        }
+    }
+
+    private func installPlayerObservers() {
+        removePlayerObservers()
+        statusObserver = player.observe(\.timeControlStatus, options: [.new]) { player, _ in
+            Task { @MainActor in
+                syncVoicePreview(with: player)
+            }
+        }
+        jumpObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemTimeJumped,
+            object: player.currentItem,
+            queue: .main
+        ) { [weak player] _ in
+            guard let player else { return }
+            Task { @MainActor in
+                syncVoicePreview(with: player)
+            }
+        }
+    }
+
+    private func removePlayerObservers() {
+        statusObserver?.invalidate()
+        statusObserver = nil
+        if let jumpObserver {
+            NotificationCenter.default.removeObserver(jumpObserver)
+            self.jumpObserver = nil
+        }
+    }
+
+    private func syncVoicePreview(with player: AVPlayer) {
+        guard options.audio == .voice else { return }
+        let seconds = player.currentTime().seconds.isFinite ? player.currentTime().seconds : 0
+        switch player.timeControlStatus {
+        case .playing:
+            Task { await voicePreview.sync(at: seconds, playing: true) }
+        case .paused:
+            voicePreview.pause()
+        default:
+            break
         }
     }
 }
@@ -186,12 +308,22 @@ struct EditorView: View {
 private struct OptionSection<Content: View>: View {
     let title: String
     let systemImage: String
+    var meta: String? = nil
     @ViewBuilder let content: Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
-            Label(title, systemImage: systemImage)
-                .font(.headline)
+            HStack(alignment: .firstTextBaseline) {
+                Label(title, systemImage: systemImage)
+                    .font(.headline)
+                Spacer(minLength: 8)
+                if let meta {
+                    Text(meta)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                }
+            }
             content
         }
         .padding()

@@ -19,7 +19,7 @@ struct ContentView: View {
                 )
                 .ignoresSafeArea()
 
-                VStack(spacing: 28) {
+                VStack(spacing: 22) {
                     Spacer()
                     Image(systemName: "eye.slash.fill")
                         .font(.system(size: 58, weight: .semibold))
@@ -27,15 +27,15 @@ struct ContentView: View {
                         .padding(24)
                         .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 28))
 
-                    VStack(spacing: 10) {
+                    VStack(spacing: 8) {
                         Text("镜隐")
                             .font(.system(size: 38, weight: .bold, design: .rounded))
                         Text("视频隐私，只留在你的设备里")
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.72))
                     }
 
-                    VStack(spacing: 14) {
+                    VStack(spacing: 12) {
                         PhotosPicker(selection: $pickedItem, matching: .videos) {
                             Label("从相册选择视频", systemImage: "photo.on.rectangle.angled")
                                 .frame(maxWidth: .infinity)
@@ -54,7 +54,7 @@ struct ContentView: View {
 
                     Label("原视频、识别数据和结果均不会上传", systemImage: "lock.shield.fill")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.white.opacity(0.55))
                     Spacer()
                 }
                 .foregroundStyle(.white)
@@ -67,6 +67,9 @@ struct ContentView: View {
             }
             .navigationDestination(item: $importedURL) { url in
                 EditorView(videoURL: url)
+            }
+            .task {
+                await loadDemoVideoIfRequested()
             }
             .onChange(of: pickedItem) { _, item in
                 guard let item else { return }
@@ -82,6 +85,17 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(.dark)
+    }
+
+    /// Debug helper: `simctl launch … -demoVideo /path/to.mp4`
+    @MainActor
+    private func loadDemoVideoIfRequested() async {
+        let args = ProcessInfo.processInfo.arguments
+        guard let index = args.firstIndex(of: "-demoVideo"),
+              args.indices.contains(index + 1) else { return }
+        let source = URL(fileURLWithPath: args[index + 1])
+        guard FileManager.default.fileExists(atPath: source.path) else { return }
+        await importFile(source)
     }
 
     @MainActor

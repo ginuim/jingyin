@@ -71,38 +71,52 @@ final class VideoProcessor: ObservableObject {
             let destination = FileManager.default.temporaryDirectory
                 .appendingPathComponent("镜隐-\(UUID().uuidString).mp4")
             try? FileManager.default.removeItem(at: destination)
-            guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPreset1920x1080) else {
-                throw ProcessorError.encoderUnavailable
-            }
-            exportSession = session
-            session.outputURL = destination
-            session.outputFileType = .mp4
-            session.videoComposition = composition
-            if effectiveOptions.audio == .mute {
-                session.audioMix = try await Self.mutedAudioMix(for: asset)
-            }
 
-            progressTask = Task { [weak self, weak session] in
-                while let session, !Task.isCancelled {
-                    let value = Double(session.progress)
-                    self?.progress = 0.1 + value * 0.88
-                    try? await Task.sleep(for: .milliseconds(150))
+            switch effectiveOptions.audio {
+            case .voice:
+                try await exportWithVoicePitch(
+                    asset: asset,
+                    composition: composition,
+                    sourceURL: sourceURL,
+                    semitones: effectiveOptions.voicePitch,
+                    destination: destination
+                )
+            case .original, .mute:
+                guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPreset1920x1080) else {
+                    throw ProcessorError.encoderUnavailable
+                }
+                exportSession = session
+                session.outputURL = destination
+                session.outputFileType = .mp4
+                session.videoComposition = composition
+                if effectiveOptions.audio == .mute {
+                    session.audioMix = try await Self.mutedAudioMix(for: asset)
+                }
+
+                progressTask = Task { [weak self, weak session] in
+                    while let session, !Task.isCancelled {
+                        let value = Double(session.progress)
+                        self?.progress = 0.1 + value * 0.88
+                        try? await Task.sleep(for: .milliseconds(150))
+                    }
+                }
+                await session.export()
+                progressTask?.cancel()
+                exportSession = nil
+
+                switch session.status {
+                case .completed:
+                    break
+                case .cancelled:
+                    throw CancellationError()
+                default:
+                    throw session.error ?? ProcessorError.exportFailed
                 }
             }
-            await session.export()
-            progressTask?.cancel()
-            exportSession = nil
 
-            switch session.status {
-            case .completed:
-                outputURL = destination
-                progress = 1
-                stage = .completed(destination)
-            case .cancelled:
-                throw CancellationError()
-            default:
-                throw session.error ?? ProcessorError.exportFailed
-            }
+            outputURL = destination
+            progress = 1
+            stage = .completed(destination)
         } catch is CancellationError {
             stage = .failed("处理已取消，可返回调整后重试。")
         } catch {
@@ -130,6 +144,81 @@ final class VideoProcessor: ObservableObject {
         }
     }
 
+    private func exportWithVoicePitch(
+        asset: AVAsset,
+        composition: AVVideoComposition,
+        sourceURL: URL,
+        semitones: Int,
+        destination: URL
+    ) async throws {
+        let mutedVideoURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("jingyin-muted-\(UUID().uuidString).mp4")
+        var pitchedAudioURL: URL?
+        defer {
+            try? FileManager.default.removeItem(at: mutedVideoURL)
+            if let pitchedAudioURL {
+                try? FileManager.default.removeItem(at: pitchedAudioURL)
+            }
+        }
+
+        guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPreset1920x1080) else {
+            throw ProcessorError.encoderUnavailable
+        }
+        exportSession = session
+        session.outputURL = mutedVideoURL
+        session.outputFileType = .mp4
+        session.videoComposition = composition
+        session.audioMix = try await Self.mutedAudioMix(for: asset)
+
+        progressTask = Task { [weak self, weak session] in
+            while let session, !Task.isCancelled {
+                let value = Double(session.progress)
+                self?.progress = 0.1 + value * 0.55
+                try? await Task.sleep(for: .milliseconds(150))
+            }
+        }
+        await session.export()
+        progressTask?.cancel()
+        exportSession = nil
+
+        switch session.status {
+        case .completed:
+            break
+        case .cancelled:
+            throw CancellationError()
+        default:
+            throw session.error ?? ProcessorError.exportFailed
+        }
+
+        try Task.checkCancellation()
+        progress = 0.68
+
+        do {
+            let audioURL = try await VoicePitchExporter.renderPitchedAudio(
+                from: sourceURL,
+                semitones: semitones
+            ) { [weak self] value in
+                Task { @MainActor in
+                    self?.progress = 0.68 + value * 0.18
+                }
+            }
+            pitchedAudioURL = audioURL
+            progress = 0.88
+            try await VoicePitchExporter.mux(
+                videoURL: mutedVideoURL,
+                audioURL: audioURL,
+                outputURL: destination
+            )
+        } catch VoicePitchExporter.ExportError.noAudioTrack {
+            advisory = "视频无音轨，已按无声导出"
+            try FileManager.default.copyItem(at: mutedVideoURL, to: destination)
+        } catch let error as VoicePitchExporter.ExportError {
+            throw error
+        } catch {
+            throw VoicePitchExporter.ExportError.renderFailed
+        }
+    }
+
     private static func mutedAudioMix(for asset: AVAsset) async throws -> AVAudioMix {
         let mix = AVMutableAudioMix()
         let tracks = try await asset.loadTracks(withMediaType: .audio)
@@ -142,8 +231,8 @@ final class VideoProcessor: ObservableObject {
     }
 
     private static func message(for error: Error) -> String {
-        if error is ProcessorError {
-            return error.localizedDescription
+        if let localized = error as? LocalizedError, let description = localized.errorDescription {
+            return description
         }
         return "无法完成导出：\(error.localizedDescription)"
     }
