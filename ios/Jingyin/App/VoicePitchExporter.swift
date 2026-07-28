@@ -1,16 +1,19 @@
 @preconcurrency import AVFoundation
 
 enum VoicePitchExporter {
-    enum ExportError: LocalizedError {
+    enum ExportError: Error {
         case noAudioTrack
         case renderFailed
         case muxFailed
 
-        var errorDescription: String? {
+        func localizedMessage(bundle: Bundle) -> String {
             switch self {
-            case .noAudioTrack: "视频无音轨"
-            case .renderFailed: "变音处理失败，可改选原声或静音后重试"
-            case .muxFailed: "变音音轨合成失败，可改选原声或静音后重试"
+            case .noAudioTrack:
+                String(localized: "error.noAudioTrack", bundle: bundle)
+            case .renderFailed:
+                String(localized: "error.voiceRenderFailed", bundle: bundle)
+            case .muxFailed:
+                String(localized: "error.voiceMuxFailed", bundle: bundle)
             }
         }
     }

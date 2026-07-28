@@ -4,6 +4,7 @@ import SwiftUI
 
 struct EditorView: View {
     let videoURL: URL
+    @EnvironmentObject private var localization: LocalizationManager
     @State private var player: AVPlayer
     @State private var options = ProcessingOptions()
     @State private var showProcessing = false
@@ -20,13 +21,14 @@ struct EditorView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 22) {
-                // Restored original preview surface + composition path.
                 VideoPlayer(player: player)
                     .aspectRatio(16 / 10, contentMode: .fit)
                     .clipShape(RoundedRectangle(cornerRadius: 20))
                     .overlay(alignment: .topTrailing) {
-                        Label("效果预览", systemImage: "eye.fill")
+                        Label(localization.t("editor.previewBadge"), systemImage: "eye.fill")
                             .font(.caption.bold())
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
                             .background(.black.opacity(0.65), in: Capsule())
@@ -36,13 +38,14 @@ struct EditorView: View {
                 settings
 
                 if voicePreview.isPreparing, options.audio == .voice {
-                    ProgressView("正在准备变音试听…")
+                    ProgressView(localization.t("editor.preparingVoice"))
                         .font(.footnote)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                } else if let message = voicePreview.previewUnsupportedMessage, options.audio == .voice {
-                    Label(message, systemImage: "exclamationmark.triangle.fill")
+                } else if voicePreview.isPreviewUnsupported, options.audio == .voice {
+                    Label(localization.t("error.previewUnsupported"), systemImage: "exclamationmark.triangle.fill")
                         .font(.footnote)
                         .foregroundStyle(.yellow)
+                        .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
@@ -51,8 +54,10 @@ struct EditorView: View {
                     voicePreview.stop(unload: true)
                     showProcessing = true
                 } label: {
-                    Label("开始本地处理", systemImage: "wand.and.stars")
+                    Label(localization.t("editor.start"), systemImage: "wand.and.stars")
                         .font(.headline)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
                         .frame(maxWidth: .infinity)
                         .padding()
                 }
@@ -63,7 +68,7 @@ struct EditorView: View {
             .padding()
         }
         .background(Color(red: 0.035, green: 0.065, blue: 0.07))
-        .navigationTitle("编辑")
+        .navigationTitle(localization.t("editor.title"))
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showProcessing) {
             ProcessingView(videoURL: videoURL, options: options)
@@ -96,16 +101,22 @@ struct EditorView: View {
     }
 
     private var settings: some View {
-        VStack(spacing: 18) {
-            OptionSection(title: "遮盖范围", systemImage: "viewfinder") {
-                Picker("遮盖范围", selection: $options.scope) {
-                    ForEach(MaskScope.allCases) { Text($0.rawValue).tag($0) }
+        let bundle = localization.bundle
+        return VStack(spacing: 18) {
+            OptionSection(title: localization.t("editor.scope"), systemImage: "viewfinder") {
+                Picker(localization.t("editor.scope"), selection: $options.scope) {
+                    ForEach(MaskScope.allCases) {
+                        Text($0.title(bundle))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .tag($0)
+                    }
                 }
                 .pickerStyle(.segmented)
             }
 
             if options.scope != .full {
-                OptionSection(title: "识别主体", systemImage: "person.2.crop.square.stack") {
+                OptionSection(title: localization.t("editor.subjects"), systemImage: "person.2.crop.square.stack") {
                     HStack(spacing: 10) {
                         ForEach(SubjectKind.allCases) { subject in
                             Button {
@@ -113,8 +124,10 @@ struct EditorView: View {
                             } label: {
                                 VStack(spacing: 7) {
                                     Image(systemName: subject.icon)
-                                    Text(subject.rawValue)
+                                    Text(subject.title(bundle))
                                         .font(.caption.bold())
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.8)
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 10)
@@ -129,17 +142,27 @@ struct EditorView: View {
                     }
                 }
 
-                OptionSection(title: "处理档位", systemImage: "speedometer") {
-                    Picker("处理档位", selection: $options.quality) {
-                        ForEach(QualityMode.allCases) { Text($0.rawValue).tag($0) }
+                OptionSection(title: localization.t("editor.quality"), systemImage: "speedometer") {
+                    Picker(localization.t("editor.quality"), selection: $options.quality) {
+                        ForEach(QualityMode.allCases) {
+                            Text($0.title(bundle))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                                .tag($0)
+                        }
                     }
                     .pickerStyle(.segmented)
                 }
             }
 
-            OptionSection(title: "画面效果", systemImage: "circle.lefthalf.filled") {
-                Picker("画面效果", selection: $options.style) {
-                    ForEach(EffectStyle.allCases) { Text($0.rawValue).tag($0) }
+            OptionSection(title: localization.t("editor.style"), systemImage: "circle.lefthalf.filled") {
+                Picker(localization.t("editor.style"), selection: $options.style) {
+                    ForEach(EffectStyle.allCases) {
+                        Text($0.title(bundle))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .tag($0)
+                    }
                 }
                 .pickerStyle(.segmented)
                 .onChange(of: options.style) { _, style in
@@ -150,30 +173,36 @@ struct EditorView: View {
                     }
                 }
                 Slider(value: $options.strength, in: strengthRange) {
-                    Text("强度")
+                    Text(localization.t("editor.strength"))
                 } minimumValueLabel: {
-                    Text("弱")
+                    Text(localization.t("editor.weak"))
                 } maximumValueLabel: {
-                    Text("强")
+                    Text(localization.t("editor.strong"))
                 }
                 Text(strengthDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             OptionSection(
-                title: "声音处理",
+                title: localization.t("editor.audio"),
                 systemImage: "speaker.wave.2",
-                meta: options.audioMeta
+                meta: options.audioMeta(bundle: bundle)
             ) {
-                Picker("声音处理", selection: $options.audio) {
-                    ForEach(AudioMode.allCases) { Text($0.rawValue).tag($0) }
+                Picker(localization.t("editor.audio"), selection: $options.audio) {
+                    ForEach(AudioMode.allCases) {
+                        Text($0.title(bundle))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .tag($0)
+                    }
                 }
                 .pickerStyle(.segmented)
 
                 if options.audio == .voice {
                     HStack {
-                        Text("低")
+                        Text(localization.t("editor.pitchLow"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Slider(
@@ -184,15 +213,16 @@ struct EditorView: View {
                             in: Double(VoicePitchStore.range.lowerBound)...Double(VoicePitchStore.range.upperBound),
                             step: 1
                         )
-                        Text("高")
+                        Text(localization.t("editor.pitchHigh"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
 
-                Text("真正改变音调，不改变语速；播放时拖动可实时试听。")
+                Text(localization.t("editor.pitchHint"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -215,14 +245,17 @@ struct EditorView: View {
     }
 
     private var strengthDescription: String {
+        let value = Int64(options.strength)
         switch options.style {
-        case .blur: "模糊半径 \(Int(options.strength)) px"
-        case .pixel: "像素块 \(Int(options.strength)) px"
-        case .ascii: "黑白字符画 · 字符 \(Int(options.strength)) px"
+        case .blur:
+            return localization.format("strength.blur", value)
+        case .pixel:
+            return localization.format("strength.pixel", value)
+        case .ascii:
+            return localization.format("strength.ascii", value)
         }
     }
 
-    /// Exact preview composition path from the last known-good mask build.
     @MainActor
     private func applyPreview() async {
         previewGeneration += 1
@@ -323,12 +356,15 @@ private struct OptionSection<Content: View>: View {
             HStack(alignment: .firstTextBaseline) {
                 Label(title, systemImage: systemImage)
                     .font(.headline)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
                 Spacer(minLength: 8)
                 if let meta {
                     Text(meta)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.trailing)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             content

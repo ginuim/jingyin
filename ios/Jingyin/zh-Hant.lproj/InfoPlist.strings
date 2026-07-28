@@ -1,0 +1,3 @@
+CFBundleDisplayName = "鏡隱";
+NSPhotoLibraryUsageDescription = "用於選擇需要在裝置本機處理的影片。";
+NSPhotoLibraryAddUsageDescription = "用於將本機處理完成的影片儲存到你的相簿。";

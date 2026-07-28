@@ -5,6 +5,7 @@ import SwiftUI
 struct ProcessingView: View {
     let videoURL: URL
     let options: ProcessingOptions
+    @EnvironmentObject private var localization: LocalizationManager
     @StateObject private var processor = VideoProcessor()
     @State private var showShare = false
     @State private var saved = false
@@ -18,8 +19,10 @@ struct ProcessingView: View {
             Spacer()
             stageIcon
             VStack(spacing: 10) {
-                Text(processor.stage.title)
+                Text(processor.stage.title(bundle: localization.bundle))
                     .font(.title2.bold())
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text("\(Int(processor.progress * 100))%")
                     .font(.system(size: 42, weight: .bold, design: .rounded))
                     .monospacedDigit()
@@ -30,6 +33,7 @@ struct ProcessingView: View {
                         .font(.footnote)
                         .foregroundStyle(.yellow)
                         .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .padding(.horizontal, 32)
@@ -39,8 +43,9 @@ struct ProcessingView: View {
                     .font(.callout)
                     .foregroundStyle(.red)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal)
-                Button("重试") { start() }
+                Button(localization.t("processing.retry")) { start() }
                     .buttonStyle(.borderedProminent)
             }
 
@@ -54,14 +59,21 @@ struct ProcessingView: View {
                     Button {
                         Task { saved = await processor.saveToPhotos() }
                     } label: {
-                        Label(saved ? "已保存" : "保存到相册", systemImage: saved ? "checkmark" : "square.and.arrow.down")
+                        Label(
+                            saved ? localization.t("processing.saved") : localization.t("processing.save"),
+                            systemImage: saved ? "checkmark" : "square.and.arrow.down"
+                        )
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                     }
                     .buttonStyle(.borderedProminent)
 
                     Button {
                         showShare = true
                     } label: {
-                        Label("分享", systemImage: "square.and.arrow.up")
+                        Label(localization.t("processing.share"), systemImage: "square.and.arrow.up")
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                     }
                     .buttonStyle(.bordered)
                 }
@@ -69,7 +81,7 @@ struct ProcessingView: View {
 
             Spacer()
             if processor.isRunning {
-                Button("取消处理", role: .destructive) {
+                Button(localization.t("processing.cancel"), role: .destructive) {
                     processingTask?.cancel()
                     processor.cancel()
                 }
@@ -77,7 +89,7 @@ struct ProcessingView: View {
         }
         .padding()
         .background(Color(red: 0.035, green: 0.065, blue: 0.07))
-        .navigationTitle("处理")
+        .navigationTitle(localization.t("processing.title"))
         .navigationBarBackButtonHidden(processor.isRunning)
         .task { start() }
         .onChange(of: processor.outputURL) { _, url in
@@ -107,8 +119,9 @@ struct ProcessingView: View {
 
     private func start() {
         processingTask?.cancel()
+        let bundle = localization.bundle
         processingTask = Task {
-            await processor.process(sourceURL: videoURL, options: options)
+            await processor.process(sourceURL: videoURL, options: options, bundle: bundle)
         }
     }
 }

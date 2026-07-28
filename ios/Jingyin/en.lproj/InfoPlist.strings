@@ -1,0 +1,3 @@
+CFBundleDisplayName = "lenshide";
+NSPhotoLibraryUsageDescription = "Used to choose videos to process on your device.";
+NSPhotoLibraryAddUsageDescription = "Used to save locally processed videos to your library.";

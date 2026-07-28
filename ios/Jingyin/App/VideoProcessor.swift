@@ -20,7 +20,7 @@ final class VideoProcessor: ObservableObject {
         }
     }
 
-    func process(sourceURL: URL, options: ProcessingOptions) async {
+    func process(sourceURL: URL, options: ProcessingOptions, bundle: Bundle = .main) async {
         cancel()
         outputURL = nil
         advisory = nil
@@ -54,7 +54,7 @@ final class VideoProcessor: ObservableObject {
             var effectiveOptions = options
             if options.quality == .precise && Self.shouldDowngradePreciseMode {
                 effectiveOptions.quality = .balanced
-                advisory = "设备当前资源紧张，已自动切换为均衡档。"
+                advisory = String(localized: "advisory.resource", bundle: bundle)
             }
 
             stage = .loadingModel
@@ -84,7 +84,8 @@ final class VideoProcessor: ObservableObject {
                     composition: composition,
                     sourceURL: sourceURL,
                     semitones: effectiveOptions.voicePitch,
-                    destination: destination
+                    destination: destination,
+                    bundle: bundle
                 )
             case .original, .mute:
                 guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPreset1920x1080) else {
@@ -123,9 +124,9 @@ final class VideoProcessor: ObservableObject {
             progress = 1
             stage = .completed(destination)
         } catch is CancellationError {
-            stage = .failed("处理已取消，可返回调整后重试。")
+            stage = .failed(String(localized: "error.cancelled", bundle: bundle))
         } catch {
-            stage = .failed(Self.message(for: error))
+            stage = .failed(Self.message(for: error, bundle: bundle))
         }
     }
 
@@ -163,7 +164,8 @@ final class VideoProcessor: ObservableObject {
         composition: AVVideoComposition,
         sourceURL: URL,
         semitones: Int,
-        destination: URL
+        destination: URL,
+        bundle: Bundle
     ) async throws {
         let mutedVideoURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("jingyin-muted-\(UUID().uuidString).mp4")
@@ -224,7 +226,7 @@ final class VideoProcessor: ObservableObject {
                 outputURL: destination
             )
         } catch VoicePitchExporter.ExportError.noAudioTrack {
-            advisory = "视频无音轨，已按无声导出"
+            advisory = String(localized: "advisory.noAudio", bundle: bundle)
             try FileManager.default.copyItem(at: mutedVideoURL, to: destination)
         } catch let error as VoicePitchExporter.ExportError {
             throw error
@@ -244,11 +246,18 @@ final class VideoProcessor: ObservableObject {
         return mix
     }
 
-    private static func message(for error: Error) -> String {
+    private static func message(for error: Error, bundle: Bundle) -> String {
+        if let processorError = error as? ProcessorError {
+            return processorError.localizedMessage(bundle: bundle)
+        }
+        if let voiceError = error as? VoicePitchExporter.ExportError {
+            return voiceError.localizedMessage(bundle: bundle)
+        }
         if let localized = error as? LocalizedError, let description = localized.errorDescription {
             return description
         }
-        return "无法完成导出：\(error.localizedDescription)"
+        let template = String(localized: "error.exportPrefix", bundle: bundle)
+        return String(format: template, locale: Locale.current, error.localizedDescription)
     }
 
     private static var shouldDowngradePreciseMode: Bool {
@@ -259,7 +268,7 @@ final class VideoProcessor: ObservableObject {
     }
 }
 
-private enum ProcessorError: LocalizedError {
+private enum ProcessorError: Error {
     case invalidVideo
     case videoTooLong
     case fileTooLarge
@@ -267,14 +276,20 @@ private enum ProcessorError: LocalizedError {
     case encoderUnavailable
     case exportFailed
 
-    var errorDescription: String? {
+    func localizedMessage(bundle: Bundle) -> String {
         switch self {
-        case .invalidVideo: "视频无效或无法读取。"
-        case .videoTooLong: "首版暂时支持最长 5 分钟的视频。"
-        case .fileTooLarge: "首版暂时支持最大 1 GB 的视频文件。"
-        case .insufficientStorage: "可用存储空间不足，请清理空间后重试。"
-        case .encoderUnavailable: "当前设备没有可用的视频编码器。"
-        case .exportFailed: "视频编码失败，请降低档位后重试。"
+        case .invalidVideo:
+            String(localized: "error.invalidVideo", bundle: bundle)
+        case .videoTooLong:
+            String(localized: "error.videoTooLong", bundle: bundle)
+        case .fileTooLarge:
+            String(localized: "error.fileTooLarge", bundle: bundle)
+        case .insufficientStorage:
+            String(localized: "error.insufficientStorage", bundle: bundle)
+        case .encoderUnavailable:
+            String(localized: "error.encoderUnavailable", bundle: bundle)
+        case .exportFailed:
+            String(localized: "error.exportFailed", bundle: bundle)
         }
     }
 }

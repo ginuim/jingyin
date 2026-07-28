@@ -4,10 +4,12 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ContentView: View {
+    @EnvironmentObject private var localization: LocalizationManager
     @State private var pickedItem: PhotosPickerItem?
     @State private var importedURL: URL?
     @State private var showFileImporter = false
     @State private var loadingImport = false
+    @State private var showSettings = false
 
     var body: some View {
         NavigationStack {
@@ -28,16 +30,21 @@ struct ContentView: View {
                         .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 28))
 
                     VStack(spacing: 8) {
-                        Text("镜隐")
+                        Text(localization.t("brand.name"))
                             .font(.system(size: 38, weight: .bold, design: .rounded))
-                        Text("视频隐私，只留在你的设备里")
+                        Text(localization.t("home.tagline"))
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.72))
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 28)
                     }
 
                     VStack(spacing: 12) {
                         PhotosPicker(selection: $pickedItem, matching: .videos) {
-                            Label("从相册选择视频", systemImage: "photo.on.rectangle.angled")
+                            Label(localization.t("home.pickPhotos"), systemImage: "photo.on.rectangle.angled")
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.85)
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(PrimaryButtonStyle())
@@ -45,25 +52,43 @@ struct ContentView: View {
                         Button {
                             showFileImporter = true
                         } label: {
-                            Label("从文件选择视频", systemImage: "folder")
+                            Label(localization.t("home.pickFiles"), systemImage: "folder")
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.85)
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(SecondaryButtonStyle())
                     }
                     .padding(.horizontal, 28)
 
-                    Label("原视频、识别数据和结果均不会上传", systemImage: "lock.shield.fill")
+                    Label(localization.t("home.privacy"), systemImage: "lock.shield.fill")
                         .font(.footnote)
                         .foregroundStyle(.white.opacity(0.55))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 28)
                     Spacer()
                 }
                 .foregroundStyle(.white)
 
                 if loadingImport {
-                    ProgressView("正在读取视频…")
+                    ProgressView(localization.t("home.reading"))
                         .padding(22)
                         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
                 }
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityLabel(localization.t("settings.title"))
+                }
+            }
+            .navigationDestination(isPresented: $showSettings) {
+                SettingsView()
             }
             .navigationDestination(item: $importedURL) { url in
                 EditorView(videoURL: url)

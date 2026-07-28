@@ -3,7 +3,7 @@ import Combine
 
 @MainActor
 final class VoicePreviewEngine: ObservableObject {
-    @Published private(set) var previewUnsupportedMessage: String?
+    @Published private(set) var isPreviewUnsupported = false
     @Published private(set) var isPreparing = false
 
     private let engine = AVAudioEngine()
@@ -27,7 +27,7 @@ final class VoicePreviewEngine: ObservableObject {
             stop(unload: true)
             self.sourceURL = sourceURL
             isPrepared = false
-            previewUnsupportedMessage = nil
+            isPreviewUnsupported = false
         }
         setPitch(semitones)
     }
@@ -99,7 +99,7 @@ final class VoicePreviewEngine: ObservableObject {
         guard let sourceURL else { return false }
         let requestedSourceURL = sourceURL
         isPreparing = true
-        previewUnsupportedMessage = nil
+        isPreviewUnsupported = false
         var readableURLForCleanup: URL?
 
         do {
@@ -135,7 +135,7 @@ final class VoicePreviewEngine: ObservableObject {
             readableURLForCleanup = nil
             isPrepared = true
             isPreparing = false
-            previewUnsupportedMessage = nil
+            isPreviewUnsupported = false
             return true
         } catch {
             preparationTask = nil
@@ -146,7 +146,7 @@ final class VoicePreviewEngine: ObservableObject {
             if error is CancellationError {
                 return false
             }
-            previewUnsupportedMessage = "当前无法实时试听变音"
+            isPreviewUnsupported = true
             isPrepared = false
             audioFile = nil
             return false
@@ -165,7 +165,7 @@ final class VoicePreviewEngine: ObservableObject {
         do {
             try engine.start()
         } catch {
-            previewUnsupportedMessage = "当前无法实时试听变音"
+            isPreviewUnsupported = true
         }
     }
 }
