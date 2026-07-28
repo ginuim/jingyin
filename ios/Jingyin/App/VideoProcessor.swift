@@ -29,7 +29,12 @@ final class VideoProcessor: ObservableObject {
         }
     }
 
-    func process(sourceURL: URL, options: ProcessingOptions, bundle: Bundle = .main) async {
+    func process(
+        sourceURL: URL,
+        options: ProcessingOptions,
+        access: ExportAccess,
+        bundle: Bundle = .main
+    ) async {
         cancel()
         if let outputURL {
             try? FileManager.default.removeItem(at: outputURL)
@@ -56,6 +61,13 @@ final class VideoProcessor: ObservableObject {
             guard duration.seconds.isFinite, duration.seconds > 0 else {
                 throw ProcessorError.invalidVideo
             }
+            let outputDuration = Self.outputDuration(
+                sourceDuration: duration,
+                access: access
+            )
+            let sourceTimeRange: CMTimeRange? = outputDuration < duration
+                ? CMTimeRange(start: .zero, duration: outputDuration)
+                : nil
             let fileSize = try sourceURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
             let capacity = try FileManager.default.temporaryDirectory
                 .resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
@@ -72,7 +84,7 @@ final class VideoProcessor: ObservableObject {
                 throw ProcessorError.insufficientStorage
             }
 
-            var effectiveOptions = options
+            var effectiveOptions = access.enforce(on: options)
             if options.quality == .precise && Self.shouldDowngradePreciseMode {
                 effectiveOptions.quality = .balanced
                 advisory = String(localized: "advisory.resource", bundle: bundle)
@@ -115,7 +127,8 @@ final class VideoProcessor: ObservableObject {
                 try await exportWithVoicePitch(
                     asset: asset,
                     composition: composition,
-                    duration: duration,
+                    duration: outputDuration,
+                    sourceTimeRange: sourceTimeRange,
                     sourceURL: sourceURL,
                     semitones: effectiveOptions.voicePitch,
                     destination: destination,
@@ -127,7 +140,8 @@ final class VideoProcessor: ObservableObject {
                 try await exportProcessedVideo(
                     asset: asset,
                     composition: composition,
-                    duration: duration,
+                    duration: outputDuration,
+                    sourceTimeRange: sourceTimeRange,
                     muted: effectiveOptions.audio == .mute,
                     destination: destination,
                     exportPreset: effectiveOptions.exportResolution.exportPreset,
@@ -184,6 +198,7 @@ final class VideoProcessor: ObservableObject {
         asset: AVAsset,
         composition: AVVideoComposition,
         duration: CMTime,
+        sourceTimeRange: CMTimeRange?,
         sourceURL: URL,
         semitones: Int,
         destination: URL,
@@ -209,6 +224,7 @@ final class VideoProcessor: ObservableObject {
             asset: asset,
             composition: composition,
             duration: duration,
+            sourceTimeRange: sourceTimeRange,
             muted: true,
             destination: mutedVideoURL,
             exportPreset: exportPreset,
@@ -227,7 +243,8 @@ final class VideoProcessor: ObservableObject {
         do {
             let audioURL = try await VoicePitchExporter.renderPitchedAudio(
                 from: sourceURL,
-                semitones: semitones
+                semitones: semitones,
+                maximumDuration: sourceTimeRange == nil ? nil : duration.seconds
             ) { [weak self] value in
                 Task { @MainActor in
                     self?.progress = 0.68 + value * 0.18
@@ -255,18 +272,22 @@ final class VideoProcessor: ObservableObject {
         asset: AVAsset,
         composition: AVVideoComposition,
         duration: CMTime,
+        sourceTimeRange: CMTimeRange?,
         muted: Bool,
         destination: URL,
         exportPreset: String,
         progressStart: Double,
         progressSpan: Double
     ) async throws {
-        let ranges = Self.chunkRanges(for: duration)
+        let ranges = Self.chunkRanges(
+            for: sourceTimeRange
+                ?? CMTimeRange(start: .zero, duration: duration)
+        )
         guard ranges.count > 1 else {
             try await exportSegment(
                 asset: asset,
                 composition: composition,
-                timeRange: nil,
+                timeRange: sourceTimeRange,
                 muted: muted,
                 destination: destination,
                 exportPreset: exportPreset,
@@ -434,20 +455,24 @@ final class VideoProcessor: ObservableObject {
         }
     }
 
-    private static func chunkRanges(for duration: CMTime) -> [CMTimeRange] {
-        let totalSeconds = duration.seconds
+    private static func chunkRanges(for timeRange: CMTimeRange) -> [CMTimeRange] {
+        let totalSeconds = timeRange.duration.seconds
         guard totalSeconds.isFinite, totalSeconds > chunkDurationSeconds else {
-            return [CMTimeRange(start: .zero, duration: duration)]
+            return [timeRange]
         }
         var ranges: [CMTimeRange] = []
-        var startSeconds = 0.0
-        while startSeconds < totalSeconds {
-            let segmentSeconds = min(chunkDurationSeconds, totalSeconds - startSeconds)
+        let rangeStartSeconds = timeRange.start.seconds
+        var elapsedSeconds = 0.0
+        while elapsedSeconds < totalSeconds {
+            let segmentSeconds = min(chunkDurationSeconds, totalSeconds - elapsedSeconds)
             ranges.append(CMTimeRange(
-                start: CMTime(seconds: startSeconds, preferredTimescale: 600),
+                start: CMTime(
+                    seconds: rangeStartSeconds + elapsedSeconds,
+                    preferredTimescale: 600
+                ),
                 duration: CMTime(seconds: segmentSeconds, preferredTimescale: 600)
             ))
-            startSeconds += segmentSeconds
+            elapsedSeconds += segmentSeconds
         }
         return ranges
     }
@@ -566,6 +591,20 @@ final class VideoProcessor: ObservableObject {
 
     private static func evenPixelSize(_ value: CGFloat) -> CGFloat {
         max(2, (value / 2).rounded(.down) * 2)
+    }
+
+    private static func outputDuration(
+        sourceDuration: CMTime,
+        access: ExportAccess
+    ) -> CMTime {
+        guard let maximumDurationSeconds = access.maximumDurationSeconds,
+              sourceDuration.seconds > maximumDurationSeconds else {
+            return sourceDuration
+        }
+        return CMTime(
+            seconds: maximumDurationSeconds,
+            preferredTimescale: max(sourceDuration.timescale, 600)
+        )
     }
 }
 
@@ -905,6 +944,20 @@ final class FrameEffectProcessor: @unchecked Sendable {
 
     private func faceMask(for image: CIImage, extent: CGRect) -> CIImage? {
         let request = VNDetectFaceRectanglesRequest()
+        // Face rectangles are lightweight, and forcing the CPU avoids Vision
+        // failing to create a GPU/Neural Engine inference context for
+        // AVVideoComposition-backed CIImage frames on some OS/device builds.
+        if let stageDevices = try? request.supportedComputeStageDevices {
+            for (stage, devices) in stageDevices {
+                guard let cpu = devices.first(where: { device in
+                    if case .cpu = device { return true }
+                    return false
+                }) else {
+                    continue
+                }
+                request.setComputeDevice(cpu, for: stage)
+            }
+        }
         let handler = VNImageRequestHandler(ciImage: image, orientation: .up)
         do {
             try handler.perform([request])

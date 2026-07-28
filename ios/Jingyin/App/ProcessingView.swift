@@ -5,6 +5,7 @@ import SwiftUI
 struct ProcessingView: View {
     let videoURL: URL
     let options: ProcessingOptions
+    let access: ExportAccess
     @EnvironmentObject private var localization: LocalizationManager
     @StateObject private var processor = VideoProcessor()
     @State private var showShare = false
@@ -147,7 +148,12 @@ struct ProcessingView: View {
         processingTask?.cancel()
         let bundle = localization.bundle
         processingTask = Task {
-            await processor.process(sourceURL: videoURL, options: options, bundle: bundle)
+            await processor.process(
+                sourceURL: videoURL,
+                options: options,
+                access: access,
+                bundle: bundle
+            )
         }
     }
 }

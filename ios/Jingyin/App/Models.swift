@@ -75,6 +75,41 @@ enum ExportResolution: Int, CaseIterable, Identifiable {
     }
 }
 
+enum ExportAccess: Equatable, Sendable {
+    case free
+    case lifetime
+
+    static let freeDurationSeconds = 30.0
+
+    var maximumDurationSeconds: TimeInterval? {
+        switch self {
+        case .free: Self.freeDurationSeconds
+        case .lifetime: nil
+        }
+    }
+
+    func allowedResolutions(
+        from resolutions: [ExportResolution]
+    ) -> [ExportResolution] {
+        switch self {
+        case .free:
+            let allowed = resolutions.filter { $0.rawValue <= ExportResolution.p720.rawValue }
+            return allowed.isEmpty ? [.p480] : allowed
+        case .lifetime:
+            return resolutions
+        }
+    }
+
+    func enforce(on options: ProcessingOptions) -> ProcessingOptions {
+        guard self == .free else { return options }
+        var result = options
+        if result.exportResolution.rawValue > ExportResolution.p720.rawValue {
+            result.exportResolution = .p720
+        }
+        return result
+    }
+}
+
 struct SourceVideoMetadata: Equatable {
     static let commonFrameRates = [24, 30, 50, 60, 90, 120]
 

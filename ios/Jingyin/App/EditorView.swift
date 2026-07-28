@@ -5,6 +5,7 @@ import SwiftUI
 struct EditorView: View {
     let videoURL: URL
     @EnvironmentObject private var localization: LocalizationManager
+    @EnvironmentObject private var entitlements: EntitlementStore
     @State private var player: AVPlayer
     @State private var options = ProcessingOptions()
     @State private var showProcessing = false
@@ -75,7 +76,11 @@ struct EditorView: View {
         .navigationTitle(localization.t("editor.title"))
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showProcessing) {
-            ProcessingView(videoURL: videoURL, options: options)
+            ProcessingView(
+                videoURL: videoURL,
+                options: options,
+                access: entitlements.access
+            )
         }
         .sheet(isPresented: $showExportSettings) {
             ExportSettingsSheet(
@@ -87,6 +92,7 @@ struct EditorView: View {
                 }
             )
             .environmentObject(localization)
+            .environmentObject(entitlements)
         }
         .task(id: videoEffectToken) {
             await applyPreview()
@@ -98,6 +104,9 @@ struct EditorView: View {
             // Simulator smoke-test hook. It keeps long-video verification
             // repeatable without affecting normal launches.
             let arguments = ProcessInfo.processInfo.arguments
+            while !entitlements.isReady, !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(25))
+            }
             if arguments.contains("-demoExportSettings") {
                 while sourceMetadata == nil, !Task.isCancelled {
                     try? await Task.sleep(for: .milliseconds(50))
@@ -403,6 +412,8 @@ private struct ExportSettingsSheet: View {
     let onExport: () -> Void
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var localization: LocalizationManager
+    @EnvironmentObject private var entitlements: EntitlementStore
+    @State private var showPaywall = false
 
     var body: some View {
         NavigationStack {
@@ -410,10 +421,13 @@ private struct ExportSettingsSheet: View {
                 if let metadata {
                     ScrollView {
                         VStack(spacing: 24) {
+                            accessCard
                             exportChoice(
                                 title: localization.t("export.resolution"),
                                 hint: localization.t("export.resolutionHint"),
-                                values: metadata.availableResolutions,
+                                values: entitlements.access.allowedResolutions(
+                                    from: metadata.availableResolutions
+                                ),
                                 selection: $options.exportResolution,
                                 label: \.title
                             )
@@ -447,14 +461,80 @@ private struct ExportSettingsSheet: View {
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(localization.t("export.start")) {
+                    Button(exportButtonTitle) {
                         onExport()
                     }
-                    .disabled(metadata == nil)
+                    .disabled(metadata == nil || !entitlements.isReady)
                 }
             }
         }
         .presentationDetents([.medium, .large])
+        .onChange(of: entitlements.isUnlocked) { _, _ in
+            enforceAllowedResolution()
+        }
+        .onAppear {
+            enforceAllowedResolution()
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
+                .environmentObject(localization)
+                .environmentObject(entitlements)
+        }
+    }
+
+    private var exportButtonTitle: String {
+        entitlements.isUnlocked
+            ? localization.t("export.start")
+            : localization.t("export.startFree")
+    }
+
+    private var accessCard: some View {
+        HStack(spacing: 14) {
+            Image(systemName: entitlements.isUnlocked ? "checkmark.seal.fill" : "gift.fill")
+                .font(.title2)
+                .foregroundStyle(.mint)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(
+                    localization.t(
+                        entitlements.isUnlocked
+                            ? "purchase.unlocked"
+                            : "purchase.freePlan"
+                    )
+                )
+                .font(.headline)
+                Text(
+                    localization.t(
+                        entitlements.isUnlocked
+                            ? "purchase.unlocked.detail"
+                            : "purchase.freePlan.detail"
+                    )
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            if !entitlements.isUnlocked {
+                Button(localization.t("purchase.unlock")) {
+                    showPaywall = true
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.mint)
+                .foregroundStyle(.black)
+            }
+        }
+        .padding()
+        .background(.mint.opacity(0.08), in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    private func enforceAllowedResolution() {
+        guard let metadata else { return }
+        let allowed = entitlements.access.allowedResolutions(
+            from: metadata.availableResolutions
+        )
+        if !allowed.contains(options.exportResolution), let fallback = allowed.last {
+            options.exportResolution = fallback
+        }
     }
 
     private func exportChoice<Value: Hashable>(

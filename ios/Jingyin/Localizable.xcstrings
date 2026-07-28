@@ -2476,6 +2476,190 @@
           }
         }
       }
+    },
+    "export.startFree": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "免费导出 30 秒"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "免費匯出 30 秒"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Export 30s Free"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "30秒を無料で書き出す"}}
+      }
+    },
+    "purchase.title": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "永久版"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "永久版"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Lifetime Access"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "永久版"}}
+      }
+    },
+    "purchase.status": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "当前方案"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "目前方案"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Current Plan"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "現在のプラン"}}
+      }
+    },
+    "purchase.unlocked": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "永久版已解锁"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "永久版已解鎖"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Lifetime Unlocked"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "永久版を解放済み"}}
+      }
+    },
+    "purchase.unlocked.detail": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "可导出完整时长和可用分辨率"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "可匯出完整時長和可用解析度"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Full duration and available resolutions"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "全編と利用可能な解像度で書き出し"}}
+      }
+    },
+    "purchase.freePlan": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "免费版"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "免費版"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Free"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "無料版"}}
+      }
+    },
+    "purchase.freePlan.detail": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "可导出前 30 秒，最高 720p，无水印"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "可匯出前 30 秒，最高 720p，無浮水印"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Export the first 30 seconds up to 720p, no watermark"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "先頭30秒を最大720p・透かしなしで書き出し"}}
+      }
+    },
+    "purchase.unlock": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "永久解锁"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "永久解鎖"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Unlock"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "永久版を解放"}}
+      }
+    },
+    "purchase.restore": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "恢复购买"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "恢復購買"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Restore Purchases"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "購入を復元"}}
+      }
+    },
+    "purchase.restore.success": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "永久版已恢复。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "永久版已恢復。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Lifetime access restored."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "永久版を復元しました。"}}
+      }
+    },
+    "purchase.restore.none": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "没有找到可恢复的购买。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "找不到可恢復的購買。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "No restorable purchase was found."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "復元できる購入が見つかりませんでした。"}}
+      }
+    },
+    "purchase.promise": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "一次购买，永久使用。无订阅、无广告，视频不上传。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "一次購買，永久使用。無訂閱、無廣告，影片不上傳。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "One purchase, lifetime use. No subscription, no ads, no uploads."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "買い切りで永久利用。サブスク・広告・アップロードなし。"}}
+      }
+    },
+    "purchase.processing": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "正在处理…"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "正在處理…"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Processing…"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "処理中…"}}
+      }
+    },
+    "purchase.unavailable": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "暂时无法购买"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "暫時無法購買"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Purchase Unavailable"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "現在購入できません"}}
+      }
+    },
+    "purchase.buy": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "以 %@ 永久解锁"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "以 %@ 永久解鎖"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Unlock Forever for %@"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "%@ で永久版を解放"}}
+      }
+    },
+    "paywall.title": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "一次购买，永久使用"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "一次購買，永久使用"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Pay Once, Use Forever"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "買い切りで永久に利用"}}
+      }
+    },
+    "paywall.subtitle": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "先免费预览和导出短片，满意后再解锁完整导出。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "先免費預覽和匯出短片，滿意後再解鎖完整匯出。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Preview and export a short clip free, then unlock full exports."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "無料で短い動画を試してから、完全な書き出しを解放できます。"}}
+      }
+    },
+    "paywall.benefit.full": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "导出完整视频，不再限制 30 秒"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "匯出完整影片，不再限制 30 秒"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Export the full video without the 30-second limit"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "30秒制限なしで動画全編を書き出し"}}
+      }
+    },
+    "paywall.benefit.quality": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "开放素材支持的完整导出分辨率"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "開放素材支援的完整匯出解析度"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Use all export resolutions supported by the source"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "素材が対応するすべての解像度で書き出し"}}
+      }
+    },
+    "paywall.benefit.simple": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "无订阅、无广告"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "無訂閱、無廣告"}},
+        "en": {"stringUnit": {"state": "translated", "value": "No subscription and no ads"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "サブスク・広告なし"}}
+      }
+    },
+    "paywall.benefit.privacy": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "视频和识别数据始终留在设备上"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "影片和辨識資料始終留在裝置上"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Video and detection data stay on your device"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "動画と検出データは常に端末内に保存"}}
+      }
+    },
+    "paywall.oneTime": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "一次性购买，不自动续费"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "一次性購買，不自動續費"}},
+        "en": {"stringUnit": {"state": "translated", "value": "One-time purchase, no auto-renewal"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "買い切り、自動更新なし"}}
+      }
+    },
+    "paywall.footnote": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "购买由 App Store 安全处理，可在使用同一 Apple 账户的设备上恢复。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "購買由 App Store 安全處理，可在使用同一 Apple 帳號的裝置上恢復。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Purchases are securely handled by the App Store and can be restored on devices using the same Apple Account."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "購入はApp Storeが安全に処理し、同じApple Accountの端末で復元できます。"}}
+      }
     }
   },
   "version": "1.0"

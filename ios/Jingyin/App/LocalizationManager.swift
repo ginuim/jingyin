@@ -22,6 +22,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 }
 
 #if DEBUG
+@MainActor
 enum LocalizationResolverSmoke {
     static func run() {
         let cases: [(AppLanguage, [String], String)] = [

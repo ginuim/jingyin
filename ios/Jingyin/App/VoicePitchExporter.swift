@@ -22,6 +22,7 @@ enum VoicePitchExporter {
     static func renderPitchedAudio(
         from sourceURL: URL,
         semitones: Int,
+        maximumDuration: TimeInterval? = nil,
         progress: (@Sendable (Double) -> Void)? = nil
     ) async throws -> URL {
         let extracted = try await extractAudioFile(from: sourceURL)
@@ -72,7 +73,11 @@ enum VoicePitchExporter {
         let buffer = AVAudioPCMBuffer(pcmFormat: engine.manualRenderingFormat, frameCapacity: maxFrames)!
         let total = max(engine.manualRenderingSampleTime, 1)
         // TimePitch keeps duration ~same; render until input drained + short tail.
-        let targetFrames = input.length + AVAudioFramePosition(format.sampleRate * 0.25)
+        let requestedFrames = maximumDuration.map {
+            AVAudioFramePosition($0 * format.sampleRate)
+        }
+        let inputFrames = min(input.length, requestedFrames ?? input.length)
+        let targetFrames = inputFrames + AVAudioFramePosition(format.sampleRate * 0.25)
         var consecutiveEmptyRenders = 0
 
         while engine.manualRenderingSampleTime < targetFrames {
