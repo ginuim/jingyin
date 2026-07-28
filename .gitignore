@@ -40,3 +40,6 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+/ios/.derived-data/
+/ios/.device-derived-data/
+/ios/*.xcuserdatad/
