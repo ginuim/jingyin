@@ -35,7 +35,11 @@ struct EditorView: View {
 
                 settings
 
-                if let message = voicePreview.previewUnsupportedMessage, options.audio == .voice {
+                if voicePreview.isPreparing, options.audio == .voice {
+                    ProgressView("正在准备变音试听…")
+                        .font(.footnote)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else if let message = voicePreview.previewUnsupportedMessage, options.audio == .voice {
                     Label(message, systemImage: "exclamationmark.triangle.fill")
                         .font(.footnote)
                         .foregroundStyle(.yellow)
@@ -238,6 +242,7 @@ struct EditorView: View {
         let item = AVPlayerItem(asset: asset)
         item.videoComposition = composition
         player.replaceCurrentItem(with: item)
+        installPlayerObservers()
         await player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero)
         applyAudioMode()
         if wasPlaying {
@@ -256,8 +261,10 @@ struct EditorView: View {
         case .voice:
             player.isMuted = true
             voicePreview.configure(sourceURL: videoURL, semitones: options.voicePitch)
-            let seconds = player.currentTime().seconds.isFinite ? player.currentTime().seconds : 0
             Task {
+                guard await voicePreview.prepare() else { return }
+                let currentTime = player.currentTime().seconds
+                let seconds = currentTime.isFinite ? currentTime : 0
                 await voicePreview.sync(at: seconds, playing: player.timeControlStatus == .playing)
             }
         }

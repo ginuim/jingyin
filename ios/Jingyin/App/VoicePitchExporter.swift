@@ -29,7 +29,7 @@ enum VoicePitchExporter {
         guard input.length > 0 else { throw ExportError.noAudioTrack }
 
         let outputURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("jingyin-pitch-\(UUID().uuidString).caf")
+            .appendingPathComponent("jingyin-pitch-\(UUID().uuidString).m4a")
         try? FileManager.default.removeItem(at: outputURL)
 
         let engine = AVAudioEngine()
@@ -47,16 +47,22 @@ enum VoicePitchExporter {
         let maxFrames: AVAudioFrameCount = 4096
         try engine.enableManualRenderingMode(.offline, format: format, maximumFrameCount: maxFrames)
         try engine.start()
-        await player.scheduleFile(input, at: nil)
+        // Passing no completion handler selects Swift's async overlay, which
+        // waits for playback to finish. Playback only starts on the next line,
+        // so awaiting it here deadlocks the export at 68%.
+        player.scheduleFile(
+            input,
+            at: nil,
+            completionCallbackType: .dataConsumed,
+            completionHandler: nil
+        )
         player.play()
 
         let settings: [String: Any] = [
-            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVFormatIDKey: kAudioFormatMPEG4AAC,
             AVSampleRateKey: format.sampleRate,
             AVNumberOfChannelsKey: format.channelCount,
-            AVLinearPCMBitDepthKey: 16,
-            AVLinearPCMIsFloatKey: false,
-            AVLinearPCMIsBigEndianKey: false
+            AVEncoderBitRateKey: 128_000
         ]
         let output = try AVAudioFile(forWriting: outputURL, settings: settings)
 
@@ -64,17 +70,27 @@ enum VoicePitchExporter {
         let total = max(engine.manualRenderingSampleTime, 1)
         // TimePitch keeps duration ~same; render until input drained + short tail.
         let targetFrames = input.length + AVAudioFramePosition(format.sampleRate * 0.25)
+        var consecutiveEmptyRenders = 0
 
         while engine.manualRenderingSampleTime < targetFrames {
+            try Task.checkCancellation()
             let frames = min(maxFrames, AVAudioFrameCount(targetFrames - engine.manualRenderingSampleTime))
             let status = try engine.renderOffline(frames, to: buffer)
             switch status {
             case .success:
+                consecutiveEmptyRenders = 0
                 if buffer.frameLength > 0 {
                     try output.write(from: buffer)
                 }
             case .insufficientDataFromInputNode:
-                break
+                consecutiveEmptyRenders += 1
+                if !player.isPlaying {
+                    break
+                }
+                guard consecutiveEmptyRenders < 32 else {
+                    throw ExportError.renderFailed
+                }
+                await Task.yield()
             case .cannotDoInCurrentContext:
                 throw ExportError.renderFailed
             case .error:
@@ -142,7 +158,7 @@ enum VoicePitchExporter {
         session.outputFileType = .mp4
         await session.export()
         guard session.status == .completed else {
-            // Passthrough can fail for CAF+H264; fall back to a re-encode preset.
+            // Some source containers reject passthrough; fall back to re-encoding.
             guard let fallback = AVAssetExportSession(
                 asset: composition,
                 presetName: AVAssetExportPresetHighestQuality
@@ -160,7 +176,10 @@ enum VoicePitchExporter {
         }
     }
 
-    private static func extractAudioFile(from sourceURL: URL) async throws -> URL {
+    /// Produces a temporary file that `AVAudioFile` can read. Video containers
+    /// are opened directly when possible and otherwise exported as M4A.
+    static func extractAudioFile(from sourceURL: URL) async throws -> URL {
+        try Task.checkCancellation()
         let asset = AVURLAsset(url: sourceURL)
         let tracks = try await asset.loadTracks(withMediaType: .audio)
         guard !tracks.isEmpty else { throw ExportError.noAudioTrack }
@@ -183,6 +202,7 @@ enum VoicePitchExporter {
         session.outputURL = outputURL
         session.outputFileType = .m4a
         await session.export()
+        try Task.checkCancellation()
         guard session.status == .completed else {
             throw session.error ?? ExportError.renderFailed
         }

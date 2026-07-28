@@ -4,11 +4,14 @@ import Combine
 @MainActor
 final class VoicePreviewEngine: ObservableObject {
     @Published private(set) var previewUnsupportedMessage: String?
+    @Published private(set) var isPreparing = false
 
     private let engine = AVAudioEngine()
     private let playerNode = AVAudioPlayerNode()
     private let timePitch = AVAudioUnitTimePitch()
     private var audioFile: AVAudioFile?
+    private var preparedAudioURL: URL?
+    private var preparationTask: Task<URL, Error>?
     private var sourceURL: URL?
     private var isPrepared = false
     private var graphConnected = false
@@ -33,8 +36,12 @@ final class VoicePreviewEngine: ObservableObject {
         timePitch.pitch = Float(VoicePitchStore.clamp(semitones)) * 100
     }
 
+    func prepare() async -> Bool {
+        await prepareIfNeeded()
+    }
+
     func sync(at seconds: TimeInterval, playing: Bool) async {
-        guard prepareIfNeeded() else { return }
+        guard await prepareIfNeeded() else { return }
         guard let audioFile else { return }
 
         let sampleRate = audioFile.processingFormat.sampleRate
@@ -46,11 +53,12 @@ final class VoicePreviewEngine: ObservableObject {
 
         let remaining = AVAudioFrameCount(audioFile.length - startFrame)
         playerNode.stop()
-        await playerNode.scheduleSegment(
+        playerNode.scheduleSegment(
             audioFile,
             startingFrame: startFrame,
             frameCount: remaining,
             at: nil,
+            completionCallbackType: .dataPlayedBack,
             completionHandler: nil
         )
 
@@ -72,31 +80,72 @@ final class VoicePreviewEngine: ObservableObject {
             engine.stop()
         }
         if unload {
+            preparationTask?.cancel()
+            preparationTask = nil
             disconnectGraph()
             audioFile = nil
+            if let preparedAudioURL {
+                try? FileManager.default.removeItem(at: preparedAudioURL)
+                self.preparedAudioURL = nil
+            }
             isPrepared = false
+            isPreparing = false
             sourceURL = nil
         }
     }
 
-    private func prepareIfNeeded() -> Bool {
+    private func prepareIfNeeded() async -> Bool {
         if isPrepared { return true }
         guard let sourceURL else { return false }
+        let requestedSourceURL = sourceURL
+        isPreparing = true
+        previewUnsupportedMessage = nil
+        var readableURLForCleanup: URL?
+
         do {
+            if preparationTask == nil {
+                preparationTask = Task {
+                    try await VoicePitchExporter.extractAudioFile(from: requestedSourceURL)
+                }
+            }
+            guard let task = preparationTask else { return false }
+            let readableURL = try await task.value
+            if isPrepared {
+                return true
+            }
+            guard self.sourceURL == requestedSourceURL else {
+                try? FileManager.default.removeItem(at: readableURL)
+                isPreparing = false
+                return false
+            }
+            preparationTask = nil
+            readableURLForCleanup = readableURL
+
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
             try AVAudioSession.sharedInstance().setActive(true)
 
-            let file = try AVAudioFile(forReading: sourceURL)
+            let file = try AVAudioFile(forReading: readableURL)
             let format = file.processingFormat
             disconnectGraph()
             engine.connect(playerNode, to: timePitch, format: format)
             engine.connect(timePitch, to: engine.mainMixerNode, format: format)
             graphConnected = true
             audioFile = file
+            preparedAudioURL = readableURL
+            readableURLForCleanup = nil
             isPrepared = true
+            isPreparing = false
             previewUnsupportedMessage = nil
             return true
         } catch {
+            preparationTask = nil
+            isPreparing = false
+            if let readableURLForCleanup {
+                try? FileManager.default.removeItem(at: readableURLForCleanup)
+            }
+            if error is CancellationError {
+                return false
+            }
             previewUnsupportedMessage = "当前无法实时试听变音"
             isPrepared = false
             audioFile = nil

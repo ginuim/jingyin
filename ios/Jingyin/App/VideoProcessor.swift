@@ -26,6 +26,10 @@ final class VideoProcessor: ObservableObject {
         advisory = nil
         progress = 0
         stage = .reading
+        // Keep screen awake for the whole export; lock/sleep commonly yields
+        // AVErrorOperationInterrupted ("The operation was interrupted").
+        UIApplication.shared.isIdleTimerDisabled = true
+        defer { UIApplication.shared.isIdleTimerDisabled = false }
 
         do {
             let asset = AVURLAsset(url: sourceURL)
@@ -68,8 +72,9 @@ final class VideoProcessor: ObservableObject {
             }
 
             stage = .encoding
+            // ASCII-only: Photos rejects / crashes on some non-ASCII temp paths.
             let destination = FileManager.default.temporaryDirectory
-                .appendingPathComponent("镜隐-\(UUID().uuidString).mp4")
+                .appendingPathComponent("jingyin-\(UUID().uuidString).mp4")
             try? FileManager.default.removeItem(at: destination)
 
             switch effectiveOptions.audio {
@@ -132,15 +137,24 @@ final class VideoProcessor: ObservableObject {
 
     func saveToPhotos() async -> Bool {
         guard let outputURL else { return false }
+        guard FileManager.default.fileExists(atPath: outputURL.path) else { return false }
         let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
         guard status == .authorized || status == .limited else { return false }
+        let fileURL = outputURL
         do {
-            try await PHPhotoLibrary.shared().performChanges {
-                PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: outputURL)
-            }
+            try await Self.addVideoToPhotos(fileURL)
             return true
         } catch {
             return false
+        }
+    }
+
+    /// `PHPhotoLibrary` executes its changes block on a private queue. Keeping
+    /// this helper nonisolated prevents Swift 6 from inheriting MainActor onto
+    /// that block and trapping when Photos invokes it off the main queue.
+    nonisolated private static func addVideoToPhotos(_ fileURL: URL) async throws {
+        try await PHPhotoLibrary.shared().performChanges {
+            PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: fileURL)
         }
     }
 

@@ -8,6 +8,10 @@ struct ProcessingView: View {
     @StateObject private var processor = VideoProcessor()
     @State private var showShare = false
     @State private var saved = false
+    @State private var processingTask: Task<Void, Never>?
+    /// Must outlive body redraws. Creating AVPlayer inside `body` tears the
+    /// previous player down on every state change (e.g. tapping Save) and crashes.
+    @State private var previewPlayer: AVPlayer?
 
     var body: some View {
         VStack(spacing: 28) {
@@ -40,8 +44,8 @@ struct ProcessingView: View {
                     .buttonStyle(.borderedProminent)
             }
 
-            if let output = processor.outputURL {
-                VideoPlayer(player: AVPlayer(url: output))
+            if let previewPlayer {
+                VideoPlayer(player: previewPlayer)
                     .frame(height: 220)
                     .clipShape(RoundedRectangle(cornerRadius: 18))
                     .padding(.horizontal)
@@ -66,6 +70,7 @@ struct ProcessingView: View {
             Spacer()
             if processor.isRunning {
                 Button("取消处理", role: .destructive) {
+                    processingTask?.cancel()
                     processor.cancel()
                 }
             }
@@ -75,6 +80,17 @@ struct ProcessingView: View {
         .navigationTitle("处理")
         .navigationBarBackButtonHidden(processor.isRunning)
         .task { start() }
+        .onChange(of: processor.outputURL) { _, url in
+            previewPlayer?.pause()
+            previewPlayer = url.map { AVPlayer(url: $0) }
+            saved = false
+        }
+        .onDisappear {
+            processingTask?.cancel()
+            processor.cancel()
+            previewPlayer?.pause()
+            previewPlayer = nil
+        }
         .sheet(isPresented: $showShare) {
             if let output = processor.outputURL {
                 ShareSheet(items: [output])
@@ -90,7 +106,10 @@ struct ProcessingView: View {
     }
 
     private func start() {
-        Task { await processor.process(sourceURL: videoURL, options: options) }
+        processingTask?.cancel()
+        processingTask = Task {
+            await processor.process(sourceURL: videoURL, options: options)
+        }
     }
 }
 
