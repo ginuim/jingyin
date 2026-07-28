@@ -1,5 +1,6 @@
 import AVKit
 import CoreTransferable
+import Darwin
 import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
@@ -9,13 +10,18 @@ struct ContentView: View {
     @State private var pickedItem: PhotosPickerItem?
     @State private var importedURL: URL?
     @State private var ownedInputURL: URL?
+    @State private var securityScopedInputURL: URL?
     @State private var showFileImporter = false
     @State private var loadingImport = false
+    @State private var importFraction: Double?
+    @State private var activeImportProgress: Progress?
+    @State private var importProgressTask: Task<Void, Never>?
     @State private var showSettings = false
     @State private var hasCleanedTemporaryFiles = false
 
     var body: some View {
-        NavigationStack {
+        let pickPhotosTitle = localization.t("home.pickPhotos")
+        return NavigationStack {
             ZStack {
                 LinearGradient(
                     colors: [Color(red: 0.04, green: 0.08, blue: 0.09), Color(red: 0.06, green: 0.15, blue: 0.13)],
@@ -44,8 +50,12 @@ struct ContentView: View {
                     }
 
                     VStack(spacing: 12) {
-                        PhotosPicker(selection: $pickedItem, matching: .videos) {
-                            Label(localization.t("home.pickPhotos"), systemImage: "photo.on.rectangle.angled")
+                        PhotosPicker(
+                            selection: $pickedItem,
+                            matching: .videos,
+                            preferredItemEncoding: .current
+                        ) {
+                            Label(pickPhotosTitle, systemImage: "photo.on.rectangle.angled")
                                 .lineLimit(2)
                                 .minimumScaleFactor(0.85)
                                 .frame(maxWidth: .infinity)
@@ -63,6 +73,7 @@ struct ContentView: View {
                         .buttonStyle(SecondaryButtonStyle())
                     }
                     .padding(.horizontal, 28)
+                    .disabled(loadingImport)
 
                     Label(localization.t("home.privacy"), systemImage: "lock.shield.fill")
                         .font(.footnote)
@@ -75,9 +86,25 @@ struct ContentView: View {
                 .foregroundStyle(.white)
 
                 if loadingImport {
-                    ProgressView(localization.t("home.reading"))
-                        .padding(22)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+                    VStack(spacing: 10) {
+                        if let importFraction, importFraction > 0 {
+                            ProgressView(value: importFraction)
+                                .frame(width: 180)
+                            Text("\(Int(importFraction * 100))%")
+                                .font(.headline.monospacedDigit())
+                        } else {
+                            ProgressView()
+                        }
+                        Text(localization.t("home.reading"))
+                        if activeImportProgress != nil {
+                            Button(localization.t("processing.cancel"), role: .cancel) {
+                                cancelPhotoImport()
+                            }
+                            .font(.footnote)
+                        }
+                    }
+                    .padding(22)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
                 }
             }
             .toolbar {
@@ -102,7 +129,7 @@ struct ContentView: View {
             }
             .onChange(of: pickedItem) { _, item in
                 guard let item else { return }
-                Task { await importPhoto(item) }
+                beginPhotoImport(item)
             }
             .fileImporter(
                 isPresented: $showFileImporter,
@@ -144,38 +171,96 @@ struct ContentView: View {
     }
 
     @MainActor
-    private func importPhoto(_ item: PhotosPickerItem) async {
+    private func beginPhotoImport(_ item: PhotosPickerItem) {
+        activeImportProgress?.cancel()
+        importProgressTask?.cancel()
         loadingImport = true
-        defer {
-            loadingImport = false
-            pickedItem = nil
+        importFraction = nil
+
+        let progress = item.loadTransferable(type: ImportedVideo.self) { result in
+            Task { @MainActor in
+                finishPhotoImport(item: item, result: result)
+            }
         }
-        guard let video = try? await item.loadTransferable(type: ImportedVideo.self) else {
+        activeImportProgress = progress
+        importProgressTask = Task { @MainActor in
+            while !Task.isCancelled, loadingImport {
+                let fraction = progress.fractionCompleted
+                importFraction = fraction > 0 ? min(fraction, 1) : nil
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
+    }
+
+    @MainActor
+    private func cancelPhotoImport() {
+        activeImportProgress?.cancel()
+        activeImportProgress = nil
+        importProgressTask?.cancel()
+        importProgressTask = nil
+        importFraction = nil
+        loadingImport = false
+        pickedItem = nil
+    }
+
+    @MainActor
+    private func finishPhotoImport(
+        item: PhotosPickerItem,
+        result: Result<ImportedVideo?, Error>
+    ) {
+        importProgressTask?.cancel()
+        importProgressTask = nil
+        activeImportProgress = nil
+        importFraction = nil
+        loadingImport = false
+        defer { pickedItem = nil }
+
+        guard case let .success(video?) = result else { return }
+        guard pickedItem == item else {
+            try? FileManager.default.removeItem(at: video.url)
             return
         }
-        replaceImportedVideo(with: video.url)
+        replaceImportedVideo(with: video.url, ownsFile: true)
     }
 
     @MainActor
     private func importFile(_ source: URL) async {
         loadingImport = true
-        defer { loadingImport = false }
+        importFraction = nil
+        defer {
+            loadingImport = false
+            importFraction = nil
+        }
         let scoped = source.startAccessingSecurityScopedResource()
-        defer { if scoped { source.stopAccessingSecurityScopedResource() } }
-        do {
-            let destination = try ImportedVideo.copyToTemporaryDirectory(source)
-            replaceImportedVideo(with: destination)
-        } catch {
-            return
+        // Keep the security scope alive while the editor and exporter use the
+        // file. This avoids a second full-size copy for Files imports.
+        if scoped {
+            replaceImportedVideo(
+                with: source,
+                ownsFile: false,
+                securityScoped: true
+            )
+        } else if let destination = try? ImportedVideo.makeDurableCopy(source) {
+            // Debug launch arguments and app-external URLs do not always vend a
+            // security scope. Preserve those before the provider releases them.
+            replaceImportedVideo(with: destination, ownsFile: true)
         }
     }
 
     @MainActor
-    private func replaceImportedVideo(with url: URL) {
-        if let ownedInputURL, ownedInputURL != url {
+    private func replaceImportedVideo(
+        with url: URL,
+        ownsFile: Bool,
+        securityScoped: Bool = false
+    ) {
+        if let securityScopedInputURL {
+            securityScopedInputURL.stopAccessingSecurityScopedResource()
+        }
+        if let ownedInputURL {
             try? FileManager.default.removeItem(at: ownedInputURL)
         }
-        ownedInputURL = url
+        ownedInputURL = ownsFile ? url : nil
+        securityScopedInputURL = securityScoped ? url : nil
         importedURL = url
     }
 }
@@ -187,17 +272,61 @@ private struct ImportedVideo: Transferable {
         FileRepresentation(contentType: .movie) { video in
             SentTransferredFile(video.url)
         } importing: { received in
-            Self(url: try copyToTemporaryDirectory(received.file))
+            Self(url: try claimTransferredFile(received.file))
         }
     }
 
-    static func copyToTemporaryDirectory(_ source: URL) throws -> URL {
-        let pathExtension = source.pathExtension.isEmpty ? "mov" : source.pathExtension
-        let destination = FileManager.default.temporaryDirectory
-            .appendingPathComponent("jingyin-input-\(UUID().uuidString)")
-            .appendingPathExtension(pathExtension)
+    private static func claimTransferredFile(_ source: URL) throws -> URL {
+        let destination = temporaryDestination(for: source)
+
+        // The item provider owns `source` and may delete its path immediately
+        // after this callback. A hard link gives the app its own durable name
+        // for the same bytes without reading and writing the whole movie.
+        if linkOrClone(source, to: destination) {
+            return destination
+        }
+
+        do {
+            // Photos gives FileRepresentation a disposable temporary file.
+            // Moving it is instant on the same volume and avoids another copy.
+            try FileManager.default.moveItem(at: source, to: destination)
+        } catch {
+            try FileManager.default.copyItem(at: source, to: destination)
+        }
+        return destination
+    }
+
+    static func makeDurableCopy(_ source: URL) throws -> URL {
+        let destination = temporaryDestination(for: source)
+        if linkOrClone(source, to: destination) {
+            return destination
+        }
         try FileManager.default.copyItem(at: source, to: destination)
         return destination
+    }
+
+    private static func temporaryDestination(for source: URL) -> URL {
+        let pathExtension = source.pathExtension.isEmpty ? "mov" : source.pathExtension
+        return FileManager.default.temporaryDirectory
+            .appendingPathComponent("jingyin-input-\(UUID().uuidString)")
+            .appendingPathExtension(pathExtension)
+    }
+
+    private static func linkOrClone(_ source: URL, to destination: URL) -> Bool {
+        if (try? FileManager.default.linkItem(at: source, to: destination)) != nil {
+            return true
+        }
+
+        // If hard links are unavailable, ask APFS for a copy-on-write clone.
+        // This is also effectively instant and consumes blocks only when either
+        // file changes.
+        let result = source.withUnsafeFileSystemRepresentation { sourcePath in
+            destination.withUnsafeFileSystemRepresentation { destinationPath in
+                guard let sourcePath, let destinationPath else { return -1 }
+                return Int(clonefile(sourcePath, destinationPath, 0))
+            }
+        }
+        return result == 0
     }
 }
 

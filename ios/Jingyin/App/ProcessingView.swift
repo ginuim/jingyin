@@ -28,6 +28,12 @@ struct ProcessingView: View {
                     .monospacedDigit()
                 ProgressView(value: processor.progress)
                     .tint(.mint)
+                if processor.isRunning {
+                    Text(remainingTimeText)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
                 if let advisory = processor.advisory {
                     Label(advisory, systemImage: "exclamationmark.triangle.fill")
                         .font(.footnote)
@@ -115,6 +121,24 @@ struct ProcessingView: View {
             .font(.system(size: 56))
             .foregroundStyle(.mint)
             .symbolEffect(.pulse, options: .repeating, isActive: processor.isRunning)
+    }
+
+    private var remainingTimeText: String {
+        guard let remaining = processor.estimatedRemainingSeconds else {
+            return localization.t("processing.estimating")
+        }
+        let totalSeconds = max(1, Int(remaining.rounded(.up)))
+        if totalSeconds >= 60 {
+            return localization.format(
+                "processing.remainingMinutes",
+                Int64(totalSeconds / 60),
+                Int64(totalSeconds % 60)
+            )
+        }
+        return localization.format(
+            "processing.remainingSeconds",
+            Int64(totalSeconds)
+        )
     }
 
     private func start() {

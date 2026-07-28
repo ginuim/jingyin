@@ -7,11 +7,15 @@ import Vision
 @MainActor
 final class VideoProcessor: ObservableObject {
     @Published private(set) var stage: ProcessingStage = .idle
-    @Published private(set) var progress = 0.0
+    @Published private(set) var progress = 0.0 {
+        didSet { updateEstimatedRemainingTime() }
+    }
     @Published private(set) var outputURL: URL?
     @Published private(set) var advisory: String?
+    @Published private(set) var estimatedRemainingSeconds: TimeInterval?
     private var exportSession: AVAssetExportSession?
     private var progressTask: Task<Void, Never>?
+    private var processingStartedAt: Date?
     private static let chunkDurationSeconds = 60.0
 
     var isRunning: Bool {
@@ -28,6 +32,8 @@ final class VideoProcessor: ObservableObject {
         }
         outputURL = nil
         advisory = nil
+        estimatedRemainingSeconds = nil
+        processingStartedAt = Date()
         progress = 0
         stage = .reading
         var pendingDestination: URL?
@@ -116,10 +122,16 @@ final class VideoProcessor: ObservableObject {
             outputURL = destination
             pendingDestination = nil
             progress = 1
+            estimatedRemainingSeconds = nil
+            processingStartedAt = nil
             stage = .completed(destination)
         } catch is CancellationError {
+            estimatedRemainingSeconds = nil
+            processingStartedAt = nil
             stage = .failed(String(localized: "error.cancelled", bundle: bundle))
         } catch {
+            estimatedRemainingSeconds = nil
+            processingStartedAt = nil
             stage = .failed(Self.message(for: error, bundle: bundle))
         }
     }
@@ -439,6 +451,23 @@ final class VideoProcessor: ObservableObject {
         return ProcessInfo.processInfo.physicalMemory < 4_000_000_000
             || thermal == .serious
             || thermal == .critical
+    }
+
+    private func updateEstimatedRemainingTime() {
+        guard let processingStartedAt,
+              progress >= 0.03,
+              progress < 1 else {
+            return
+        }
+        let elapsed = Date().timeIntervalSince(processingStartedAt)
+        guard elapsed >= 2 else { return }
+        let rawEstimate = elapsed / progress * (1 - progress)
+        guard rawEstimate.isFinite, rawEstimate >= 0 else { return }
+        if let current = estimatedRemainingSeconds {
+            estimatedRemainingSeconds = current * 0.75 + rawEstimate * 0.25
+        } else {
+            estimatedRemainingSeconds = rawEstimate
+        }
     }
 }
 
