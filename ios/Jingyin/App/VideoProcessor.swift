@@ -61,6 +61,13 @@ final class VideoProcessor: ObservableObject {
             guard duration.seconds.isFinite, duration.seconds > 0 else {
                 throw ProcessorError.invalidVideo
             }
+            guard duration.seconds <= ProductLimits.maximumInputDurationSeconds else {
+                throw ProcessorError.videoTooLong
+            }
+            let fileSize = try sourceURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+            guard fileSize <= ProductLimits.maximumInputFileSizeBytes else {
+                throw ProcessorError.fileTooLarge
+            }
             let outputDuration = Self.outputDuration(
                 sourceDuration: duration,
                 access: access
@@ -68,7 +75,6 @@ final class VideoProcessor: ObservableObject {
             let sourceTimeRange: CMTimeRange? = outputDuration < duration
                 ? CMTimeRange(start: .zero, duration: outputDuration)
                 : nil
-            let fileSize = try sourceURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
             let capacity = try FileManager.default.temporaryDirectory
                 .resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
                 .volumeAvailableCapacityForImportantUsage ?? 0
@@ -151,6 +157,10 @@ final class VideoProcessor: ObservableObject {
                 )
             }
 
+            // The view may disappear just after AVFoundation finishes. Honor
+            // that cancellation before publishing a result that no screen
+            // remains to clean up.
+            try Task.checkCancellation()
             outputURL = destination
             pendingDestination = nil
             progress = 1
@@ -170,6 +180,14 @@ final class VideoProcessor: ObservableObject {
         progressTask = nil
         exportSession?.cancelExport()
         exportSession = nil
+    }
+
+    func discardOutput() {
+        cancel()
+        if let outputURL {
+            try? FileManager.default.removeItem(at: outputURL)
+        }
+        outputURL = nil
     }
 
     func saveToPhotos() async -> Bool {
@@ -354,6 +372,7 @@ final class VideoProcessor: ObservableObject {
         try? FileManager.default.removeItem(at: destination)
         session.outputURL = destination
         session.outputFileType = .mp4
+        session.metadata = []
         session.videoComposition = composition
         if let timeRange {
             session.timeRange = timeRange
@@ -421,6 +440,7 @@ final class VideoProcessor: ObservableObject {
         try? FileManager.default.removeItem(at: destination)
         session.outputURL = destination
         session.outputFileType = .mp4
+        session.metadata = []
         try await run(
             session,
             progressStart: progressStart,
@@ -611,6 +631,8 @@ final class VideoProcessor: ObservableObject {
 
 private enum ProcessorError: Error {
     case invalidVideo
+    case videoTooLong
+    case fileTooLarge
     case insufficientStorage
     case encoderUnavailable
     case exportFailed
@@ -619,6 +641,10 @@ private enum ProcessorError: Error {
         switch self {
         case .invalidVideo:
             String(localized: "error.invalidVideo", bundle: bundle)
+        case .videoTooLong:
+            String(localized: "error.videoTooLong", bundle: bundle)
+        case .fileTooLarge:
+            String(localized: "error.fileTooLarge", bundle: bundle)
         case .insufficientStorage:
             String(localized: "error.insufficientStorage", bundle: bundle)
         case .encoderUnavailable:

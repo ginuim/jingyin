@@ -16,6 +16,8 @@ struct EditorView: View {
     @State private var maskPreviewRevision = 0
     @State private var playheadSeconds = 0.0
     @State private var selectedMaskTrackID: MaskTrack.ID?
+    @State private var showManualMaskEditor = false
+    @State private var showFullScreenMaskEditor = false
     @StateObject private var voicePreview = VoicePreviewEngine()
     @State private var statusObserver: NSKeyValueObservation?
     @State private var jumpObserver: NSObjectProtocol?
@@ -30,24 +32,30 @@ struct EditorView: View {
             VStack(spacing: 22) {
                 ControlledVideoPlayer(
                     player: player,
-                    showsCentralPlayButton: selectedMaskTrackID == nil,
+                    showsCentralPlayButton: !showManualMaskEditor
+                        || selectedMaskTrackID == nil,
+                    timelineMarkers: manualMaskTimelineMarkers,
+                    timelineRanges: manualMaskTimelineRanges,
                     onTimeChanged: { playheadSeconds = $0 }
                 ) {
                     VideoPlayer(player: player)
                         .aspectRatio(16 / 10, contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: 20))
                         .overlay {
-                            MaskEditorOverlay(
-                                tracks: $options.maskTracks,
-                                selectedTrackID: $selectedMaskTrackID,
-                                timeSeconds: playheadSeconds,
-                                videoDisplaySize: sourceMetadata?.displaySize,
-                                onEditingBegan: {
-                                    player.pause()
-                                    voicePreview.pause()
-                                },
-                                onEditingEnded: refreshMaskPreview
-                            )
+                            if showManualMaskEditor {
+                                MaskEditorOverlay(
+                                    tracks: $options.maskTracks,
+                                    selectedTrackID: $selectedMaskTrackID,
+                                    timeSeconds: playheadSeconds,
+                                    videoDisplaySize: sourceMetadata?.displaySize,
+                                    onEditingBegan: {
+                                        player.pause()
+                                        voicePreview.pause()
+                                    },
+                                    onEditingEnded: refreshMaskPreview,
+                                    onDeleteTrack: deleteMask
+                                )
+                            }
                         }
                         .overlay(alignment: .topTrailing) {
                             Label(localization.t("editor.previewBadge"), systemImage: "eye.fill")
@@ -124,6 +132,27 @@ struct EditorView: View {
                 .environmentObject(localization)
                 .environmentObject(entitlements)
         }
+        .fullScreenCover(isPresented: $showFullScreenMaskEditor) {
+            FullScreenMaskEditorView(
+                player: player,
+                tracks: $options.maskTracks,
+                selectedTrackID: $selectedMaskTrackID,
+                playheadSeconds: $playheadSeconds,
+                videoDisplaySize: sourceMetadata?.displaySize,
+                timelineMarkers: manualMaskTimelineMarkers,
+                timelineRanges: manualMaskTimelineRanges,
+                canDeleteCurrentKeyframe: canDeleteCurrentKeyframe,
+                onAddMask: addManualMask,
+                onInsertKeyframe: insertKeyframe,
+                onDeleteCurrentKeyframe: deleteCurrentKeyframe,
+                onSetStart: setSelectedMaskStart,
+                onSetEnd: setSelectedMaskEnd,
+                onShowWholeTimeline: showSelectedMaskForWholeTimeline,
+                onDeleteTrack: deleteMask,
+                onEditingEnded: refreshMaskPreview
+            )
+            .environmentObject(localization)
+        }
         .task(id: videoEffectToken) {
             await applyPreview()
         }
@@ -163,6 +192,11 @@ struct EditorView: View {
             VoicePitchStore.save(pitch)
             voicePreview.setPitch(pitch)
         }
+        .onChange(of: showManualMaskEditor) { _, isExpanded in
+            if !isExpanded {
+                selectedMaskTrackID = nil
+            }
+        }
         .onDisappear {
             removePlayerObservers()
             player.pause()
@@ -192,9 +226,11 @@ struct EditorView: View {
             }
 
             if options.scope != .full {
-                OptionSection(
+                CollapsibleOptionSection(
                     title: localization.t("editor.manualMasks"),
-                    systemImage: "square.dashed"
+                    systemImage: "square.dashed",
+                    meta: manualMaskCountLabel,
+                    isExpanded: $showManualMaskEditor
                 ) {
                     HStack(spacing: 10) {
                         Button {
@@ -220,21 +256,88 @@ struct EditorView: View {
                         .buttonStyle(.bordered)
                     }
 
+                    if !options.maskTracks.isEmpty {
+                        maskSelector
+                    }
+
                     if selectedMaskTrackID != nil {
-                        Button(role: .destructive, action: deleteSelectedMask) {
-                            Label(
-                                localization.t("editor.deleteMask"),
-                                systemImage: "trash"
-                            )
-                            .frame(maxWidth: .infinity)
+                        HStack(spacing: 10) {
+                            Button(action: insertKeyframe) {
+                                Label(
+                                    localization.t("editor.insertKeyframe"),
+                                    systemImage: "diamond.fill"
+                                )
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.mint)
+                            .foregroundStyle(.black)
+
+                            Button(
+                                role: .destructive,
+                                action: deleteCurrentKeyframe
+                            ) {
+                                Label(
+                                    localization.t("editor.deleteKeyframe"),
+                                    systemImage: "diamond.slash"
+                                )
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(!canDeleteCurrentKeyframe)
                         }
-                        .buttonStyle(.bordered)
+
+                        HStack(spacing: 10) {
+                            Button(action: setSelectedMaskStart) {
+                                Text(localization.t("editor.setMaskStart"))
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+
+                            Button(action: setSelectedMaskEnd) {
+                                Text(localization.t("editor.setMaskEnd"))
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+
+                        HStack(spacing: 10) {
+                            Button(action: showSelectedMaskForWholeTimeline) {
+                                Label(
+                                    localization.t("editor.showWholeTimeline"),
+                                    systemImage: "arrow.left.and.right"
+                                )
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+
+                            Button {
+                                player.pause()
+                                voicePreview.pause()
+                                showFullScreenMaskEditor = true
+                            } label: {
+                                Label(
+                                    localization.t("editor.fullScreenEdit"),
+                                    systemImage: "arrow.up.left.and.arrow.down.right"
+                                )
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                        }
                     }
 
                     Text(localization.t("editor.manualMaskHint"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+
+                    Label(
+                        localization.t("editor.keyframeTimelineHint"),
+                        systemImage: "timeline.selection"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
 
                 OptionSection(title: localization.t("editor.subjects"), systemImage: "person.2.crop.square.stack") {
@@ -293,7 +396,7 @@ struct EditorView: View {
                 .onChange(of: options.style) { _, style in
                     switch style {
                     case .blur: options.strength = 32
-                    case .pixel: options.strength = 18
+                    case .pixel: options.strength = 24
                     case .ascii: options.strength = 14
                     }
                 }
@@ -356,14 +459,83 @@ struct EditorView: View {
         options.toggleSubject(subject)
     }
 
+    private var manualMaskCountLabel: String? {
+        guard !options.maskTracks.isEmpty else { return nil }
+        return localization.format(
+            "editor.maskCount",
+            Int64(options.maskTracks.count)
+        )
+    }
+
+    private var manualMaskTimelineMarkers: [VideoTimelineMarker] {
+        guard showManualMaskEditor || showFullScreenMaskEditor else { return [] }
+        return options.maskTracks.flatMap { track in
+            track.keyframes.map { keyframe in
+                VideoTimelineMarker(
+                    id: keyframe.id,
+                    timeSeconds: keyframe.timeSeconds,
+                    isSelected: track.id == selectedMaskTrackID
+                )
+            }
+        }
+    }
+
+    private var manualMaskTimelineRanges: [VideoTimelineRange] {
+        guard showManualMaskEditor || showFullScreenMaskEditor else { return [] }
+        return options.maskTracks.compactMap { track in
+            guard track.activeFromSeconds != nil || track.activeUntilSeconds != nil else {
+                return nil
+            }
+            return VideoTimelineRange(
+                id: track.id,
+                startSeconds: track.activeFromSeconds ?? 0,
+                endSeconds: track.activeUntilSeconds,
+                isSelected: track.id == selectedMaskTrackID
+            )
+        }
+    }
+
+    private var maskSelector: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Array(options.maskTracks.enumerated()), id: \.element.id) { index, track in
+                    Button {
+                        player.pause()
+                        voicePreview.pause()
+                        selectedMaskTrackID = track.id
+                    } label: {
+                        Label(
+                            localization.format("editor.maskItem", Int64(index + 1)),
+                            systemImage: track.shape == .ellipse
+                                ? "circle.dashed"
+                                : "rectangle.dashed"
+                        )
+                        .font(.caption.bold())
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 8)
+                        .background(
+                            selectedMaskTrackID == track.id
+                                ? Color.mint
+                                : Color.white.opacity(0.08),
+                            in: Capsule()
+                        )
+                        .foregroundStyle(selectedMaskTrackID == track.id ? .black : .white)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
     private func addManualMask(shape: MaskTrackShape) {
         player.pause()
         voicePreview.pause()
         let track = MaskTrack(
             shape: shape,
+            activeFromSeconds: editingTimeSeconds,
             keyframes: [
                 MaskKeyframe(
-                    timeSeconds: playheadSeconds,
+                    timeSeconds: editingTimeSeconds,
                     rect: NormalizedVideoRect(
                         x: 0.3,
                         y: 0.3,
@@ -378,10 +550,101 @@ struct EditorView: View {
         refreshMaskPreview()
     }
 
-    private func deleteSelectedMask() {
-        guard let selectedMaskTrackID else { return }
-        options.maskTracks.removeAll { $0.id == selectedMaskTrackID }
-        self.selectedMaskTrackID = nil
+    private var editingTimeSeconds: TimeInterval {
+        let current = player.currentTime().seconds
+        return current.isFinite ? max(0, current) : max(0, playheadSeconds)
+    }
+
+    private var selectedMaskIndex: Int? {
+        guard let selectedMaskTrackID else { return nil }
+        return options.maskTracks.firstIndex { $0.id == selectedMaskTrackID }
+    }
+
+    private var currentKeyframe: MaskKeyframe? {
+        guard let selectedMaskIndex else { return nil }
+        let time = editingTimeSeconds
+        return options.maskTracks[selectedMaskIndex].keyframes.min {
+            abs($0.timeSeconds - time) < abs($1.timeSeconds - time)
+        }.flatMap {
+            abs($0.timeSeconds - time) <= 0.12 ? $0 : nil
+        }
+    }
+
+    private var canDeleteCurrentKeyframe: Bool {
+        guard let selectedMaskIndex else { return false }
+        return options.maskTracks[selectedMaskIndex].keyframes.count > 1
+            && currentKeyframe != nil
+    }
+
+    private func insertKeyframe() {
+        guard let selectedMaskIndex,
+              let rect = options.maskTracks[selectedMaskIndex]
+                .keyframedRect(at: editingTimeSeconds) else {
+            return
+        }
+        player.pause()
+        voicePreview.pause()
+        options.maskTracks[selectedMaskIndex].setKeyframe(
+            MaskKeyframe(timeSeconds: editingTimeSeconds, rect: rect)
+        )
+        refreshMaskPreview()
+    }
+
+    private func deleteCurrentKeyframe() {
+        guard let selectedMaskIndex,
+              options.maskTracks[selectedMaskIndex].keyframes.count > 1,
+              let keyframe = currentKeyframe else {
+            return
+        }
+        options.maskTracks[selectedMaskIndex].removeKeyframe(id: keyframe.id)
+        refreshMaskPreview()
+    }
+
+    private func setSelectedMaskStart() {
+        guard let selectedMaskIndex else { return }
+        let time = editingTimeSeconds
+        player.pause()
+        options.maskTracks[selectedMaskIndex].activeFromSeconds = time
+        if let end = options.maskTracks[selectedMaskIndex].activeUntilSeconds,
+           end < time {
+            options.maskTracks[selectedMaskIndex].activeUntilSeconds = time
+        }
+        insertKeyframe()
+    }
+
+    private func setSelectedMaskEnd() {
+        guard let selectedMaskIndex else { return }
+        let time = editingTimeSeconds
+        player.pause()
+        options.maskTracks[selectedMaskIndex].activeUntilSeconds = time
+        if let start = options.maskTracks[selectedMaskIndex].activeFromSeconds,
+           start > time {
+            options.maskTracks[selectedMaskIndex].activeFromSeconds = time
+        }
+        insertKeyframe()
+    }
+
+    private func showSelectedMaskForWholeTimeline() {
+        guard let selectedMaskIndex else { return }
+        options.maskTracks[selectedMaskIndex].activeFromSeconds = nil
+        options.maskTracks[selectedMaskIndex].activeUntilSeconds = nil
+        refreshMaskPreview()
+    }
+
+    private func deleteMask(id: MaskTrack.ID) {
+        guard let removedIndex = options.maskTracks.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        options.maskTracks.remove(at: removedIndex)
+        if selectedMaskTrackID == id {
+            guard !options.maskTracks.isEmpty else {
+                selectedMaskTrackID = nil
+                refreshMaskPreview()
+                return
+            }
+            let nextIndex = min(removedIndex, options.maskTracks.count - 1)
+            selectedMaskTrackID = options.maskTracks[nextIndex].id
+        }
         refreshMaskPreview()
     }
 
@@ -683,6 +946,50 @@ private struct OptionSection<Content: View>: View {
                 }
             }
             content
+        }
+        .padding()
+        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 18))
+    }
+}
+
+private struct CollapsibleOptionSection<Content: View>: View {
+    let title: String
+    let systemImage: String
+    var meta: String? = nil
+    @Binding var isExpanded: Bool
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: isExpanded ? 13 : 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack {
+                    Label(title, systemImage: systemImage)
+                        .font(.headline)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.85)
+                    Spacer(minLength: 8)
+                    if let meta {
+                        Text(meta)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Image(systemName: "chevron.down")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                content
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
         .padding()
         .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 18))

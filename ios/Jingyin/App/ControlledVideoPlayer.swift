@@ -3,12 +3,27 @@ import AVKit
 import Combine
 import SwiftUI
 
+struct VideoTimelineMarker: Equatable, Identifiable {
+    let id: UUID
+    let timeSeconds: TimeInterval
+    let isSelected: Bool
+}
+
+struct VideoTimelineRange: Equatable, Identifiable {
+    let id: UUID
+    let startSeconds: TimeInterval
+    let endSeconds: TimeInterval?
+    let isSelected: Bool
+}
+
 /// Adds an always-visible transport bar without replacing the AVPlayer or its
 /// current item. Keeping the same item is important because the live privacy
 /// preview is attached through `AVPlayerItem.videoComposition`.
 struct ControlledVideoPlayer<Content: View>: View {
     let player: AVPlayer
     let showsCentralPlayButton: Bool
+    let timelineMarkers: [VideoTimelineMarker]
+    let timelineRanges: [VideoTimelineRange]
     let onTimeChanged: (TimeInterval) -> Void
     @ViewBuilder private let content: Content
 
@@ -29,11 +44,15 @@ struct ControlledVideoPlayer<Content: View>: View {
     init(
         player: AVPlayer,
         showsCentralPlayButton: Bool = true,
+        timelineMarkers: [VideoTimelineMarker] = [],
+        timelineRanges: [VideoTimelineRange] = [],
         onTimeChanged: @escaping (TimeInterval) -> Void = { _ in },
         @ViewBuilder content: () -> Content
     ) {
         self.player = player
         self.showsCentralPlayButton = showsCentralPlayButton
+        self.timelineMarkers = timelineMarkers
+        self.timelineRanges = timelineRanges
         self.onTimeChanged = onTimeChanged
         self.content = content()
     }
@@ -75,20 +94,7 @@ struct ControlledVideoPlayer<Content: View>: View {
                     .minimumScaleFactor(0.8)
                     .frame(width: timeLabelWidth, alignment: .trailing)
 
-                Slider(
-                    value: Binding(
-                        get: { displayedSeconds },
-                        set: { scrubSeconds = $0 }
-                    ),
-                    in: 0...max(durationSeconds, 0.01),
-                    onEditingChanged: scrubStateChanged
-                )
-                .tint(.mint)
-                .disabled(durationSeconds <= 0)
-                .accessibilityLabel(localization.t("player.progress"))
-                .accessibilityValue(
-                    "\(formatTime(displayedSeconds)) / \(formatTime(durationSeconds))"
-                )
+                timelineSlider
 
                 Text(formatTime(durationSeconds))
                     .lineLimit(1)
@@ -111,6 +117,98 @@ struct ControlledVideoPlayer<Content: View>: View {
 
     private var timeLabelWidth: CGFloat {
         durationSeconds >= 3_600 ? 54 : 38
+    }
+
+    private var timelineSlider: some View {
+        Slider(
+            value: Binding(
+                get: { displayedSeconds },
+                set: { scrubSeconds = $0 }
+            ),
+            in: 0...max(durationSeconds, 0.01),
+            onEditingChanged: scrubStateChanged
+        )
+        .tint(.mint)
+        .disabled(durationSeconds <= 0)
+        .overlay {
+            GeometryReader { proxy in
+                ZStack {
+                    ForEach(visibleTimelineRanges) { range in
+                        let startX = markerPosition(
+                            for: range.startSeconds,
+                            width: proxy.size.width
+                        )
+                        let endX = markerPosition(
+                            for: range.endSeconds ?? durationSeconds,
+                            width: proxy.size.width
+                        )
+                        Capsule()
+                            .fill(
+                                range.isSelected
+                                    ? Color.yellow.opacity(0.55)
+                                    : Color.white.opacity(0.3)
+                            )
+                            .frame(width: max(endX - startX, 3), height: 6)
+                            .position(
+                                x: startX + max(endX - startX, 3) / 2,
+                                y: proxy.size.height / 2
+                            )
+                    }
+
+                    ForEach(visibleTimelineMarkers) { marker in
+                        Capsule()
+                            .fill(marker.isSelected ? Color.yellow : Color.white)
+                            .frame(
+                                width: marker.isSelected ? 4 : 3,
+                                height: marker.isSelected ? 18 : 12
+                            )
+                            .shadow(
+                                color: .black.opacity(0.7),
+                                radius: 1
+                            )
+                            .position(
+                                x: markerPosition(
+                                    for: marker.timeSeconds,
+                                    width: proxy.size.width
+                                ),
+                                y: proxy.size.height / 2
+                            )
+                    }
+                }
+            }
+            .allowsHitTesting(false)
+        }
+        .accessibilityLabel(localization.t("player.progress"))
+        .accessibilityValue(
+            "\(formatTime(displayedSeconds)) / \(formatTime(durationSeconds))"
+        )
+    }
+
+    private var visibleTimelineMarkers: [VideoTimelineMarker] {
+        timelineMarkers.filter {
+            $0.timeSeconds.isFinite
+                && $0.timeSeconds >= 0
+                && $0.timeSeconds <= durationSeconds
+        }
+    }
+
+    private var visibleTimelineRanges: [VideoTimelineRange] {
+        timelineRanges.filter {
+            $0.startSeconds.isFinite
+                && $0.startSeconds >= 0
+                && $0.startSeconds <= durationSeconds
+                && ($0.endSeconds == nil || $0.endSeconds?.isFinite == true)
+        }
+    }
+
+    private func markerPosition(
+        for timeSeconds: TimeInterval,
+        width: CGFloat
+    ) -> CGFloat {
+        guard durationSeconds > 0 else { return 0 }
+        let progress = min(max(timeSeconds / durationSeconds, 0), 1)
+        // Keep edge markers visible instead of clipping half their width.
+        return 2 + CGFloat(progress) * max(width - 4, 0)
     }
 
     private func togglePlayback() {

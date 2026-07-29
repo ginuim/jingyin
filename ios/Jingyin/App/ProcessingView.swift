@@ -108,7 +108,7 @@ struct ProcessingView: View {
         }
         .onDisappear {
             processingTask?.cancel()
-            processor.cancel()
+            processor.discardOutput()
             previewPlayer?.pause()
             previewPlayer = nil
         }

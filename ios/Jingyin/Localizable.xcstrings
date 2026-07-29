@@ -593,12 +593,92 @@
         "ja": {"stringUnit": {"state": "translated", "value": "選択中のマスクを削除"}}
       }
     },
+    "editor.deleteEntireMask": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "删除整条蒙版"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "刪除整條蒙版"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Delete Entire Mask"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "マスク全体を削除"}}
+      }
+    },
+    "editor.maskItem": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "蒙版 %lld"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "蒙版 %lld"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Mask %lld"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "マスク %lld"}}
+      }
+    },
+    "editor.insertKeyframe": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "插入关键帧"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "插入關鍵影格"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Insert Keyframe"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "キーフレームを追加"}}
+      }
+    },
+    "editor.deleteKeyframe": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "删除当前关键帧"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "刪除目前關鍵影格"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Delete Current Keyframe"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "現在のキーフレームを削除"}}
+      }
+    },
+    "editor.setMaskStart": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "设为出现起点"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "設為出現起點"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Set Appearance Start"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "表示開始に設定"}}
+      }
+    },
+    "editor.setMaskEnd": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "设为消失终点"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "設為消失終點"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Set Disappearance End"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "表示終了に設定"}}
+      }
+    },
+    "editor.showWholeTimeline": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "全程显示"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "全程顯示"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Show for Full Video"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "全編に表示"}}
+      }
+    },
+    "editor.fullScreenEdit": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "全屏 K 帧"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "全螢幕 K 幀"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Full-Screen Keyframing"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "全画面キーフレーム編集"}}
+      }
+    },
+    "editor.fullScreenTitle": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "手动 K 帧"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "手動 K 幀"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Manual Keyframing"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "手動キーフレーム編集"}}
+      }
+    },
+    "editor.done": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "完成"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "完成"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Done"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "完了"}}
+      }
+    },
     "editor.manualMaskHint": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "拖动蒙版调整位置，拖动右下角控制点缩放；当前时间会自动保存为关键帧。"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "拖曳蒙版調整位置，拖曳右下角控制點縮放；目前時間會自動儲存為關鍵影格。"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Drag a mask to move it or its lower-right handle to resize. The current time is saved as a keyframe."}},
-        "ja": {"stringUnit": {"state": "translated", "value": "マスクをドラッグして移動し、右下のハンドルでサイズを変更します。現在時刻がキーフレームとして保存されます。"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "点击蒙版激活；右上角关闭按钮删除整条蒙版。拖动调整位置或右下角缩放时，当前时间会自动保存为关键帧。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "點擊蒙版啟用；右上角關閉按鈕會刪除整條蒙版。拖曳調整位置或右下角縮放時，目前時間會自動儲存為關鍵影格。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Tap a mask to select it; its upper-right close button deletes the entire mask. Moving or resizing saves the current time as a keyframe."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "マスクをタップして選択します。右上の閉じるボタンはマスク全体を削除します。移動やサイズ変更は現在時刻にキーフレームとして保存されます。"}}
       }
     },
     "editor.resizeMask": {
@@ -607,6 +687,22 @@
         "zh-Hant": {"stringUnit": {"state": "translated", "value": "縮放蒙版"}},
         "en": {"stringUnit": {"state": "translated", "value": "Resize mask"}},
         "ja": {"stringUnit": {"state": "translated", "value": "マスクのサイズを変更"}}
+      }
+    },
+    "editor.maskCount": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "%lld 个蒙版"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "%lld 個蒙版"}},
+        "en": {"stringUnit": {"state": "translated", "value": "%lld masks"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "マスク %lld 個"}}
+      }
+    },
+    "editor.keyframeTimelineHint": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "关键帧会标记在上方时间轴；黄色表示当前选中的蒙版。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "關鍵影格會標記在上方時間軸；黃色代表目前選取的蒙版。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Keyframes appear on the timeline above. Yellow marks belong to the selected mask."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "キーフレームは上のタイムラインに表示され、選択中のマスクは黄色で示されます。"}}
       }
     },
     "editor.quality": {
@@ -1130,25 +1226,25 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "模糊"
+            "value": "视觉模糊"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "模糊"
+            "value": "視覺模糊"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Blur"
+            "value": "Visual Blur"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ぼかし"
+            "value": "視覚ぼかし"
           }
         }
       }
@@ -1158,25 +1254,25 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "像素化"
+            "value": "隐私级像素化"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "像素化"
+            "value": "隱私級像素化"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pixelate"
+            "value": "Privacy Pixelation"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "モザイク"
+            "value": "プライバシーモザイク"
           }
         }
       }

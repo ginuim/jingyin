@@ -164,6 +164,7 @@ enum VoicePitchExporter {
         }
         session.outputURL = outputURL
         session.outputFileType = .mp4
+        session.metadata = []
         await session.export()
         guard session.status == .completed else {
             // Some source containers reject passthrough; fall back to re-encoding.
@@ -176,6 +177,7 @@ enum VoicePitchExporter {
             try? FileManager.default.removeItem(at: outputURL)
             fallback.outputURL = outputURL
             fallback.outputFileType = .mp4
+            fallback.metadata = []
             await fallback.export()
             guard fallback.status == .completed else {
                 throw fallback.error ?? ExportError.muxFailed
@@ -209,6 +211,7 @@ enum VoicePitchExporter {
         }
         session.outputURL = outputURL
         session.outputFileType = .m4a
+        session.metadata = []
         await session.export()
         try Task.checkCancellation()
         guard session.status == .completed else {

@@ -7,6 +7,7 @@ struct MaskEditorOverlay: View {
     let videoDisplaySize: CGSize?
     let onEditingBegan: () -> Void
     let onEditingEnded: () -> Void
+    let onDeleteTrack: (MaskTrack.ID) -> Void
 
     var body: some View {
         GeometryReader { proxy in
@@ -24,7 +25,10 @@ struct MaskEditorOverlay: View {
                                 selectedTrackID = track.id
                                 onEditingBegan()
                             },
-                            onEditingEnded: onEditingEnded
+                            onEditingEnded: onEditingEnded,
+                            onDelete: {
+                                onDeleteTrack(track.id)
+                            }
                         )
                     }
                 }
@@ -66,6 +70,7 @@ private struct MaskTrackLayer: View {
     let isSelected: Bool
     let onSelect: () -> Void
     let onEditingEnded: () -> Void
+    let onDelete: () -> Void
 
     @EnvironmentObject private var localization: LocalizationManager
     @State private var moveStartRect: NormalizedVideoRect?
@@ -82,6 +87,24 @@ private struct MaskTrackLayer: View {
                 .gesture(moveGesture)
 
             if isSelected {
+                Button(action: onDelete) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .black))
+                        .foregroundStyle(.white)
+                        .frame(width: 28, height: 28)
+                        .background(.red, in: Circle())
+                        .overlay {
+                            Circle().stroke(.white.opacity(0.85), lineWidth: 2)
+                        }
+                }
+                .buttonStyle(.plain)
+                .contentShape(Circle().inset(by: -6))
+                .position(
+                    x: min(max(previewRect.maxX, videoBounds.minX + 14), videoBounds.maxX - 14),
+                    y: min(max(previewRect.minY, videoBounds.minY + 14), videoBounds.maxY - 14)
+                )
+                .accessibilityLabel(localization.t("editor.deleteEntireMask"))
+
                 Circle()
                     .fill(.mint)
                     .stroke(.black.opacity(0.8), lineWidth: 2)

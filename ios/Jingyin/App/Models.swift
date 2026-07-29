@@ -1,6 +1,11 @@
 import AVFoundation
 import Foundation
 
+enum ProductLimits {
+    static let maximumInputDurationSeconds: TimeInterval = 5 * 60
+    static let maximumInputFileSizeBytes = 1_000_000_000
+}
+
 enum QualityMode: String, CaseIterable, Identifiable {
     case fast
     case balanced
@@ -272,10 +277,10 @@ enum VoicePitchStore {
 struct ProcessingOptions: Equatable {
     var quality: QualityMode = .balanced
     var scope: MaskScope = .subjects
-    var style: EffectStyle = .blur
+    var style: EffectStyle = .pixel
     var audio: AudioMode = .original
     var voicePitch: Int = VoicePitchStore.load()
-    var strength = 32.0
+    var strength = 24.0
     var subjects: Set<SubjectKind> = [.person]
     var maskTracks: [MaskTrack] = []
     var exportResolution: ExportResolution = .p1080

@@ -169,6 +169,13 @@ struct MaskTrack: Codable, Equatable, Hashable, Identifiable, Sendable {
     /// leave the shot.
     func rect(at timeSeconds: TimeInterval) -> NormalizedVideoRect? {
         guard isEnabled, isActive(at: timeSeconds) else { return nil }
+        return keyframedRect(at: timeSeconds)
+    }
+
+    /// Returns the interpolated keyframe value even when the track is outside
+    /// its visible range. The editor uses this when extending an existing mask
+    /// to a new start or end frame.
+    func keyframedRect(at timeSeconds: TimeInterval) -> NormalizedVideoRect? {
         let ordered = Self.ordered(keyframes)
         guard let first = ordered.first else { return nil }
         guard ordered.count > 1 else { return first.rect }

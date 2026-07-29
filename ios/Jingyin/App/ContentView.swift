@@ -18,6 +18,7 @@ struct ContentView: View {
     @State private var importProgressTask: Task<Void, Never>?
     @State private var showSettings = false
     @State private var hasCleanedTemporaryFiles = false
+    @State private var importErrorKey: String?
 
     var body: some View {
         let pickPhotosTitle = localization.t("home.pickPhotos")
@@ -123,6 +124,11 @@ struct ContentView: View {
             .navigationDestination(item: $importedURL) { url in
                 EditorView(videoURL: url)
             }
+            .onChange(of: importedURL) { _, url in
+                if url == nil {
+                    releaseImportedVideo()
+                }
+            }
             .task {
                 cleanupTemporaryFilesOnce()
                 await loadDemoVideoIfRequested()
@@ -139,8 +145,34 @@ struct ContentView: View {
                 guard case let .success(urls) = result, let source = urls.first else { return }
                 Task { await importFile(source) }
             }
+            .alert(
+                importErrorMessage,
+                isPresented: isImportErrorPresented
+            ) {
+                Button(localization.t("processing.cancel"), role: .cancel) {}
+            }
         }
         .preferredColorScheme(.dark)
+    }
+
+    private var importErrorMessage: String {
+        switch importErrorKey {
+        case "error.fileTooLarge":
+            localization.t("error.fileTooLarge")
+        case "error.videoTooLong":
+            localization.t("error.videoTooLong")
+        case "error.invalidVideo":
+            localization.t("error.invalidVideo")
+        default:
+            ""
+        }
+    }
+
+    private var isImportErrorPresented: Binding<Bool> {
+        Binding(
+            get: { importErrorKey != nil },
+            set: { if !$0 { importErrorKey = nil } }
+        )
     }
 
     @MainActor
@@ -220,7 +252,9 @@ struct ContentView: View {
             try? FileManager.default.removeItem(at: video.url)
             return
         }
-        replaceImportedVideo(with: video.url, ownsFile: true)
+        Task {
+            await acceptImportedVideo(with: video.url, ownsFile: true)
+        }
     }
 
     @MainActor
@@ -235,7 +269,7 @@ struct ContentView: View {
         // Keep the security scope alive while the editor and exporter use the
         // file. This avoids a second full-size copy for Files imports.
         if scoped {
-            replaceImportedVideo(
+            await acceptImportedVideo(
                 with: source,
                 ownsFile: false,
                 securityScoped: true
@@ -243,25 +277,57 @@ struct ContentView: View {
         } else if let destination = try? ImportedVideo.makeDurableCopy(source) {
             // Debug launch arguments and app-external URLs do not always vend a
             // security scope. Preserve those before the provider releases them.
-            replaceImportedVideo(with: destination, ownsFile: true)
+            await acceptImportedVideo(with: destination, ownsFile: true)
         }
     }
 
     @MainActor
-    private func replaceImportedVideo(
+    private func acceptImportedVideo(
         with url: URL,
         ownsFile: Bool,
         securityScoped: Bool = false
-    ) {
+    ) async {
+        if let validationErrorKey = await validateImportedVideo(at: url) {
+            if securityScoped {
+                url.stopAccessingSecurityScopedResource()
+            }
+            if ownsFile {
+                try? FileManager.default.removeItem(at: url)
+            }
+            importErrorKey = validationErrorKey
+            return
+        }
+        releaseImportedVideo()
+        ownedInputURL = ownsFile ? url : nil
+        securityScopedInputURL = securityScoped ? url : nil
+        importedURL = url
+    }
+
+    @MainActor
+    private func releaseImportedVideo() {
         if let securityScopedInputURL {
             securityScopedInputURL.stopAccessingSecurityScopedResource()
         }
         if let ownedInputURL {
             try? FileManager.default.removeItem(at: ownedInputURL)
         }
-        ownedInputURL = ownsFile ? url : nil
-        securityScopedInputURL = securityScoped ? url : nil
-        importedURL = url
+        ownedInputURL = nil
+        securityScopedInputURL = nil
+    }
+
+    private func validateImportedVideo(at url: URL) async -> String? {
+        let fileSize = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize
+        if let fileSize, fileSize > ProductLimits.maximumInputFileSizeBytes {
+            return "error.fileTooLarge"
+        }
+        let duration = try? await AVURLAsset(url: url).load(.duration)
+        guard let seconds = duration?.seconds, seconds.isFinite, seconds > 0 else {
+            return "error.invalidVideo"
+        }
+        if seconds > ProductLimits.maximumInputDurationSeconds {
+            return "error.videoTooLong"
+        }
+        return nil
     }
 }
 
