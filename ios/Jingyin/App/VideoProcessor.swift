@@ -666,7 +666,10 @@ final class FrameEffectProcessor: @unchecked Sendable {
     init(options: ProcessingOptions) {
         self.options = options
         asciiGlyphTiles = options.style == .ascii
-            ? Self.makeASCIIGlyphTiles(cellSize: CGFloat(options.strength))
+            ? Self.makeASCIIGlyphTiles(
+                cellSize: CGFloat(options.strength),
+                foreground: options.asciiForeground
+            )
             : []
     }
 
@@ -1205,7 +1208,13 @@ final class FrameEffectProcessor: @unchecked Sendable {
 
         let white = CIImage(color: .white).cropped(to: extent)
         let clear = CIImage(color: .clear).cropped(to: extent)
-        var result = CIImage(color: CIColor(red: 0.02, green: 0.027, blue: 0.024))
+        let background = options.asciiBackground
+        var result = CIImage(color: CIColor(
+            red: background.r,
+            green: background.g,
+            blue: background.b,
+            alpha: background.a
+        ))
             .cropped(to: extent)
         let count = asciiGlyphTiles.count
 
@@ -1241,7 +1250,10 @@ final class FrameEffectProcessor: @unchecked Sendable {
         return result.cropped(to: extent)
     }
 
-    private static func makeASCIIGlyphTiles(cellSize: CGFloat) -> [CIImage] {
+    private static func makeASCIIGlyphTiles(
+        cellSize: CGFloat,
+        foreground: EffectRGBA
+    ) -> [CIImage] {
         // Same light-to-dark ramp used by the web editor.
         let glyphs = Array(" .,:;irsXA253hMHGS#9B&@").map(String.init)
         let side = max(8, ceil(cellSize))
@@ -1249,6 +1261,12 @@ final class FrameEffectProcessor: @unchecked Sendable {
         format.opaque = false
         format.scale = 1
         let font = UIFont.monospacedSystemFont(ofSize: side * 0.82, weight: .bold)
+        let glyphColor = UIColor(
+            red: foreground.r,
+            green: foreground.g,
+            blue: foreground.b,
+            alpha: foreground.a
+        )
 
         return glyphs.compactMap { glyph in
             let image = UIGraphicsImageRenderer(
@@ -1257,12 +1275,7 @@ final class FrameEffectProcessor: @unchecked Sendable {
             ).image { _ in
                 let attributes: [NSAttributedString.Key: Any] = [
                     .font: font,
-                    .foregroundColor: UIColor(
-                        red: 0.957,
-                        green: 0.969,
-                        blue: 0.961,
-                        alpha: 1
-                    )
+                    .foregroundColor: glyphColor
                 ]
                 let size = (glyph as NSString).size(withAttributes: attributes)
                 (glyph as NSString).draw(

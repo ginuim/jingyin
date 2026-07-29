@@ -1,6 +1,7 @@
 import AVFoundation
 import AVKit
 import SwiftUI
+import UIKit
 
 struct EditorView: View {
     let videoURL: URL
@@ -26,6 +27,8 @@ struct EditorView: View {
     @StateObject private var voicePreview = VoicePreviewEngine()
     @State private var statusObserver: NSKeyValueObservation?
     @State private var jumpObserver: NSObjectProtocol?
+    @State private var asciiRecentPairs = ASCIIColorRecentStore.load()
+    @State private var showASCIIColorCustom = false
 
     init(videoURL: URL) {
         self.videoURL = videoURL
@@ -242,7 +245,9 @@ struct EditorView: View {
     /// Exclude audio/pitch so voice slider does not rebuild the mask composition.
     private var videoEffectToken: String {
         let subjects = options.subjects.map(\.rawValue).sorted().joined(separator: ",")
-        return "\(options.quality.rawValue)|\(options.scope.rawValue)|\(options.style.rawValue)|\(options.strength)|\(subjects)|\(maskPreviewRevision)"
+        let fg = options.asciiForeground
+        let bg = options.asciiBackground
+        return "\(options.quality.rawValue)|\(options.scope.rawValue)|\(options.style.rawValue)|\(options.strength)|\(subjects)|\(maskPreviewRevision)|\(fg.r),\(fg.g),\(fg.b),\(fg.a)|\(bg.r),\(bg.g),\(bg.b),\(bg.a)"
     }
 
     private var settings: some View {
@@ -431,6 +436,10 @@ struct EditorView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if options.style == .ascii {
+                    asciiColorControls(bundle: bundle)
+                }
             }
 
             OptionSection(
@@ -1068,6 +1077,126 @@ struct EditorView: View {
         }
     }
 
+    private var currentASCIIColorPair: ASCIIColorPair {
+        ASCIIColorPair(
+            foreground: options.asciiForeground,
+            background: options.asciiBackground
+        )
+    }
+
+    @ViewBuilder
+    private func asciiColorControls(bundle: Bundle) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(localization.t("ascii.color"))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(ASCIIColorTheme.all) { theme in
+                        ASCIIColorSwatch(
+                            pair: theme.pair,
+                            isSelected: currentASCIIColorPair.matches(theme.pair),
+                            accessibilityLabel: theme.title(bundle)
+                        ) {
+                            applyASCIIColorPair(theme.pair, remember: false)
+                        }
+                    }
+
+                    if !asciiRecentPairs.isEmpty {
+                        Divider()
+                            .frame(height: 22)
+                        ForEach(asciiRecentPairs) { pair in
+                            ASCIIColorSwatch(
+                                pair: pair,
+                                isSelected: currentASCIIColorPair.matches(pair),
+                                accessibilityLabel: localization.t("ascii.color.recent")
+                            ) {
+                                applyASCIIColorPair(pair, remember: false)
+                            }
+                        }
+                    }
+
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showASCIIColorCustom.toggle()
+                        }
+                    } label: {
+                        Image(systemName: showASCIIColorCustom ? "xmark.circle.fill" : "plus.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.mint)
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(localization.t("ascii.color.custom"))
+                }
+            }
+
+            if showASCIIColorCustom {
+                ColorPicker(
+                    localization.t("ascii.color.foreground"),
+                    selection: asciiForegroundBinding,
+                    supportsOpacity: false
+                )
+                ColorPicker(
+                    localization.t("ascii.color.background"),
+                    selection: asciiBackgroundBinding,
+                    supportsOpacity: false
+                )
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    private var asciiForegroundBinding: Binding<Color> {
+        Binding(
+            get: { color(from: options.asciiForeground) },
+            set: { newValue in
+                options.asciiForeground = effectRGBA(from: newValue)
+                rememberCurrentASCIIColors()
+            }
+        )
+    }
+
+    private var asciiBackgroundBinding: Binding<Color> {
+        Binding(
+            get: { color(from: options.asciiBackground) },
+            set: { newValue in
+                options.asciiBackground = effectRGBA(from: newValue)
+                rememberCurrentASCIIColors()
+            }
+        )
+    }
+
+    private func applyASCIIColorPair(_ pair: ASCIIColorPair, remember: Bool) {
+        options.asciiForeground = pair.foreground
+        options.asciiBackground = pair.background
+        if remember {
+            rememberCurrentASCIIColors()
+        }
+    }
+
+    private func rememberCurrentASCIIColors() {
+        ASCIIColorRecentStore.remember(currentASCIIColorPair)
+        asciiRecentPairs = ASCIIColorRecentStore.load()
+    }
+
+    private func color(from rgba: EffectRGBA) -> Color {
+        Color(.sRGB, red: rgba.r, green: rgba.g, blue: rgba.b, opacity: rgba.a)
+    }
+
+    private func effectRGBA(from color: Color) -> EffectRGBA {
+        let uiColor = UIColor(color)
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        guard uiColor.getRed(&r, green: &g, blue: &b, alpha: &a) else {
+            return .asciiDefaultForeground
+        }
+        return EffectRGBA(r: Double(r), g: Double(g), b: Double(b), a: Double(a))
+    }
+
     @MainActor
     private func applyPreview() async {
         previewGeneration += 1
@@ -1378,5 +1507,51 @@ private struct CollapsibleOptionSection<Content: View>: View {
         }
         .padding()
         .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 18))
+    }
+}
+
+private struct ASCIIColorSwatch: View {
+    let pair: ASCIIColorPair
+    let isSelected: Bool
+    let accessibilityLabel: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Circle()
+                    .fill(
+                        Color(
+                            .sRGB,
+                            red: pair.background.r,
+                            green: pair.background.g,
+                            blue: pair.background.b,
+                            opacity: pair.background.a
+                        )
+                    )
+                Circle()
+                    .fill(
+                        Color(
+                            .sRGB,
+                            red: pair.foreground.r,
+                            green: pair.foreground.g,
+                            blue: pair.foreground.b,
+                            opacity: pair.foreground.a
+                        )
+                    )
+                    .padding(7)
+            }
+            .frame(width: 28, height: 28)
+            .overlay {
+                Circle()
+                    .strokeBorder(
+                        isSelected ? Color.mint : Color.white.opacity(0.28),
+                        lineWidth: isSelected ? 2 : 1
+                    )
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

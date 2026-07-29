@@ -273,6 +273,111 @@ enum VoicePitchStore {
     }
 }
 
+struct EffectRGBA: Equatable, Sendable, Codable {
+    var r: Double
+    var g: Double
+    var b: Double
+    var a: Double = 1
+
+    static let asciiDefaultForeground = EffectRGBA(r: 0.957, g: 0.969, b: 0.961)
+    static let asciiDefaultBackground = EffectRGBA(r: 0.02, g: 0.027, b: 0.024)
+
+    func matches(_ other: EffectRGBA, tolerance: Double = 0.002) -> Bool {
+        abs(r - other.r) <= tolerance
+            && abs(g - other.g) <= tolerance
+            && abs(b - other.b) <= tolerance
+            && abs(a - other.a) <= tolerance
+    }
+
+    /// Same hue family, mixed toward white for ASCII theme backgrounds.
+    func lightened(towardWhite amount: Double = 0.72) -> EffectRGBA {
+        let t = min(max(amount, 0), 1)
+        return EffectRGBA(
+            r: r + (1 - r) * t,
+            g: g + (1 - g) * t,
+            b: b + (1 - b) * t,
+            a: a
+        )
+    }
+}
+
+struct ASCIIColorPair: Equatable, Sendable, Codable, Identifiable {
+    var foreground: EffectRGBA
+    var background: EffectRGBA
+
+    var id: String {
+        [
+            foreground.r, foreground.g, foreground.b, foreground.a,
+            background.r, background.g, background.b, background.a
+        ]
+        .map { String(format: "%.4f", $0) }
+        .joined(separator: ",")
+    }
+
+    func matches(_ other: ASCIIColorPair) -> Bool {
+        foreground.matches(other.foreground) && background.matches(other.background)
+    }
+}
+
+struct ASCIIColorTheme: Identifiable, Equatable {
+    let id: String
+    let foreground: EffectRGBA
+    let background: EffectRGBA
+
+    var pair: ASCIIColorPair {
+        ASCIIColorPair(foreground: foreground, background: background)
+    }
+
+    func title(_ bundle: Bundle) -> String {
+        String(localized: String.LocalizationValue("ascii.theme.\(id)"), bundle: bundle)
+    }
+
+    static let all: [ASCIIColorTheme] = [
+        .init(
+            id: "classic",
+            foreground: .asciiDefaultForeground,
+            background: .asciiDefaultBackground
+        ),
+        .tinted(id: "amber", foreground: EffectRGBA(r: 0.82, g: 0.52, b: 0.12)),
+        .tinted(id: "blue", foreground: EffectRGBA(r: 0.28, g: 0.48, b: 0.82)),
+        .init(
+            id: "paper",
+            foreground: EffectRGBA(r: 0.12, g: 0.12, b: 0.11),
+            background: EffectRGBA(r: 0.88, g: 0.85, b: 0.78)
+        ),
+        .tinted(id: "matrix", foreground: EffectRGBA(r: 0.1, g: 0.55, b: 0.22)),
+        .tinted(id: "magenta", foreground: EffectRGBA(r: 0.78, g: 0.28, b: 0.55)),
+    ]
+
+    private static func tinted(id: String, foreground: EffectRGBA) -> ASCIIColorTheme {
+        .init(id: id, foreground: foreground, background: foreground.lightened(towardWhite: 0.72))
+    }
+}
+
+enum ASCIIColorRecentStore {
+    static let key = "jingyin.asciiRecentColors"
+    static let maxCount = 5
+
+    static func load() -> [ASCIIColorPair] {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let pairs = try? JSONDecoder().decode([ASCIIColorPair].self, from: data) else {
+            return []
+        }
+        return Array(pairs.prefix(maxCount))
+    }
+
+    static func remember(_ pair: ASCIIColorPair) {
+        var pairs = load().filter { !$0.matches(pair) }
+        pairs.insert(pair, at: 0)
+        if pairs.count > maxCount {
+            pairs = Array(pairs.prefix(maxCount))
+        }
+        if let data = try? JSONEncoder().encode(pairs) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
+    }
+}
+
 struct ProcessingOptions: Equatable {
     var quality: QualityMode = .balanced
     var scope: MaskScope = .subjects
@@ -280,6 +385,8 @@ struct ProcessingOptions: Equatable {
     var audio: AudioMode = .original
     var voicePitch: Int = VoicePitchStore.load()
     var strength = 24.0
+    var asciiForeground: EffectRGBA = .asciiDefaultForeground
+    var asciiBackground: EffectRGBA = .asciiDefaultBackground
     var subjects: Set<SubjectKind> = [.person]
     var maskTracks: [MaskTrack] = []
     var exportResolution: ExportResolution = .p1080
