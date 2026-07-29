@@ -10,15 +10,13 @@ struct FullScreenMaskEditorView: View {
     let videoDisplaySize: CGSize?
     let timelineMarkers: [VideoTimelineMarker]
     let timelineRanges: [VideoTimelineRange]
+    let isMaskEditingEnabled: Bool
     let canDeleteCurrentKeyframe: Bool
     let onAddMask: (MaskTrackShape) -> Void
     let onInsertKeyframe: () -> Void
     let onDeleteCurrentKeyframe: () -> Void
     let onShrinkMask: () -> Void
     let onEnlargeMask: () -> Void
-    let onSetStart: () -> Void
-    let onSetEnd: () -> Void
-    let onShowWholeTimeline: () -> Void
     let onDeleteTrack: (MaskTrack.ID) -> Void
     let onEditingEnded: () -> Void
 
@@ -30,7 +28,8 @@ struct FullScreenMaskEditorView: View {
             VStack(spacing: 14) {
                 ControlledVideoPlayer(
                     player: player,
-                    showsCentralPlayButton: selectedTrackID == nil,
+                    showsCentralPlayButton: !isMaskEditingEnabled
+                        || selectedTrackID == nil,
                     timelineMarkers: timelineMarkers,
                     timelineRanges: timelineRanges,
                     onTimeChanged: { playheadSeconds = $0 }
@@ -39,23 +38,27 @@ struct FullScreenMaskEditorView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .aspectRatio(videoAspectRatio, contentMode: .fit)
                         .overlay {
-                            MaskEditorOverlay(
-                                tracks: $tracks,
-                                selectedTrackID: $selectedTrackID,
-                                timeSeconds: playheadSeconds,
-                                videoDisplaySize: videoDisplaySize,
-                                onEditingBegan: {
-                                    player.pause()
-                                },
-                                onEditingEnded: onEditingEnded,
-                                onDeleteTrack: onDeleteTrack
-                            )
+                            if isMaskEditingEnabled {
+                                MaskEditorOverlay(
+                                    tracks: $tracks,
+                                    selectedTrackID: $selectedTrackID,
+                                    timeSeconds: playheadSeconds,
+                                    videoDisplaySize: videoDisplaySize,
+                                    onEditingBegan: {
+                                        player.pause()
+                                    },
+                                    onEditingEnded: onEditingEnded,
+                                    onDeleteTrack: onDeleteTrack
+                                )
+                            }
                         }
                 }
                 .frame(maxHeight: .infinity)
 
-                maskSelector
-                editingControls
+                if isMaskEditingEnabled {
+                    maskSelector
+                    editingControls
+                }
             }
             .padding(.horizontal)
             .padding(.bottom)
@@ -71,9 +74,6 @@ struct FullScreenMaskEditorView: View {
             }
         }
         .preferredColorScheme(.dark)
-        .onAppear {
-            player.pause()
-        }
     }
 
     private var videoAspectRatio: CGFloat {
@@ -148,31 +148,16 @@ struct FullScreenMaskEditorView: View {
                     action: onEnlargeMask
                 )
                 controlButton(
-                    title: localization.t("editor.insertKeyframe"),
+                    title: localization.t("editor.recordPosition"),
                     systemImage: "diamond.fill",
                     action: onInsertKeyframe
                 )
                 controlButton(
-                    title: localization.t("editor.deleteKeyframe"),
+                    title: localization.t("editor.deletePositionRecord"),
                     systemImage: "diamond.slash",
                     role: .destructive,
                     isDisabled: !canDeleteCurrentKeyframe,
                     action: onDeleteCurrentKeyframe
-                )
-                controlButton(
-                    title: localization.t("editor.setMaskStart"),
-                    systemImage: "inset.filled.leadinghalf.rectangle",
-                    action: onSetStart
-                )
-                controlButton(
-                    title: localization.t("editor.setMaskEnd"),
-                    systemImage: "inset.filled.trailinghalf.rectangle",
-                    action: onSetEnd
-                )
-                controlButton(
-                    title: localization.t("editor.showWholeTimeline"),
-                    systemImage: "arrow.left.and.right",
-                    action: onShowWholeTimeline
                 )
             }
         }

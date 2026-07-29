@@ -753,60 +753,12 @@
         "ja": {"stringUnit": {"state": "translated", "value": "範囲を拡大"}}
       }
     },
-    "editor.insertKeyframe": {
-      "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "插入关键帧"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "插入關鍵影格"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Insert Keyframe"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "キーフレームを追加"}}
-      }
-    },
-    "editor.deleteKeyframe": {
-      "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "删除当前关键帧"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "刪除目前關鍵影格"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Delete Current Keyframe"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "現在のキーフレームを削除"}}
-      }
-    },
-    "editor.setMaskStart": {
-      "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "设为出现起点"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "設為出現起點"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Set Appearance Start"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "表示開始に設定"}}
-      }
-    },
-    "editor.setMaskEnd": {
-      "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "设为消失终点"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "設為消失終點"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Set Disappearance End"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "表示終了に設定"}}
-      }
-    },
-    "editor.showWholeTimeline": {
-      "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "全程显示"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "全程顯示"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Show for Full Video"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "全編に表示"}}
-      }
-    },
-    "editor.fullScreenEdit": {
-      "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "全屏 K 帧"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "全螢幕 K 幀"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Full-Screen Keyframing"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "全画面キーフレーム編集"}}
-      }
-    },
     "editor.fullScreenTitle": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "手动 K 帧"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "手動 K 幀"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Manual Keyframing"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "手動キーフレーム編集"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "全屏预览"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "全螢幕預覽"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Full-Screen Preview"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "全画面プレビュー"}}
       }
     },
     "editor.done": {
@@ -819,10 +771,10 @@
     },
     "editor.manualMaskHint": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "点击蒙版激活；右上角关闭按钮删除整条蒙版。拖动调整位置或右下角缩放时，当前时间会自动保存为关键帧。"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "點擊蒙版啟用；右上角關閉按鈕會刪除整條蒙版。拖曳調整位置或右下角縮放時，目前時間會自動儲存為關鍵影格。"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Tap a mask to select it; its upper-right close button deletes the entire mask. Moving or resizing saves the current time as a keyframe."}},
-        "ja": {"stringUnit": {"state": "translated", "value": "マスクをタップして選択します。右上の閉じるボタンはマスク全体を削除します。移動やサイズ変更は現在時刻にキーフレームとして保存されます。"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "点击蒙版进行调整；拖动或缩放会记住当前时间的位置。右上角关闭按钮会删除整个蒙版。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "點擊蒙版進行調整；拖曳或縮放會記住目前時間的位置。右上角關閉按鈕會刪除整個蒙版。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Tap a mask to adjust it. Moving or resizing remembers its position at the current time. The upper-right close button deletes the entire mask."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "マスクをタップして調整します。移動やサイズ変更をすると現在時刻の位置が記録されます。右上の閉じるボタンでマスク全体を削除します。"}}
       }
     },
     "editor.resizeMask": {
@@ -843,10 +795,90 @@
     },
     "editor.keyframeTimelineHint": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "关键帧会标记在上方时间轴；黄色表示当前选中的蒙版。"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "關鍵影格會標記在上方時間軸；黃色代表目前選取的蒙版。"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Keyframes appear on the timeline above. Yellow marks belong to the selected mask."}},
-        "ja": {"stringUnit": {"state": "translated", "value": "キーフレームは上のタイムラインに表示され、選択中のマスクは黄色で示されます。"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "时间轴短线表示蒙版位置发生变化；黄色表示当前蒙版。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "時間軸短線表示蒙版位置發生變化；黃色代表目前蒙版。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Timeline ticks show where a mask changes position; yellow ticks belong to the selected mask."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "タイムラインの目盛りはマスク位置の変化を示し、黄色は選択中のマスクです。"}}
+      }
+    },
+    "editor.visibility": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "显示时间"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "顯示時間"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Visible During"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "表示時間"}}
+      }
+    },
+    "editor.startShowingHere": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "从当前时间开始显示"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "從目前時間開始顯示"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Start Showing at Current Time"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "現在時刻から表示"}}
+      }
+    },
+    "editor.stopShowingHere": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "到当前时间停止显示"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "到目前時間停止顯示"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Stop Showing at Current Time"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "現在時刻で表示終了"}}
+      }
+    },
+    "editor.showForEntireVideo": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "整段视频"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "整段影片"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Entire Video"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "動画全体"}}
+      }
+    },
+    "editor.visibilityRange": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "%1$@ – %2$@"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "%1$@ – %2$@"}},
+        "en": {"stringUnit": {"state": "translated", "value": "%1$@ – %2$@"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "%1$@ – %2$@"}}
+      }
+    },
+    "editor.visibilityFrom": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "%@ 起"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "%@ 起"}},
+        "en": {"stringUnit": {"state": "translated", "value": "From %@"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "%@ から"}}
+      }
+    },
+    "editor.visibilityUntil": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "至 %@"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "至 %@"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Until %@"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "%@ まで"}}
+      }
+    },
+    "editor.positionRecords": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "位置变化"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "位置變化"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Position Changes"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "位置の変化"}}
+      }
+    },
+    "editor.recordPosition": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "记录当前位置"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "記錄目前位置"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Remember Current Position"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "現在位置を記録"}}
+      }
+    },
+    "editor.deletePositionRecord": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "删除当前位置记录"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "刪除目前位置記錄"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Delete Current Position Record"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "現在位置の記録を削除"}}
       }
     },
     "editor.quality": {
@@ -2735,6 +2767,14 @@
             "value": "動画の進行状況"
           }
         }
+      }
+    },
+    "player.fullScreen": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "全屏查看"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "全螢幕查看"}},
+        "en": {"stringUnit": {"state": "translated", "value": "View Full Screen"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "全画面で表示"}}
       }
     },
     "error.previewUnsupported": {

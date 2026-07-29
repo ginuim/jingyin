@@ -25,6 +25,7 @@ struct ControlledVideoPlayer<Content: View>: View {
     let timelineMarkers: [VideoTimelineMarker]
     let timelineRanges: [VideoTimelineRange]
     let onTimeChanged: (TimeInterval) -> Void
+    let onFullScreen: (() -> Void)?
     @ViewBuilder private let content: Content
 
     @EnvironmentObject private var localization: LocalizationManager
@@ -47,6 +48,7 @@ struct ControlledVideoPlayer<Content: View>: View {
         timelineMarkers: [VideoTimelineMarker] = [],
         timelineRanges: [VideoTimelineRange] = [],
         onTimeChanged: @escaping (TimeInterval) -> Void = { _ in },
+        onFullScreen: (() -> Void)? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.player = player
@@ -54,6 +56,7 @@ struct ControlledVideoPlayer<Content: View>: View {
         self.timelineMarkers = timelineMarkers
         self.timelineRanges = timelineRanges
         self.onTimeChanged = onTimeChanged
+        self.onFullScreen = onFullScreen
         self.content = content()
     }
 
@@ -73,6 +76,28 @@ struct ControlledVideoPlayer<Content: View>: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(localization.t("player.play"))
+                }
+
+                if let onFullScreen {
+                    VStack {
+                        HStack {
+                            Button(action: onFullScreen) {
+                                Image(
+                                    systemName: "arrow.up.left.and.arrow.down.right"
+                                )
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 36, height: 36)
+                                .background(.black.opacity(0.65), in: Circle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(localization.t("player.fullScreen"))
+
+                            Spacer()
+                        }
+                        Spacer()
+                    }
+                    .padding(10)
                 }
             }
 

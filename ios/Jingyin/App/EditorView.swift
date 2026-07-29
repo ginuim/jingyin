@@ -41,7 +41,10 @@ struct EditorView: View {
                         || selectedMaskTrackID == nil,
                     timelineMarkers: manualMaskTimelineMarkers,
                     timelineRanges: manualMaskTimelineRanges,
-                    onTimeChanged: { playheadSeconds = $0 }
+                    onTimeChanged: { playheadSeconds = $0 },
+                    onFullScreen: {
+                        showFullScreenMaskEditor = true
+                    }
                 ) {
                     VideoPlayer(player: player)
                         .aspectRatio(16 / 10, contentMode: .fit)
@@ -157,15 +160,13 @@ struct EditorView: View {
                 videoDisplaySize: sourceMetadata?.displaySize,
                 timelineMarkers: manualMaskTimelineMarkers,
                 timelineRanges: manualMaskTimelineRanges,
+                isMaskEditingEnabled: showManualMaskEditor,
                 canDeleteCurrentKeyframe: canDeleteCurrentKeyframe,
                 onAddMask: addManualMask,
                 onInsertKeyframe: insertKeyframe,
                 onDeleteCurrentKeyframe: deleteCurrentKeyframe,
                 onShrinkMask: shrinkSelectedMask,
                 onEnlargeMask: enlargeSelectedMask,
-                onSetStart: setSelectedMaskStart,
-                onSetEnd: setSelectedMaskEnd,
-                onShowWholeTimeline: showSelectedMaskForWholeTimeline,
                 onDeleteTrack: deleteMask,
                 onEditingEnded: finishMaskEditing
             )
@@ -268,27 +269,6 @@ struct EditorView: View {
                     meta: manualMaskCountLabel,
                     isExpanded: $showManualMaskEditor
                 ) {
-                    Button {
-                        Task {
-                            await detectFacesAtCurrentFrame()
-                        }
-                    } label: {
-                        if isDetectingFaces {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                        } else {
-                            Label(
-                                localization.t("editor.detectFaces"),
-                                systemImage: "person.crop.rectangle.stack"
-                            )
-                            .frame(maxWidth: .infinity)
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.mint)
-                    .foregroundStyle(.black)
-                    .disabled(isDetectingFaces)
-
                     HStack(spacing: 10) {
                         Button {
                             addManualMask(shape: .ellipse)
@@ -311,16 +291,6 @@ struct EditorView: View {
                             .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
-                    }
-
-                    if let faceDetectionMessage {
-                        Label(
-                            faceDetectionMessage,
-                            systemImage: "exclamationmark.triangle.fill"
-                        )
-                        .font(.caption)
-                        .foregroundStyle(.yellow)
-                        .fixedSize(horizontal: false, vertical: true)
                     }
 
                     if !options.maskTracks.isEmpty {
@@ -349,67 +319,11 @@ struct EditorView: View {
                         }
 
                         HStack(spacing: 10) {
-                            Button(action: insertKeyframe) {
-                                Label(
-                                    localization.t("editor.insertKeyframe"),
-                                    systemImage: "diamond.fill"
-                                )
+                            maskVisibilityMenu
                                 .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .tint(.mint)
-                            .foregroundStyle(.black)
 
-                            Button(
-                                role: .destructive,
-                                action: deleteCurrentKeyframe
-                            ) {
-                                Label(
-                                    localization.t("editor.deleteKeyframe"),
-                                    systemImage: "diamond.slash"
-                                )
+                            positionRecordsMenu
                                 .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(!canDeleteCurrentKeyframe)
-                        }
-
-                        HStack(spacing: 10) {
-                            Button(action: setSelectedMaskStart) {
-                                Text(localization.t("editor.setMaskStart"))
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.bordered)
-
-                            Button(action: setSelectedMaskEnd) {
-                                Text(localization.t("editor.setMaskEnd"))
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.bordered)
-                        }
-
-                        HStack(spacing: 10) {
-                            Button(action: showSelectedMaskForWholeTimeline) {
-                                Label(
-                                    localization.t("editor.showWholeTimeline"),
-                                    systemImage: "arrow.left.and.right"
-                                )
-                                .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.bordered)
-
-                            Button {
-                                player.pause()
-                                voicePreview.pause()
-                                showFullScreenMaskEditor = true
-                            } label: {
-                                Label(
-                                    localization.t("editor.fullScreenEdit"),
-                                    systemImage: "arrow.up.left.and.arrow.down.right"
-                                )
-                                .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.bordered)
                         }
 
                         if let selectedFaceTrack {
@@ -559,7 +473,7 @@ struct EditorView: View {
     }
 
     private var manualMaskTimelineMarkers: [VideoTimelineMarker] {
-        guard showManualMaskEditor || showFullScreenMaskEditor else { return [] }
+        guard showManualMaskEditor else { return [] }
         return options.maskTracks.flatMap { track in
             track.keyframes
                 .filter { $0.origin == .manual }
@@ -574,7 +488,7 @@ struct EditorView: View {
     }
 
     private var manualMaskTimelineRanges: [VideoTimelineRange] {
-        guard showManualMaskEditor || showFullScreenMaskEditor else { return [] }
+        guard showManualMaskEditor else { return [] }
         return options.maskTracks.compactMap { track in
             guard track.activeFromSeconds != nil || track.activeUntilSeconds != nil else {
                 return nil
@@ -624,12 +538,114 @@ struct EditorView: View {
         }
     }
 
+    private var maskVisibilityMenu: some View {
+        Menu {
+            Button {
+                setSelectedMaskStart()
+            } label: {
+                Label(
+                    localization.t("editor.startShowingHere"),
+                    systemImage: "arrow.right.to.line"
+                )
+            }
+
+            Button {
+                setSelectedMaskEnd()
+            } label: {
+                Label(
+                    localization.t("editor.stopShowingHere"),
+                    systemImage: "arrow.left.to.line"
+                )
+            }
+
+            Divider()
+
+            Button {
+                showSelectedMaskForWholeTimeline()
+            } label: {
+                Label(
+                    localization.t("editor.showForEntireVideo"),
+                    systemImage: "arrow.left.and.right"
+                )
+            }
+        } label: {
+            VStack(spacing: 2) {
+                Label(
+                    localization.t("editor.visibility"),
+                    systemImage: "clock"
+                )
+                .font(.caption.bold())
+                Text(selectedMaskVisibilitySummary)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+    }
+
+    private var positionRecordsMenu: some View {
+        Menu {
+            Button(action: insertKeyframe) {
+                Label(
+                    localization.t("editor.recordPosition"),
+                    systemImage: "diamond.fill"
+                )
+            }
+
+            Button(
+                role: .destructive,
+                action: deleteCurrentKeyframe
+            ) {
+                Label(
+                    localization.t("editor.deletePositionRecord"),
+                    systemImage: "diamond.slash"
+                )
+            }
+            .disabled(!canDeleteCurrentKeyframe)
+        } label: {
+            Label(
+                localization.t("editor.positionRecords"),
+                systemImage: "point.topleft.down.to.point.bottomright.curvepath"
+            )
+            .font(.caption.bold())
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+    }
+
+    private var selectedMaskVisibilitySummary: String {
+        guard let selectedMaskIndex else {
+            return localization.t("editor.showForEntireVideo")
+        }
+        let track = options.maskTracks[selectedMaskIndex]
+        switch (track.activeFromSeconds, track.activeUntilSeconds) {
+        case let (start?, end?):
+            return localization.format(
+                "editor.visibilityRange",
+                formatTimestamp(start),
+                formatTimestamp(end)
+            )
+        case let (start?, nil):
+            return localization.format(
+                "editor.visibilityFrom",
+                formatTimestamp(start)
+            )
+        case let (nil, end?):
+            return localization.format(
+                "editor.visibilityUntil",
+                formatTimestamp(end)
+            )
+        case (nil, nil):
+            return localization.t("editor.showForEntireVideo")
+        }
+    }
+
     private func addManualMask(shape: MaskTrackShape) {
         player.pause()
         voicePreview.pause()
         let track = MaskTrack(
             shape: shape,
-            activeFromSeconds: editingTimeSeconds,
             keyframes: [
                 MaskKeyframe(
                     timeSeconds: editingTimeSeconds,
