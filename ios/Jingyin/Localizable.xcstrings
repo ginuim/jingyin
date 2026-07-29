@@ -609,6 +609,22 @@
         "ja": {"stringUnit": {"state": "translated", "value": "マスク %lld"}}
       }
     },
+    "editor.shrinkMask": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "缩小覆盖"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "縮小覆蓋"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Shrink Coverage"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "範囲を縮小"}}
+      }
+    },
+    "editor.enlargeMask": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "扩大覆盖"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "擴大覆蓋"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Enlarge Coverage"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "範囲を拡大"}}
+      }
+    },
     "editor.insertKeyframe": {
       "localizations": {
         "zh-Hans": {"stringUnit": {"state": "translated", "value": "插入关键帧"}},
@@ -1450,25 +1466,25 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "导出无音轨"
+            "value": "静音导出"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "匯出無音軌"
+            "value": "靜音匯出"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Export without audio"
+            "value": "Silent export"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "音声なしで書き出し"
+            "value": "音声をミュートして書き出し"
           }
         }
       }

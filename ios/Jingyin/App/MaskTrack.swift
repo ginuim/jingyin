@@ -38,6 +38,27 @@ struct NormalizedVideoRect: Codable, Equatable, Hashable, Sendable {
         width <= 0 || height <= 0
     }
 
+    /// Scales around the current center while keeping the rectangle fully
+    /// inside normalized video bounds. Preview and export both consume this
+    /// same rectangle, so coverage adjustments cannot diverge between paths.
+    func scaledAroundCenter(
+        by factor: Double,
+        minimumDimension: Double = 0.05
+    ) -> Self {
+        guard factor.isFinite, factor > 0 else { return self }
+        let minimum = min(max(minimumDimension, 0), 1)
+        let targetWidth = min(max(width * factor, minimum), 1)
+        let targetHeight = min(max(height * factor, minimum), 1)
+        let centerX = x + width / 2
+        let centerY = y + height / 2
+        return Self(
+            x: min(max(centerX - targetWidth / 2, 0), 1 - targetWidth),
+            y: min(max(centerY - targetHeight / 2, 0), 1 - targetHeight),
+            width: targetWidth,
+            height: targetHeight
+        )
+    }
+
     /// Converts to a top-left-origin preview rectangle inside the displayed
     /// video bounds. Callers should pass the actual aspect-fit video bounds,
     /// excluding any letterboxing around it.

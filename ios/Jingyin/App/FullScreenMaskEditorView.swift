@@ -14,6 +14,8 @@ struct FullScreenMaskEditorView: View {
     let onAddMask: (MaskTrackShape) -> Void
     let onInsertKeyframe: () -> Void
     let onDeleteCurrentKeyframe: () -> Void
+    let onShrinkMask: () -> Void
+    let onEnlargeMask: () -> Void
     let onSetStart: () -> Void
     let onSetEnd: () -> Void
     let onShowWholeTimeline: () -> Void
@@ -135,6 +137,16 @@ struct FullScreenMaskEditorView: View {
     private var editingControls: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
+                controlButton(
+                    title: localization.t("editor.shrinkMask"),
+                    systemImage: "minus.magnifyingglass",
+                    action: onShrinkMask
+                )
+                controlButton(
+                    title: localization.t("editor.enlargeMask"),
+                    systemImage: "plus.magnifyingglass",
+                    action: onEnlargeMask
+                )
                 controlButton(
                     title: localization.t("editor.insertKeyframe"),
                     systemImage: "diamond.fill",

@@ -145,6 +145,8 @@ struct EditorView: View {
                 onAddMask: addManualMask,
                 onInsertKeyframe: insertKeyframe,
                 onDeleteCurrentKeyframe: deleteCurrentKeyframe,
+                onShrinkMask: shrinkSelectedMask,
+                onEnlargeMask: enlargeSelectedMask,
                 onSetStart: setSelectedMaskStart,
                 onSetEnd: setSelectedMaskEnd,
                 onShowWholeTimeline: showSelectedMaskForWholeTimeline,
@@ -261,6 +263,26 @@ struct EditorView: View {
                     }
 
                     if selectedMaskTrackID != nil {
+                        HStack(spacing: 10) {
+                            Button(action: shrinkSelectedMask) {
+                                Label(
+                                    localization.t("editor.shrinkMask"),
+                                    systemImage: "minus.magnifyingglass"
+                                )
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+
+                            Button(action: enlargeSelectedMask) {
+                                Label(
+                                    localization.t("editor.enlargeMask"),
+                                    systemImage: "plus.magnifyingglass"
+                                )
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+
                         HStack(spacing: 10) {
                             Button(action: insertKeyframe) {
                                 Label(
@@ -597,6 +619,31 @@ struct EditorView: View {
             return
         }
         options.maskTracks[selectedMaskIndex].removeKeyframe(id: keyframe.id)
+        refreshMaskPreview()
+    }
+
+    private func shrinkSelectedMask() {
+        scaleSelectedMask(by: 0.9)
+    }
+
+    private func enlargeSelectedMask() {
+        scaleSelectedMask(by: 1.1)
+    }
+
+    private func scaleSelectedMask(by factor: Double) {
+        guard let selectedMaskIndex,
+              let rect = options.maskTracks[selectedMaskIndex]
+                .keyframedRect(at: editingTimeSeconds) else {
+            return
+        }
+        player.pause()
+        voicePreview.pause()
+        options.maskTracks[selectedMaskIndex].setKeyframe(
+            MaskKeyframe(
+                timeSeconds: editingTimeSeconds,
+                rect: rect.scaledAroundCenter(by: factor)
+            )
+        )
         refreshMaskPreview()
     }
 
