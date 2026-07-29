@@ -79,33 +79,33 @@ struct SettingsView: View {
                             }
                             .font(.headline)
                             .disabled(entitlements.isRestoring)
-                        }
 
-                        Divider()
+                            Divider()
 
-                        Button {
-                            Task {
-                                let restored = await entitlements.restorePurchases()
-                                restoreMessage = restored
-                                    ? localization.t("purchase.restore.success")
-                                    : entitlements.errorMessage
-                                        ?? localization.t("purchase.restore.none")
-                            }
-                        } label: {
-                            HStack(spacing: 10) {
-                                if entitlements.isRestoring {
-                                    ProgressView()
-                                        .controlSize(.small)
+                            Button {
+                                Task {
+                                    let restored = await entitlements.restorePurchases()
+                                    restoreMessage = restored
+                                        ? localization.t("purchase.restore.success")
+                                        : entitlements.errorMessage
+                                            ?? localization.t("purchase.restore.none")
                                 }
-                                Text(localization.t(
-                                    entitlements.isRestoring
-                                        ? "purchase.restore.processing"
-                                        : "purchase.restore"
-                                ))
+                            } label: {
+                                HStack(spacing: 10) {
+                                    if entitlements.isRestoring {
+                                        ProgressView()
+                                            .controlSize(.small)
+                                    }
+                                    Text(localization.t(
+                                        entitlements.isRestoring
+                                            ? "purchase.restore.processing"
+                                            : "purchase.restore"
+                                    ))
+                                }
+                                .font(.headline)
                             }
-                            .font(.headline)
+                            .disabled(entitlements.isPurchasing || entitlements.isRestoring)
                         }
-                        .disabled(entitlements.isPurchasing || entitlements.isRestoring)
 
                         Divider()
 
