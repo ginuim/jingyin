@@ -335,22 +335,27 @@ struct ASCIIColorTheme: Identifiable, Equatable {
     static let all: [ASCIIColorTheme] = [
         .init(
             id: "classic",
-            foreground: .asciiDefaultForeground,
-            background: .asciiDefaultBackground
+            foreground: .asciiDefaultBackground,
+            background: .asciiDefaultForeground
         ),
-        .tinted(id: "amber", foreground: EffectRGBA(r: 0.82, g: 0.52, b: 0.12)),
-        .tinted(id: "blue", foreground: EffectRGBA(r: 0.28, g: 0.48, b: 0.82)),
+        .tinted(id: "amber", color: EffectRGBA(r: 0.82, g: 0.52, b: 0.12)),
+        .tinted(id: "blue", color: EffectRGBA(r: 0.28, g: 0.48, b: 0.82)),
         .init(
             id: "paper",
-            foreground: EffectRGBA(r: 0.12, g: 0.12, b: 0.11),
-            background: EffectRGBA(r: 0.88, g: 0.85, b: 0.78)
+            foreground: EffectRGBA(r: 0.88, g: 0.85, b: 0.78),
+            background: EffectRGBA(r: 0.12, g: 0.12, b: 0.11)
         ),
-        .tinted(id: "matrix", foreground: EffectRGBA(r: 0.1, g: 0.55, b: 0.22)),
-        .tinted(id: "magenta", foreground: EffectRGBA(r: 0.78, g: 0.28, b: 0.55)),
+        .tinted(id: "matrix", color: EffectRGBA(r: 0.1, g: 0.55, b: 0.22)),
+        .tinted(id: "magenta", color: EffectRGBA(r: 0.78, g: 0.28, b: 0.55)),
     ]
 
-    private static func tinted(id: String, foreground: EffectRGBA) -> ASCIIColorTheme {
-        .init(id: id, foreground: foreground, background: foreground.lightened(towardWhite: 0.72))
+    /// Deep base color as background; lightened tint as glyph.
+    private static func tinted(id: String, color: EffectRGBA) -> ASCIIColorTheme {
+        .init(
+            id: id,
+            foreground: color.lightened(towardWhite: 0.72),
+            background: color
+        )
     }
 }
 
