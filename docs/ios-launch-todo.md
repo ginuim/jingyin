@@ -75,7 +75,7 @@
 
 ## P1：商店发布
 
-- [ ] 隐私政策与 App Privacy 填写（公开页面已实现：`https://lengshide.reaidea.com/privacy`；待部署确认并填写 App Store Connect）
+- [ ] 隐私政策与 App Privacy 填写（公开页面已实现：`https://lenshide.reaidea.com/privacy`；待部署确认并填写 App Store Connect）
 - [ ] 简中、繁中、英文、日文商店文案
 - [ ] 免费版与永久版截图
 - [ ] TestFlight 内测

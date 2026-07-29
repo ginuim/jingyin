@@ -7,7 +7,7 @@ async function render(pathname = "/") {
   const { default: worker } = await import(workerUrl.href);
 
   return worker.fetch(
-    new Request(`https://lengshide.reaidea.com${pathname}`, {
+    new Request(`https://lenshide.reaidea.com${pathname}`, {
       headers: { accept: "text/html" },
     }),
     {

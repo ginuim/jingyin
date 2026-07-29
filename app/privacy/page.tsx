@@ -22,7 +22,7 @@ export default function PrivacyPolicyPage() {
         <span className="policy-kicker">PRIVACY POLICY</span>
         <h1>隐私政策</h1>
         <p className="policy-lead">
-          本政策适用于镜隐 iOS App 与 lengshide.reaidea.com 网页工具。两者都以本地视频处理为核心，但网页访问和 App Store 购买涉及不同的服务提供方。
+          本政策适用于镜隐 iOS App 与 lenshide.reaidea.com 网页工具。两者都以本地视频处理为核心，但网页访问和 App Store 购买涉及不同的服务提供方。
         </p>
         <p className="policy-updated">生效及更新日期：2026 年 7 月 29 日</p>
 

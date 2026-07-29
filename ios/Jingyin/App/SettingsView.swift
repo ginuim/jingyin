@@ -99,6 +99,6 @@ struct SettingsView: View {
 }
 
 private enum AppLinks {
-    static let website = URL(string: "https://lengshide.reaidea.com")!
+    static let website = URL(string: "https://lenshide.reaidea.com")!
     static let privacyPolicy = website.appending(path: "privacy")
 }
