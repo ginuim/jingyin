@@ -277,12 +277,12 @@ struct ProcessingOptions: Equatable {
     var voicePitch: Int = VoicePitchStore.load()
     var strength = 32.0
     var subjects: Set<SubjectKind> = [.person]
+    var maskTracks: [MaskTrack] = []
     var exportResolution: ExportResolution = .p1080
     var exportFrameRate = 30
 
     mutating func toggleSubject(_ subject: SubjectKind) {
         if subjects.contains(subject) {
-            guard subjects.count > 1 else { return }
             subjects.remove(subject)
             return
         }

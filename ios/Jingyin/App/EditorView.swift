@@ -13,6 +13,9 @@ struct EditorView: View {
     @State private var showPaywall = false
     @State private var sourceMetadata: SourceVideoMetadata?
     @State private var previewGeneration = 0
+    @State private var maskPreviewRevision = 0
+    @State private var playheadSeconds = 0.0
+    @State private var selectedMaskTrackID: MaskTrack.ID?
     @StateObject private var voicePreview = VoicePreviewEngine()
     @State private var statusObserver: NSKeyValueObservation?
     @State private var jumpObserver: NSObjectProtocol?
@@ -25,10 +28,27 @@ struct EditorView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 22) {
-                ControlledVideoPlayer(player: player) {
+                ControlledVideoPlayer(
+                    player: player,
+                    showsCentralPlayButton: selectedMaskTrackID == nil,
+                    onTimeChanged: { playheadSeconds = $0 }
+                ) {
                     VideoPlayer(player: player)
                         .aspectRatio(16 / 10, contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: 20))
+                        .overlay {
+                            MaskEditorOverlay(
+                                tracks: $options.maskTracks,
+                                selectedTrackID: $selectedMaskTrackID,
+                                timeSeconds: playheadSeconds,
+                                videoDisplaySize: sourceMetadata?.displaySize,
+                                onEditingBegan: {
+                                    player.pause()
+                                    voicePreview.pause()
+                                },
+                                onEditingEnded: refreshMaskPreview
+                            )
+                        }
                         .overlay(alignment: .topTrailing) {
                             Label(localization.t("editor.previewBadge"), systemImage: "eye.fill")
                                 .font(.caption.bold())
@@ -153,7 +173,7 @@ struct EditorView: View {
     /// Exclude audio/pitch so voice slider does not rebuild the mask composition.
     private var videoEffectToken: String {
         let subjects = options.subjects.map(\.rawValue).sorted().joined(separator: ",")
-        return "\(options.quality.rawValue)|\(options.scope.rawValue)|\(options.style.rawValue)|\(options.strength)|\(subjects)"
+        return "\(options.quality.rawValue)|\(options.scope.rawValue)|\(options.style.rawValue)|\(options.strength)|\(subjects)|\(maskPreviewRevision)"
     }
 
     private var settings: some View {
@@ -172,6 +192,51 @@ struct EditorView: View {
             }
 
             if options.scope != .full {
+                OptionSection(
+                    title: localization.t("editor.manualMasks"),
+                    systemImage: "square.dashed"
+                ) {
+                    HStack(spacing: 10) {
+                        Button {
+                            addManualMask(shape: .ellipse)
+                        } label: {
+                            Label(
+                                localization.t("editor.addEllipse"),
+                                systemImage: "circle.dashed"
+                            )
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button {
+                            addManualMask(shape: .rectangle)
+                        } label: {
+                            Label(
+                                localization.t("editor.addRectangle"),
+                                systemImage: "rectangle.dashed"
+                            )
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    if selectedMaskTrackID != nil {
+                        Button(role: .destructive, action: deleteSelectedMask) {
+                            Label(
+                                localization.t("editor.deleteMask"),
+                                systemImage: "trash"
+                            )
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    Text(localization.t("editor.manualMaskHint"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 OptionSection(title: localization.t("editor.subjects"), systemImage: "person.2.crop.square.stack") {
                     HStack(spacing: 10) {
                         ForEach(SubjectKind.allCases) { subject in
@@ -291,6 +356,39 @@ struct EditorView: View {
         options.toggleSubject(subject)
     }
 
+    private func addManualMask(shape: MaskTrackShape) {
+        player.pause()
+        voicePreview.pause()
+        let track = MaskTrack(
+            shape: shape,
+            keyframes: [
+                MaskKeyframe(
+                    timeSeconds: playheadSeconds,
+                    rect: NormalizedVideoRect(
+                        x: 0.3,
+                        y: 0.3,
+                        width: 0.4,
+                        height: 0.4
+                    )
+                )
+            ]
+        )
+        options.maskTracks.append(track)
+        selectedMaskTrackID = track.id
+        refreshMaskPreview()
+    }
+
+    private func deleteSelectedMask() {
+        guard let selectedMaskTrackID else { return }
+        options.maskTracks.removeAll { $0.id == selectedMaskTrackID }
+        self.selectedMaskTrackID = nil
+        refreshMaskPreview()
+    }
+
+    private func refreshMaskPreview() {
+        maskPreviewRevision += 1
+    }
+
     @MainActor
     private func loadSourceMetadata() async {
         guard sourceMetadata == nil,
@@ -334,7 +432,13 @@ struct EditorView: View {
         guard generation == previewGeneration, !Task.isCancelled else { return }
 
         let composition = AVVideoComposition(asset: asset) { request in
-            request.finish(with: processor.render(request.sourceImage), context: nil)
+            request.finish(
+                with: processor.render(
+                    request.sourceImage,
+                    at: request.compositionTime
+                ),
+                context: nil
+            )
         }
         guard generation == previewGeneration, !Task.isCancelled else { return }
 

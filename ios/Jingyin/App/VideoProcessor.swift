@@ -104,6 +104,7 @@ final class VideoProcessor: ObservableObject {
                 request.finish(
                     with: processor.render(
                         request.sourceImage,
+                        at: request.compositionTime,
                         renderSize: request.renderSize
                     ),
                     context: nil
@@ -647,7 +648,11 @@ final class FrameEffectProcessor: @unchecked Sendable {
         _ = context.createCGImage(CIImage(color: .black).cropped(to: CGRect(x: 0, y: 0, width: 8, height: 8)), from: CGRect(x: 0, y: 0, width: 8, height: 8))
     }
 
-    func render(_ sourceImage: CIImage, renderSize: CGSize? = nil) -> CIImage {
+    func render(
+        _ sourceImage: CIImage,
+        at compositionTime: CMTime = .zero,
+        renderSize: CGSize? = nil
+    ) -> CIImage {
         let source = Self.scaledImage(sourceImage, to: renderSize)
         let extent = source.extent
         let effected: CIImage
@@ -675,7 +680,17 @@ final class FrameEffectProcessor: @unchecked Sendable {
         if frameIndex == 1 || frameIndex.isMultiple(of: options.quality.frameInterval) {
             cachedMask = subjectMask(for: source, extent: extent) ?? cachedMask
         }
-        guard var mask = cachedMask else { return source }
+        let timeSeconds = compositionTime.seconds.isFinite
+            ? compositionTime.seconds
+            : 0
+        let trackMask = maskTrackMask(at: timeSeconds, extent: extent)
+        guard var mask = Self.combinedMask(
+            cachedMask,
+            trackMask,
+            extent: extent
+        ) else {
+            return source
+        }
         let safetyRadius: Double
         let featherRadius: Double
         switch options.quality {
@@ -700,6 +715,81 @@ final class FrameEffectProcessor: @unchecked Sendable {
             kCIInputBackgroundImageKey: source,
             kCIInputMaskImageKey: mask
         ]).cropped(to: extent)
+    }
+
+    private static func combinedMask(
+        _ first: CIImage?,
+        _ second: CIImage?,
+        extent: CGRect
+    ) -> CIImage? {
+        switch (first, second) {
+        case let (first?, second?):
+            return second.applyingFilter(
+                "CIMaximumCompositing",
+                parameters: [kCIInputBackgroundImageKey: first]
+            ).cropped(to: extent)
+        case let (first?, nil):
+            return first.cropped(to: extent)
+        case let (nil, second?):
+            return second.cropped(to: extent)
+        case (nil, nil):
+            return nil
+        }
+    }
+
+    private func maskTrackMask(
+        at timeSeconds: TimeInterval,
+        extent: CGRect
+    ) -> CIImage? {
+        let activeTracks = options.maskTracks.compactMap { track -> (MaskTrackShape, CGRect)? in
+            guard let normalizedRect = track.rect(at: timeSeconds),
+                  !normalizedRect.isEmpty else {
+                return nil
+            }
+            return (
+                track.shape,
+                normalizedRect.rect(inCoreImageExtent: extent)
+            )
+        }
+        guard !activeTracks.isEmpty else { return nil }
+
+        var mask = CIImage(color: .black).cropped(to: extent)
+        for (shape, rect) in activeTracks {
+            let shapeMask: CIImage
+            switch shape {
+            case .rectangle:
+                shapeMask = CIImage(color: .white).cropped(to: rect)
+            case .ellipse:
+                shapeMask = Self.ellipseMask(in: rect, extent: extent)
+            }
+            mask = shapeMask.applyingFilter(
+                "CIMaximumCompositing",
+                parameters: [kCIInputBackgroundImageKey: mask]
+            )
+        }
+        return mask.cropped(to: extent)
+    }
+
+    private static func ellipseMask(in rect: CGRect, extent: CGRect) -> CIImage {
+        CIFilter(
+            name: "CIRadialGradient",
+            parameters: [
+                "inputCenter": CIVector(x: 0.5, y: 0.5),
+                "inputRadius0": 0.48,
+                "inputRadius1": 0.5,
+                "inputColor0": CIColor.white,
+                "inputColor1": CIColor.black
+            ]
+        )!.outputImage!
+            .transformed(by: CGAffineTransform(
+                scaleX: rect.width,
+                y: rect.height
+            ))
+            .transformed(by: CGAffineTransform(
+                translationX: rect.minX,
+                y: rect.minY
+            ))
+            .cropped(to: extent)
     }
 
     private static func scaledImage(_ source: CIImage, to renderSize: CGSize?) -> CIImage {

@@ -561,6 +561,54 @@
         }
       }
     },
+    "editor.manualMasks": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "手动蒙版"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "手動蒙版"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Manual Masks"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "手動マスク"}}
+      }
+    },
+    "editor.addEllipse": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "添加椭圆"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "新增橢圓"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Add Ellipse"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "楕円を追加"}}
+      }
+    },
+    "editor.addRectangle": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "添加矩形"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "新增矩形"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Add Rectangle"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "長方形を追加"}}
+      }
+    },
+    "editor.deleteMask": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "删除所选蒙版"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "刪除所選蒙版"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Delete Selected Mask"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "選択中のマスクを削除"}}
+      }
+    },
+    "editor.manualMaskHint": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "拖动蒙版调整位置，拖动右下角控制点缩放；当前时间会自动保存为关键帧。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "拖曳蒙版調整位置，拖曳右下角控制點縮放；目前時間會自動儲存為關鍵影格。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Drag a mask to move it or its lower-right handle to resize. The current time is saved as a keyframe."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "マスクをドラッグして移動し、右下のハンドルでサイズを変更します。現在時刻がキーフレームとして保存されます。"}}
+      }
+    },
+    "editor.resizeMask": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "缩放蒙版"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "縮放蒙版"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Resize mask"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "マスクのサイズを変更"}}
+      }
+    },
     "editor.quality": {
       "localizations": {
         "zh-Hans": {

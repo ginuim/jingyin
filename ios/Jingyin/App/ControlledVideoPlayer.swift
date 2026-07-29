@@ -8,6 +8,8 @@ import SwiftUI
 /// preview is attached through `AVPlayerItem.videoComposition`.
 struct ControlledVideoPlayer<Content: View>: View {
     let player: AVPlayer
+    let showsCentralPlayButton: Bool
+    let onTimeChanged: (TimeInterval) -> Void
     @ViewBuilder private let content: Content
 
     @EnvironmentObject private var localization: LocalizationManager
@@ -24,8 +26,15 @@ struct ControlledVideoPlayer<Content: View>: View {
         in: .common
     ).autoconnect()
 
-    init(player: AVPlayer, @ViewBuilder content: () -> Content) {
+    init(
+        player: AVPlayer,
+        showsCentralPlayButton: Bool = true,
+        onTimeChanged: @escaping (TimeInterval) -> Void = { _ in },
+        @ViewBuilder content: () -> Content
+    ) {
         self.player = player
+        self.showsCentralPlayButton = showsCentralPlayButton
+        self.onTimeChanged = onTimeChanged
         self.content = content()
     }
 
@@ -34,7 +43,7 @@ struct ControlledVideoPlayer<Content: View>: View {
             ZStack {
                 content
 
-                if playerIsPaused {
+                if playerIsPaused, showsCentralPlayButton {
                     Button(action: togglePlayback) {
                         Image(systemName: "play.fill")
                             .font(.system(size: 24, weight: .bold))
@@ -156,6 +165,7 @@ struct ControlledVideoPlayer<Content: View>: View {
         let current = player.currentTime().seconds
         if current.isFinite, !isScrubbing {
             currentSeconds = max(0, current)
+            onTimeChanged(currentSeconds)
         }
 
         let duration = player.currentItem?.duration.seconds ?? 0
