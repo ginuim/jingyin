@@ -242,9 +242,7 @@ struct EditorView: View {
             },
             isPinned: isVideoPinned,
             onPinToggle: {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isVideoPinned.toggle()
-                }
+                isVideoPinned.toggle()
             }
         ) {
             VideoPlayer(player: player)
