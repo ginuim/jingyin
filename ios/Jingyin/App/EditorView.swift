@@ -10,6 +10,7 @@ struct EditorView: View {
     @State private var options = ProcessingOptions()
     @State private var showProcessing = false
     @State private var showExportSettings = false
+    @State private var showPaywall = false
     @State private var sourceMetadata: SourceVideoMetadata?
     @State private var previewGeneration = 0
     @StateObject private var voicePreview = VoicePreviewEngine()
@@ -41,6 +42,10 @@ struct EditorView: View {
                 }
 
                 settings
+
+                PurchaseStatusCard {
+                    showPaywall = true
+                }
 
                 if voicePreview.isPreparing, options.audio == .voice {
                     ProgressView(localization.t("editor.preparingVoice"))
@@ -93,6 +98,11 @@ struct EditorView: View {
             )
             .environmentObject(localization)
             .environmentObject(entitlements)
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
+                .environmentObject(localization)
+                .environmentObject(entitlements)
         }
         .task(id: videoEffectToken) {
             await applyPreview()
@@ -278,12 +288,7 @@ struct EditorView: View {
     }
 
     private func toggle(_ subject: SubjectKind) {
-        if options.subjects.contains(subject) {
-            guard options.subjects.count > 1 else { return }
-            options.subjects.remove(subject)
-        } else {
-            options.subjects.insert(subject)
-        }
+        options.toggleSubject(subject)
     }
 
     @MainActor
@@ -489,42 +494,9 @@ private struct ExportSettingsSheet: View {
     }
 
     private var accessCard: some View {
-        HStack(spacing: 14) {
-            Image(systemName: entitlements.isUnlocked ? "checkmark.seal.fill" : "gift.fill")
-                .font(.title2)
-                .foregroundStyle(.mint)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(
-                    localization.t(
-                        entitlements.isUnlocked
-                            ? "purchase.unlocked"
-                            : "purchase.freePlan"
-                    )
-                )
-                .font(.headline)
-                Text(
-                    localization.t(
-                        entitlements.isUnlocked
-                            ? "purchase.unlocked.detail"
-                            : "purchase.freePlan.detail"
-                    )
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 8)
-            if !entitlements.isUnlocked {
-                Button(localization.t("purchase.unlock")) {
-                    showPaywall = true
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.mint)
-                .foregroundStyle(.black)
-            }
+        PurchaseStatusCard {
+            showPaywall = true
         }
-        .padding()
-        .background(.mint.opacity(0.08), in: RoundedRectangle(cornerRadius: 18))
     }
 
     private func enforceAllowedResolution() {

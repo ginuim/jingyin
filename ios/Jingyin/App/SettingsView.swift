@@ -35,6 +35,17 @@ struct SettingsView: View {
                     .foregroundStyle(entitlements.isUnlocked ? .mint : .secondary)
                 }
 
+                Text(
+                    localization.t(
+                        entitlements.isUnlocked
+                            ? "purchase.unlocked.detail"
+                            : "purchase.freePlan.detail"
+                    )
+                )
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
                 if !entitlements.isUnlocked {
                     Button(localization.t("purchase.unlock")) {
                         showPaywall = true
@@ -56,6 +67,15 @@ struct SettingsView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
+
+            Section(localization.t("settings.information")) {
+                Link(destination: AppLinks.website) {
+                    Label(localization.t("settings.website"), systemImage: "globe")
+                }
+                Link(destination: AppLinks.privacyPolicy) {
+                    Label(localization.t("settings.privacyPolicy"), systemImage: "hand.raised.fill")
+                }
+            }
         }
         .navigationTitle(localization.t("settings.title"))
         .navigationBarTitleDisplayMode(.inline)
@@ -76,4 +96,9 @@ struct SettingsView: View {
             Text(restoreMessage ?? "")
         }
     }
+}
+
+private enum AppLinks {
+    static let website = URL(string: "https://lengshide.reaidea.com")!
+    static let privacyPolicy = website.appending(path: "privacy")
 }

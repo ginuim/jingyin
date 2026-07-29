@@ -1836,7 +1836,10 @@ export default function PrivacyStudio() {
       <footer>
         <a className="brand" href="#top"><span className="brand-mark"><EyeOff size={18} /></span><span>{copy.brand}</span></a>
         <p>{copy.footer.tagline}</p>
-        <a className="reaidea-link" href="https://reaidea.com" rel="noopener noreferrer" aria-label={copy.footer.reaideaAria}>{copy.footer.reaidea}</a>
+        <nav className="footer-links" aria-label="Footer">
+          <a href="/privacy">{copy.footer.privacy}</a>
+          <a href="https://reaidea.com" rel="noopener noreferrer" aria-label={copy.footer.reaideaAria}>{copy.footer.reaidea}</a>
+        </nav>
       </footer>
     </main>
   );

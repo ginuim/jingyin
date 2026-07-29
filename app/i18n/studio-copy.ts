@@ -167,6 +167,7 @@ export type StudioCopy = {
   };
   footer: {
     tagline: string;
+    privacy: string;
     reaidea: string;
     reaideaAria: string;
   };
@@ -411,6 +412,7 @@ const zh: StudioCopy = {
   },
   footer: {
     tagline: "浏览器里的视频隐私保护工具",
+    privacy: "隐私政策",
     reaidea: "reaidea.com",
     reaideaAria: "访问 reaidea 主站",
   },
@@ -655,6 +657,7 @@ const en: StudioCopy = {
   },
   footer: {
     tagline: "Video privacy tools in the browser",
+    privacy: "Privacy",
     reaidea: "reaidea.com",
     reaideaAria: "Visit reaidea.com",
   },

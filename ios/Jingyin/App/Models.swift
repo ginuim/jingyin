@@ -280,6 +280,24 @@ struct ProcessingOptions: Equatable {
     var exportResolution: ExportResolution = .p1080
     var exportFrameRate = 30
 
+    mutating func toggleSubject(_ subject: SubjectKind) {
+        if subjects.contains(subject) {
+            guard subjects.count > 1 else { return }
+            subjects.remove(subject)
+            return
+        }
+
+        switch subject {
+        case .person:
+            subjects.remove(.face)
+        case .face:
+            subjects.remove(.person)
+        case .pet:
+            break
+        }
+        subjects.insert(subject)
+    }
+
     func audioMeta(bundle: Bundle) -> String {
         switch audio {
         case .original: AudioMode.original.meta(bundle)

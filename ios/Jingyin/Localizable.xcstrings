@@ -2493,6 +2493,30 @@
         "ja": {"stringUnit": {"state": "translated", "value": "永久版"}}
       }
     },
+    "settings.information": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "信息"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "資訊"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Information"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "情報"}}
+      }
+    },
+    "settings.website": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "镜隐官网"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "鏡隱官網"}},
+        "en": {"stringUnit": {"state": "translated", "value": "LensHide Website"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "LensHide 公式サイト"}}
+      }
+    },
+    "settings.privacyPolicy": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "隐私政策"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "隱私權政策"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Privacy Policy"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "プライバシーポリシー"}}
+      }
+    },
     "purchase.status": {
       "localizations": {
         "zh-Hans": {"stringUnit": {"state": "translated", "value": "当前方案"}},
