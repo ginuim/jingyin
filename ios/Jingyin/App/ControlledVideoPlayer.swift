@@ -68,66 +68,60 @@ struct ControlledVideoPlayer<Content: View>: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            ZStack {
-                content
-
-                if playerIsPaused, showsCentralPlayButton {
-                    Button(action: togglePlayback) {
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundStyle(.black)
-                            .frame(width: 58, height: 58)
-                            .background(.mint.opacity(0.94), in: Circle())
-                            .shadow(color: .black.opacity(0.35), radius: 12, y: 5)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(localization.t("player.play"))
-                }
-
-                VStack {
-                    HStack {
-                        Spacer()
-                        if let onPinToggle {
-                            Button(action: onPinToggle) {
-                                Image(systemName: isPinned ? "pin.fill" : "pin")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundStyle(isPinned ? .black : .white)
-                                    .frame(width: 36, height: 36)
-                                    .background(
-                                        isPinned
-                                            ? Color.mint.opacity(0.94)
-                                            : Color.black.opacity(0.65),
-                                        in: Circle()
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(
-                                localization.t(
-                                    isPinned ? "player.unpin" : "player.pin"
-                                )
-                            )
-                        }
-                    }
-                    Spacer()
-                    if let onFullScreen {
-                        HStack {
-                            Spacer()
-                            Button(action: onFullScreen) {
-                                Image(
-                                    systemName: "arrow.up.left.and.arrow.down.right"
-                                )
+            content
+                .overlay(alignment: .topTrailing) {
+                    if let onPinToggle {
+                        Button(action: onPinToggle) {
+                            Image(systemName: isPinned ? "pin.fill" : "pin")
                                 .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(isPinned ? .black : .white)
                                 .frame(width: 36, height: 36)
-                                .background(.black.opacity(0.65), in: Circle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(localization.t("player.fullScreen"))
+                                .background(
+                                    isPinned
+                                        ? Color.mint.opacity(0.94)
+                                        : Color.black.opacity(0.65),
+                                    in: Circle()
+                                )
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(
+                            localization.t(
+                                isPinned ? "player.unpin" : "player.pin"
+                            )
+                        )
+                        .padding(10)
                     }
                 }
-                .padding(10)
-            }
+                .overlay(alignment: .bottomTrailing) {
+                    if let onFullScreen {
+                        Button(action: onFullScreen) {
+                            Image(
+                                systemName: "arrow.up.left.and.arrow.down.right"
+                            )
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 36, height: 36)
+                            .background(.black.opacity(0.65), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(localization.t("player.fullScreen"))
+                        .padding(10)
+                    }
+                }
+                .overlay {
+                    if playerIsPaused, showsCentralPlayButton {
+                        Button(action: togglePlayback) {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundStyle(.black)
+                                .frame(width: 58, height: 58)
+                                .background(.mint.opacity(0.94), in: Circle())
+                                .shadow(color: .black.opacity(0.35), radius: 12, y: 5)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(localization.t("player.play"))
+                    }
+                }
 
             HStack(spacing: 9) {
                 Button(action: togglePlayback) {
@@ -158,6 +152,7 @@ struct ControlledVideoPlayer<Content: View>: View {
             .foregroundStyle(.secondary)
             .padding(.horizontal, 4)
         }
+        .fixedSize(horizontal: false, vertical: true)
         .onAppear(perform: refreshState)
         .onReceive(refreshTimer) { _ in
             refreshState()

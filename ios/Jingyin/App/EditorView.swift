@@ -42,10 +42,11 @@ struct EditorView: View {
     }
 
     var body: some View {
-        VStack(spacing: isVideoPinned ? 22 : 0) {
+        VStack(spacing: 0) {
             if isVideoPinned {
                 videoPlayerSection
                     .padding(.horizontal)
+                    .padding(.top)
             }
 
             ScrollView {
@@ -99,9 +100,7 @@ struct EditorView: View {
                         .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                .padding(.horizontal)
-                .padding(.bottom)
-                .padding(.top, isVideoPinned ? 0 : nil)
+                .padding()
             }
         }
         .background(Color(red: 0.035, green: 0.065, blue: 0.07))
@@ -197,6 +196,9 @@ struct EditorView: View {
         .onAppear {
             installPlayerObservers()
             applyAudioMode()
+            if ProcessInfo.processInfo.arguments.contains("-demoPin") {
+                isVideoPinned = true
+            }
         }
         .onChange(of: options.audio) { _, _ in
             applyAudioMode()
