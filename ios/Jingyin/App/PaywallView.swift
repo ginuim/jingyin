@@ -63,18 +63,31 @@ struct PaywallView: View {
                     .foregroundStyle(.black)
                     .disabled(
                         entitlements.isPurchasing
+                            || entitlements.isRestoring
                             || entitlements.isLoading
                             || entitlements.lifetimeProduct == nil
                     )
 
-                    Button(localization.t("purchase.restore")) {
+                    Button {
                         Task {
                             if await entitlements.restorePurchases() {
                                 dismiss()
                             }
                         }
+                    } label: {
+                        HStack(spacing: 10) {
+                            if entitlements.isRestoring {
+                                ProgressView()
+                                    .controlSize(.small)
+                            }
+                            Text(localization.t(
+                                entitlements.isRestoring
+                                    ? "purchase.restore.processing"
+                                    : "purchase.restore"
+                            ))
+                        }
                     }
-                    .disabled(entitlements.isPurchasing)
+                    .disabled(entitlements.isPurchasing || entitlements.isRestoring)
 
                     Text(localization.t("paywall.footnote"))
                         .font(.caption)

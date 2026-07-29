@@ -2717,6 +2717,14 @@
         "ja": {"stringUnit": {"state": "translated", "value": "購入を復元"}}
       }
     },
+    "purchase.restore.processing": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "正在恢复…"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "正在恢復…"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Restoring…"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "復元中…"}}
+      }
+    },
     "purchase.restore.success": {
       "localizations": {
         "zh-Hans": {"stringUnit": {"state": "translated", "value": "永久版已恢复。"}},

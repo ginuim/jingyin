@@ -9,6 +9,7 @@ final class EntitlementStore: ObservableObject {
     @Published private(set) var isReady = false
     @Published private(set) var isLoading = false
     @Published private(set) var isPurchasing = false
+    @Published private(set) var isRestoring = false
     @Published private(set) var errorMessage: String?
 
     private var updatesTask: Task<Void, Never>?
@@ -59,6 +60,8 @@ final class EntitlementStore: ObservableObject {
 
     @discardableResult
     func purchaseLifetime() async -> Bool {
+        guard !isPurchasing, !isRestoring else { return false }
+
         if lifetimeProduct == nil {
             await loadProduct()
         }
@@ -89,9 +92,11 @@ final class EntitlementStore: ObservableObject {
 
     @discardableResult
     func restorePurchases() async -> Bool {
-        isPurchasing = true
+        guard !isPurchasing, !isRestoring else { return false }
+
+        isRestoring = true
         errorMessage = nil
-        defer { isPurchasing = false }
+        defer { isRestoring = false }
 
         do {
             try await AppStore.sync()
