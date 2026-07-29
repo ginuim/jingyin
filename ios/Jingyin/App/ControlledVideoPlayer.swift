@@ -26,6 +26,8 @@ struct ControlledVideoPlayer<Content: View>: View {
     let timelineRanges: [VideoTimelineRange]
     let onTimeChanged: (TimeInterval) -> Void
     let onFullScreen: (() -> Void)?
+    let isPinned: Bool
+    let onPinToggle: (() -> Void)?
     @ViewBuilder private let content: Content
 
     @EnvironmentObject private var localization: LocalizationManager
@@ -49,6 +51,8 @@ struct ControlledVideoPlayer<Content: View>: View {
         timelineRanges: [VideoTimelineRange] = [],
         onTimeChanged: @escaping (TimeInterval) -> Void = { _ in },
         onFullScreen: (() -> Void)? = nil,
+        isPinned: Bool = false,
+        onPinToggle: (() -> Void)? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.player = player
@@ -57,6 +61,8 @@ struct ControlledVideoPlayer<Content: View>: View {
         self.timelineRanges = timelineRanges
         self.onTimeChanged = onTimeChanged
         self.onFullScreen = onFullScreen
+        self.isPinned = isPinned
+        self.onPinToggle = onPinToggle
         self.content = content()
     }
 
@@ -78,9 +84,32 @@ struct ControlledVideoPlayer<Content: View>: View {
                     .accessibilityLabel(localization.t("player.play"))
                 }
 
-                if let onFullScreen {
-                    VStack {
+                VStack {
+                    HStack {
                         Spacer()
+                        if let onPinToggle {
+                            Button(action: onPinToggle) {
+                                Image(systemName: isPinned ? "pin.fill" : "pin")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(isPinned ? .black : .white)
+                                    .frame(width: 36, height: 36)
+                                    .background(
+                                        isPinned
+                                            ? Color.mint.opacity(0.94)
+                                            : Color.black.opacity(0.65),
+                                        in: Circle()
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(
+                                localization.t(
+                                    isPinned ? "player.unpin" : "player.pin"
+                                )
+                            )
+                        }
+                    }
+                    Spacer()
+                    if let onFullScreen {
                         HStack {
                             Spacer()
                             Button(action: onFullScreen) {
@@ -96,8 +125,8 @@ struct ControlledVideoPlayer<Content: View>: View {
                             .accessibilityLabel(localization.t("player.fullScreen"))
                         }
                     }
-                    .padding(10)
                 }
+                .padding(10)
             }
 
             HStack(spacing: 9) {

@@ -29,6 +29,12 @@ struct EditorView: View {
     @State private var jumpObserver: NSObjectProtocol?
     @State private var asciiRecentPairs = ASCIIColorRecentStore.load()
     @State private var showASCIIColorCustom = false
+    @State private var isVideoPinned = false
+    @State private var isScopeExpanded = true
+    @State private var isSubjectsExpanded = true
+    @State private var isQualityExpanded = true
+    @State private var isStyleExpanded = true
+    @State private var isAudioExpanded = true
 
     init(videoURL: URL) {
         self.videoURL = videoURL
@@ -36,94 +42,67 @@ struct EditorView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 22) {
-                ControlledVideoPlayer(
-                    player: player,
-                    timelineMarkers: manualMaskTimelineMarkers,
-                    timelineRanges: manualMaskTimelineRanges,
-                    onTimeChanged: { playheadSeconds = $0 },
-                    onFullScreen: {
-                        showFullScreenMaskEditor = true
-                    }
-                ) {
-                    VideoPlayer(player: player)
-                        .aspectRatio(16 / 10, contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: 20))
-                        .overlay {
-                            if showManualMaskEditor {
-                                MaskEditorOverlay(
-                                    tracks: $options.maskTracks,
-                                    selectedTrackID: $selectedMaskTrackID,
-                                    timeSeconds: playheadSeconds,
-                                    videoDisplaySize: sourceMetadata?.displaySize,
-                                    onEditingBegan: {
-                                        player.pause()
-                                        voicePreview.pause()
-                                    },
-                                    onEditingEnded: finishMaskEditing,
-                                    onDeleteTrack: deleteMask
-                                )
-                            }
-                        }
-                        .overlay(alignment: .topTrailing) {
-                            Label(localization.t("editor.previewBadge"), systemImage: "eye.fill")
-                                .font(.caption.bold())
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(.black.opacity(0.65), in: Capsule())
-                                .padding(10)
-                        }
-                }
-
-                settings
-
-                PurchaseStatusCard {
-                    showPaywall = true
-                }
-
-                if voicePreview.isPreparing, options.audio == .voice {
-                    ProgressView(localization.t("editor.preparingVoice"))
-                        .font(.footnote)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else if voicePreview.isPreviewUnsupported, options.audio == .voice {
-                    Label(localization.t("error.previewUnsupported"), systemImage: "exclamationmark.triangle.fill")
-                        .font(.footnote)
-                        .foregroundStyle(.yellow)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                Button {
-                    player.pause()
-                    voicePreview.stop(unload: true)
-                    showExportSettings = true
-                } label: {
-                    Label(localization.t("editor.start"), systemImage: "wand.and.stars")
-                        .font(.headline)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.mint)
-                .foregroundStyle(.black)
-                .disabled(hasTrackingInProgress)
-
-                if hasTrackingInProgress {
-                    Label(
-                        localization.t("tracking.waitForCompletion"),
-                        systemImage: "hourglass"
-                    )
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                }
+        VStack(spacing: isVideoPinned ? 22 : 0) {
+            if isVideoPinned {
+                videoPlayerSection
+                    .padding(.horizontal)
             }
-            .padding()
+
+            ScrollView {
+                VStack(spacing: 22) {
+                    if !isVideoPinned {
+                        videoPlayerSection
+                    }
+
+                    settings
+
+                    PurchaseStatusCard {
+                        showPaywall = true
+                    }
+
+                    if voicePreview.isPreparing, options.audio == .voice {
+                        ProgressView(localization.t("editor.preparingVoice"))
+                            .font(.footnote)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else if voicePreview.isPreviewUnsupported, options.audio == .voice {
+                        Label(localization.t("error.previewUnsupported"), systemImage: "exclamationmark.triangle.fill")
+                            .font(.footnote)
+                            .foregroundStyle(.yellow)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    Button {
+                        player.pause()
+                        voicePreview.stop(unload: true)
+                        showExportSettings = true
+                    } label: {
+                        Label(localization.t("editor.start"), systemImage: "wand.and.stars")
+                            .font(.headline)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.mint)
+                    .foregroundStyle(.black)
+                    .disabled(hasTrackingInProgress)
+
+                    if hasTrackingInProgress {
+                        Label(
+                            localization.t("tracking.waitForCompletion"),
+                            systemImage: "hourglass"
+                        )
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.bottom)
+                .padding(.top, isVideoPinned ? 0 : nil)
+            }
         }
         .background(Color(red: 0.035, green: 0.065, blue: 0.07))
         .navigationTitle(localization.t("editor.title"))
@@ -250,10 +229,52 @@ struct EditorView: View {
         return "\(options.quality.rawValue)|\(options.scope.rawValue)|\(options.style.rawValue)|\(options.strength)|\(subjects)|\(maskPreviewRevision)|\(fg.r),\(fg.g),\(fg.b),\(fg.a)|\(bg.r),\(bg.g),\(bg.b),\(bg.a)"
     }
 
+    private var videoPlayerSection: some View {
+        ControlledVideoPlayer(
+            player: player,
+            timelineMarkers: manualMaskTimelineMarkers,
+            timelineRanges: manualMaskTimelineRanges,
+            onTimeChanged: { playheadSeconds = $0 },
+            onFullScreen: {
+                showFullScreenMaskEditor = true
+            },
+            isPinned: isVideoPinned,
+            onPinToggle: {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isVideoPinned.toggle()
+                }
+            }
+        ) {
+            VideoPlayer(player: player)
+                .aspectRatio(16 / 10, contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: 20))
+                .overlay {
+                    if showManualMaskEditor {
+                        MaskEditorOverlay(
+                            tracks: $options.maskTracks,
+                            selectedTrackID: $selectedMaskTrackID,
+                            timeSeconds: playheadSeconds,
+                            videoDisplaySize: sourceMetadata?.displaySize,
+                            onEditingBegan: {
+                                player.pause()
+                                voicePreview.pause()
+                            },
+                            onEditingEnded: finishMaskEditing,
+                            onDeleteTrack: deleteMask
+                        )
+                    }
+                }
+        }
+    }
+
     private var settings: some View {
         let bundle = localization.bundle
         return VStack(spacing: 18) {
-            OptionSection(title: localization.t("editor.scope"), systemImage: "viewfinder") {
+            CollapsibleOptionSection(
+                title: localization.t("editor.scope"),
+                systemImage: "viewfinder",
+                isExpanded: $isScopeExpanded
+            ) {
                 Picker(localization.t("editor.scope"), selection: $options.scope) {
                     ForEach(MaskScope.allCases) {
                         Text($0.title(bundle))
@@ -348,7 +369,11 @@ struct EditorView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 }
 
-                OptionSection(title: localization.t("editor.subjects"), systemImage: "person.2.crop.square.stack") {
+                CollapsibleOptionSection(
+                    title: localization.t("editor.subjects"),
+                    systemImage: "person.2.crop.square.stack",
+                    isExpanded: $isSubjectsExpanded
+                ) {
                     HStack(spacing: 10) {
                         ForEach(SubjectKind.allCases) { subject in
                             let isSelected = options.subjects.contains(subject)
@@ -391,7 +416,11 @@ struct EditorView: View {
                     }
                 }
 
-                OptionSection(title: localization.t("editor.quality"), systemImage: "speedometer") {
+                CollapsibleOptionSection(
+                    title: localization.t("editor.quality"),
+                    systemImage: "speedometer",
+                    isExpanded: $isQualityExpanded
+                ) {
                     Picker(localization.t("editor.quality"), selection: $options.quality) {
                         ForEach(QualityMode.allCases) {
                             Text($0.title(bundle))
@@ -408,7 +437,11 @@ struct EditorView: View {
                 }
             }
 
-            OptionSection(title: localization.t("editor.style"), systemImage: "circle.lefthalf.filled") {
+            CollapsibleOptionSection(
+                title: localization.t("editor.style"),
+                systemImage: "circle.lefthalf.filled",
+                isExpanded: $isStyleExpanded
+            ) {
                 Picker(localization.t("editor.style"), selection: $options.style) {
                     ForEach(EffectStyle.allCases) {
                         Text($0.title(bundle))
@@ -442,10 +475,11 @@ struct EditorView: View {
                 }
             }
 
-            OptionSection(
+            CollapsibleOptionSection(
                 title: localization.t("editor.audio"),
                 systemImage: "speaker.wave.2",
-                meta: options.audioMeta(bundle: bundle)
+                meta: options.audioMeta(bundle: bundle),
+                isExpanded: $isAudioExpanded
             ) {
                 Picker(localization.t("editor.audio"), selection: $options.audio) {
                     ForEach(AudioMode.allCases) {
@@ -1434,35 +1468,6 @@ private struct ExportSettingsSheet: View {
         }
         .padding()
         .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 18))
-    }
-}
-
-private struct OptionSection<Content: View>: View {
-    let title: String
-    let systemImage: String
-    var meta: String? = nil
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 13) {
-            HStack(alignment: .firstTextBaseline) {
-                Label(title, systemImage: systemImage)
-                    .font(.headline)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.85)
-                Spacer(minLength: 8)
-                if let meta {
-                    Text(meta)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.trailing)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            content
-        }
-        .padding()
-        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 18))
     }
 }
 
