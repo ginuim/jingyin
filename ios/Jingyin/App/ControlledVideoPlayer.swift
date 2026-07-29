@@ -44,7 +44,7 @@ struct ControlledVideoPlayer<Content: View>: View {
 
     init(
         player: AVPlayer,
-        showsCentralPlayButton: Bool = true,
+        showsCentralPlayButton: Bool = false,
         timelineMarkers: [VideoTimelineMarker] = [],
         timelineRanges: [VideoTimelineRange] = [],
         onTimeChanged: @escaping (TimeInterval) -> Void = { _ in },
@@ -80,7 +80,9 @@ struct ControlledVideoPlayer<Content: View>: View {
 
                 if let onFullScreen {
                     VStack {
+                        Spacer()
                         HStack {
+                            Spacer()
                             Button(action: onFullScreen) {
                                 Image(
                                     systemName: "arrow.up.left.and.arrow.down.right"
@@ -92,10 +94,7 @@ struct ControlledVideoPlayer<Content: View>: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel(localization.t("player.fullScreen"))
-
-                            Spacer()
                         }
-                        Spacer()
                     }
                     .padding(10)
                 }

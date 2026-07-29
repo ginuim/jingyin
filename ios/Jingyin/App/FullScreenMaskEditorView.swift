@@ -28,8 +28,6 @@ struct FullScreenMaskEditorView: View {
             VStack(spacing: 14) {
                 ControlledVideoPlayer(
                     player: player,
-                    showsCentralPlayButton: !isMaskEditingEnabled
-                        || selectedTrackID == nil,
                     timelineMarkers: timelineMarkers,
                     timelineRanges: timelineRanges,
                     onTimeChanged: { playheadSeconds = $0 }

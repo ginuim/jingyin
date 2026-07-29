@@ -37,8 +37,6 @@ struct EditorView: View {
             VStack(spacing: 22) {
                 ControlledVideoPlayer(
                     player: player,
-                    showsCentralPlayButton: !showManualMaskEditor
-                        || selectedMaskTrackID == nil,
                     timelineMarkers: manualMaskTimelineMarkers,
                     timelineRanges: manualMaskTimelineRanges,
                     onTimeChanged: { playheadSeconds = $0 },
@@ -348,25 +346,42 @@ struct EditorView: View {
                 OptionSection(title: localization.t("editor.subjects"), systemImage: "person.2.crop.square.stack") {
                     HStack(spacing: 10) {
                         ForEach(SubjectKind.allCases) { subject in
+                            let isSelected = options.subjects.contains(subject)
                             Button {
                                 toggle(subject)
                             } label: {
-                                VStack(spacing: 7) {
-                                    Image(systemName: subject.icon)
-                                    Text(subject.title(bundle))
-                                        .font(.caption.bold())
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.8)
+                                ZStack(alignment: .topTrailing) {
+                                    VStack(spacing: 7) {
+                                        Image(systemName: subject.icon)
+                                        Text(subject.title(bundle))
+                                            .font(.caption.bold())
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.8)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+
+                                    Image(
+                                        systemName: isSelected
+                                            ? "checkmark.circle.fill"
+                                            : "circle"
+                                    )
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(
+                                        isSelected ? .black : .white.opacity(0.55)
+                                    )
+                                    .padding(6)
                                 }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
                                 .background(
-                                    options.subjects.contains(subject) ? Color.mint.opacity(0.9) : .white.opacity(0.08),
+                                    isSelected
+                                        ? Color.mint.opacity(0.9)
+                                        : .white.opacity(0.08),
                                     in: RoundedRectangle(cornerRadius: 12)
                                 )
-                                .foregroundStyle(options.subjects.contains(subject) ? .black : .white)
+                                .foregroundStyle(isSelected ? .black : .white)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityAddTraits(isSelected ? .isSelected : [])
                         }
                     }
                 }
