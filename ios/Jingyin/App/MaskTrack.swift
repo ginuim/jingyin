@@ -30,12 +30,34 @@ struct NormalizedVideoRect: Codable, Equatable, Hashable, Sendable {
         )
     }
 
+    /// Converts Vision's normalized bottom-left rectangle into the app's
+    /// display-oriented, top-left normalized coordinate space.
+    init(visionBoundingBox: CGRect) {
+        self.init(
+            x: visionBoundingBox.minX,
+            y: 1 - visionBoundingBox.maxY,
+            width: visionBoundingBox.width,
+            height: visionBoundingBox.height
+        )
+    }
+
     var cgRect: CGRect {
         CGRect(x: x, y: y, width: width, height: height)
     }
 
     var isEmpty: Bool {
         width <= 0 || height <= 0
+    }
+
+    /// Vision requests use a normalized bottom-left origin. Face detection and
+    /// tracking pass through this conversion before becoming MaskTrack data.
+    var visionBoundingBox: CGRect {
+        CGRect(
+            x: x,
+            y: 1 - y - height,
+            width: width,
+            height: height
+        )
     }
 
     /// Scales around the current center while keeping the rectangle fully
@@ -51,6 +73,21 @@ struct NormalizedVideoRect: Codable, Equatable, Hashable, Sendable {
         let targetHeight = min(max(height * factor, minimum), 1)
         let centerX = x + width / 2
         let centerY = y + height / 2
+        return Self(
+            x: min(max(centerX - targetWidth / 2, 0), 1 - targetWidth),
+            y: min(max(centerY - targetHeight / 2, 0), 1 - targetHeight),
+            width: targetWidth,
+            height: targetHeight
+        )
+    }
+
+    /// Expands a tight Vision face rectangle to include forehead, ears and
+    /// chin. The slight upward shift gives extra safety around the forehead.
+    func expandedForFaceCoverage() -> Self {
+        let targetWidth = min(max(width * 1.48, 0.08), 1)
+        let targetHeight = min(max(height * 1.62, 0.10), 1)
+        let centerX = x + width / 2
+        let centerY = y + height / 2 - height * 0.05
         return Self(
             x: min(max(centerX - targetWidth / 2, 0), 1 - targetWidth),
             y: min(max(centerY - targetHeight / 2, 0), 1 - targetHeight),
@@ -111,19 +148,35 @@ enum MaskTrackSource: String, Codable, Sendable {
     case detectedFace
 }
 
+enum MaskTrackingState: String, Codable, Sendable {
+    case notTracked
+    case tracking
+    case tracked
+    case lost
+    case needsRetracking
+}
+
 struct MaskKeyframe: Codable, Equatable, Hashable, Identifiable, Sendable {
+    enum Origin: String, Codable, Sendable {
+        case manual
+        case automaticTracking
+    }
+
     let id: UUID
     var timeSeconds: TimeInterval
     var rect: NormalizedVideoRect
+    var origin: Origin
 
     init(
         id: UUID = UUID(),
         timeSeconds: TimeInterval,
-        rect: NormalizedVideoRect
+        rect: NormalizedVideoRect,
+        origin: Origin = .manual
     ) {
         self.id = id
         self.timeSeconds = Self.validTime(timeSeconds)
         self.rect = rect
+        self.origin = origin
     }
 
     private static func validTime(_ value: TimeInterval) -> TimeInterval {
@@ -139,6 +192,8 @@ struct MaskTrack: Codable, Equatable, Hashable, Identifiable, Sendable {
     var isEnabled: Bool
     var activeFromSeconds: TimeInterval?
     var activeUntilSeconds: TimeInterval?
+    var trackingState: MaskTrackingState
+    var trackingLostAtSeconds: TimeInterval?
     private(set) var keyframes: [MaskKeyframe]
 
     init(
@@ -149,6 +204,8 @@ struct MaskTrack: Codable, Equatable, Hashable, Identifiable, Sendable {
         isEnabled: Bool = true,
         activeFromSeconds: TimeInterval? = nil,
         activeUntilSeconds: TimeInterval? = nil,
+        trackingState: MaskTrackingState = .notTracked,
+        trackingLostAtSeconds: TimeInterval? = nil,
         keyframes: [MaskKeyframe] = []
     ) {
         self.id = id
@@ -158,6 +215,8 @@ struct MaskTrack: Codable, Equatable, Hashable, Identifiable, Sendable {
         self.isEnabled = isEnabled
         self.activeFromSeconds = Self.validOptionalTime(activeFromSeconds)
         self.activeUntilSeconds = Self.validOptionalTime(activeUntilSeconds)
+        self.trackingState = trackingState
+        self.trackingLostAtSeconds = Self.validOptionalTime(trackingLostAtSeconds)
         self.keyframes = Self.ordered(keyframes)
     }
 
@@ -172,6 +231,35 @@ struct MaskTrack: Codable, Equatable, Hashable, Identifiable, Sendable {
             keyframes.append(keyframe)
         }
         keyframes = Self.ordered(keyframes)
+    }
+
+    mutating func removeKeyframes(after timeSeconds: TimeInterval) {
+        let time = timeSeconds.isFinite ? max(0, timeSeconds) : 0
+        keyframes.removeAll { $0.timeSeconds > time + 1.0 / 600.0 }
+    }
+
+    mutating func applyTrackingResult(
+        keyframes trackedKeyframes: [MaskKeyframe],
+        lostAtSeconds: TimeInterval?
+    ) {
+        for keyframe in trackedKeyframes {
+            setKeyframe(keyframe)
+        }
+        trackingLostAtSeconds = Self.validOptionalTime(lostAtSeconds)
+        trackingState = trackingLostAtSeconds == nil ? .tracked : .lost
+    }
+
+    mutating func markManualCorrection(at timeSeconds: TimeInterval) {
+        guard source == .detectedFace,
+              trackingState == .lost || trackingState == .needsRetracking else {
+            return
+        }
+        let time = timeSeconds.isFinite ? max(0, timeSeconds) : 0
+        if let trackingLostAtSeconds, time + 0.12 < trackingLostAtSeconds {
+            return
+        }
+        self.trackingLostAtSeconds = nil
+        trackingState = .needsRetracking
     }
 
     @discardableResult
@@ -251,3 +339,60 @@ struct MaskTrack: Codable, Equatable, Hashable, Identifiable, Sendable {
         return max(0, value)
     }
 }
+
+#if DEBUG
+enum MaskTrackSmoke {
+    static func run() {
+        let firstRect = NormalizedVideoRect(
+            x: 0.1,
+            y: 0.2,
+            width: 0.2,
+            height: 0.25
+        )
+        let secondRect = NormalizedVideoRect(
+            x: 0.5,
+            y: 0.4,
+            width: 0.2,
+            height: 0.25
+        )
+        var track = MaskTrack(
+            shape: .ellipse,
+            source: .detectedFace,
+            trackingState: .lost,
+            trackingLostAtSeconds: 2,
+            keyframes: [
+                MaskKeyframe(timeSeconds: 0, rect: firstRect),
+                MaskKeyframe(
+                    timeSeconds: 2,
+                    rect: secondRect,
+                    origin: .automaticTracking
+                ),
+            ]
+        )
+
+        // A loss holds the last known box for privacy until the user corrects
+        // it, rather than silently exposing the remainder of the clip.
+        precondition(track.rect(at: 4) == secondRect)
+        track.markManualCorrection(at: 1)
+        precondition(track.trackingState == .lost)
+        track.setKeyframe(MaskKeyframe(timeSeconds: 3, rect: firstRect))
+        track.markManualCorrection(at: 3)
+        precondition(track.trackingState == .needsRetracking)
+        precondition(track.trackingLostAtSeconds == nil)
+
+        track.removeKeyframes(after: 3)
+        track.applyTrackingResult(
+            keyframes: [
+                MaskKeyframe(
+                    timeSeconds: 4,
+                    rect: secondRect,
+                    origin: .automaticTracking
+                ),
+            ],
+            lostAtSeconds: nil
+        )
+        precondition(track.trackingState == .tracked)
+        precondition(track.rect(at: 4) == secondRect)
+    }
+}
+#endif

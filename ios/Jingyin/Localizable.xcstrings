@@ -569,6 +569,134 @@
         "ja": {"stringUnit": {"state": "translated", "value": "手動マスク"}}
       }
     },
+    "editor.detectFaces": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "检测人脸"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "偵測人臉"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Detect Faces"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "顔を検出"}}
+      }
+    },
+    "common.cancel": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "取消"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "取消"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Cancel"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "キャンセル"}}
+      }
+    },
+    "faceSelection.title": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "选择要遮盖的人脸"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "選擇要遮蓋的人臉"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Select Faces to Cover"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "隠す顔を選択"}}
+      }
+    },
+    "faceSelection.faceItem": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "人脸 %lld"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "人臉 %lld"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Face %lld"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "顔 %lld"}}
+      }
+    },
+    "faceSelection.trackSelected": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "跟踪所选"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "追蹤所選"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Track Selected"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "選択した顔を追跡"}}
+      }
+    },
+    "faceSelection.hint": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "逐个勾选需要遮盖的人脸。跟踪从当前时间向后进行，遇到镜头切换或目标丢失时会提示修正。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "逐一勾選需要遮蓋的人臉。追蹤從目前時間向後進行，遇到鏡頭切換或目標遺失時會提示修正。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Select each face to cover. Tracking runs forward from the current time and asks for correction after a cut or target loss."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "隠す顔を個別に選択します。追跡は現在位置から先へ進み、カットや見失いがあると修正を促します。"}}
+      }
+    },
+    "faceSelection.none": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "未检测到人脸"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "未偵測到人臉"}},
+        "en": {"stringUnit": {"state": "translated", "value": "No Faces Detected"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "顔を検出できませんでした"}}
+      }
+    },
+    "faceSelection.noneHint": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "请移动到人脸清晰可见的画面后重试，或添加手动蒙版。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "請移到人臉清楚可見的畫面後重試，或新增手動蒙版。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Move to a frame where faces are clearly visible, then retry, or add a manual mask."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "顔がはっきり見える位置へ移動して再試行するか、手動マスクを追加してください。"}}
+      }
+    },
+    "faceSelection.failed": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "当前画面人脸检测失败，请重试或使用手动蒙版。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "目前畫面人臉偵測失敗，請重試或使用手動蒙版。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Face detection failed on this frame. Retry or use a manual mask."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "このフレームの顔検出に失敗しました。再試行するか手動マスクを使用してください。"}}
+      }
+    },
+    "tracking.inProgress": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "正在本地跟踪所选人脸…"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "正在本機追蹤所選人臉…"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Tracking the selected face on device…"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "選択した顔を端末内で追跡中…"}}
+      }
+    },
+    "tracking.waitForCompletion": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "请等待人脸跟踪完成后再导出，避免使用不完整的轨迹。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "請等待人臉追蹤完成後再匯出，避免使用不完整的軌跡。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Wait for face tracking to finish before exporting so an incomplete track is not used."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "不完全な追跡結果を使わないよう、顔追跡の完了後に書き出してください。"}}
+      }
+    },
+    "tracking.complete": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "已跟踪到视频末尾"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "已追蹤到影片結尾"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Tracked to the end of the video"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "動画の最後まで追跡しました"}}
+      }
+    },
+    "tracking.lostAt": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "约在 %@ 跟踪丢失；后续暂时保持最后覆盖位置。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "約在 %@ 追蹤遺失；後續暫時維持最後遮蓋位置。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Tracking was lost near %@. The last coverage position is held afterward."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "%@ 付近で追跡対象を見失いました。以降は最後のマスク位置を保持します。"}}
+      }
+    },
+    "tracking.correctionHint": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "移动到丢失后的清晰画面，拖动或缩放蒙版完成修正，再继续跟踪。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "移到遺失後的清楚畫面，拖曳或縮放蒙版完成修正，再繼續追蹤。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Move to a clear frame after the loss, reposition or resize the mask, then continue tracking."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "見失った後の鮮明なフレームへ移動し、マスクを動かすかサイズを調整してから追跡を再開します。"}}
+      }
+    },
+    "tracking.correctionSaved": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "已保存手动修正关键帧"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "已儲存手動修正關鍵影格"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Manual correction keyframe saved"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "手動修正キーフレームを保存しました"}}
+      }
+    },
+    "tracking.continue": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "从当前画面继续跟踪"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "從目前畫面繼續追蹤"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Continue from Current Frame"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "現在のフレームから追跡を再開"}}
+      }
+    },
     "editor.addEllipse": {
       "localizations": {
         "zh-Hans": {"stringUnit": {"state": "translated", "value": "添加椭圆"}},

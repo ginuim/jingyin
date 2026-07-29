@@ -11,7 +11,10 @@ struct MaskEditorOverlay: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let videoBounds = aspectFitBounds(in: proxy.size)
+            let videoBounds = VideoCoordinateSpace.aspectFitBounds(
+                displaySize: videoDisplaySize,
+                in: proxy.size
+            )
             ZStack {
                 ForEach($tracks) { $track in
                     if let normalizedRect = track.rect(at: timeSeconds) {
@@ -37,29 +40,6 @@ struct MaskEditorOverlay: View {
         .clipped()
     }
 
-    private func aspectFitBounds(in containerSize: CGSize) -> CGRect {
-        guard let videoDisplaySize,
-              videoDisplaySize.width > 0,
-              videoDisplaySize.height > 0,
-              containerSize.width > 0,
-              containerSize.height > 0 else {
-            return CGRect(origin: .zero, size: containerSize)
-        }
-        let scale = min(
-            containerSize.width / videoDisplaySize.width,
-            containerSize.height / videoDisplaySize.height
-        )
-        let fittedSize = CGSize(
-            width: videoDisplaySize.width * scale,
-            height: videoDisplaySize.height * scale
-        )
-        return CGRect(
-            x: (containerSize.width - fittedSize.width) / 2,
-            y: (containerSize.height - fittedSize.height) / 2,
-            width: fittedSize.width,
-            height: fittedSize.height
-        )
-    }
 }
 
 private struct MaskTrackLayer: View {

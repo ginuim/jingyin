@@ -18,6 +18,11 @@ struct EditorView: View {
     @State private var selectedMaskTrackID: MaskTrack.ID?
     @State private var showManualMaskEditor = false
     @State private var showFullScreenMaskEditor = false
+    @State private var faceDetectionSnapshot: FaceDetectionSnapshot?
+    @State private var showFaceSelection = false
+    @State private var isDetectingFaces = false
+    @State private var faceDetectionMessage: String?
+    @State private var faceTrackingTasks: [MaskTrack.ID: Task<Void, Never>] = [:]
     @StateObject private var voicePreview = VoicePreviewEngine()
     @State private var statusObserver: NSKeyValueObservation?
     @State private var jumpObserver: NSObjectProtocol?
@@ -52,7 +57,7 @@ struct EditorView: View {
                                         player.pause()
                                         voicePreview.pause()
                                     },
-                                    onEditingEnded: refreshMaskPreview,
+                                    onEditingEnded: finishMaskEditing,
                                     onDeleteTrack: deleteMask
                                 )
                             }
@@ -102,6 +107,17 @@ struct EditorView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(.mint)
                 .foregroundStyle(.black)
+                .disabled(hasTrackingInProgress)
+
+                if hasTrackingInProgress {
+                    Label(
+                        localization.t("tracking.waitForCompletion"),
+                        systemImage: "hourglass"
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
             }
             .padding()
         }
@@ -151,9 +167,23 @@ struct EditorView: View {
                 onSetEnd: setSelectedMaskEnd,
                 onShowWholeTimeline: showSelectedMaskForWholeTimeline,
                 onDeleteTrack: deleteMask,
-                onEditingEnded: refreshMaskPreview
+                onEditingEnded: finishMaskEditing
             )
             .environmentObject(localization)
+        }
+        .sheet(isPresented: $showFaceSelection) {
+            if let faceDetectionSnapshot {
+                FaceSelectionView(
+                    snapshot: faceDetectionSnapshot,
+                    onConfirm: {
+                        addDetectedFaceTracks(
+                            candidates: $0,
+                            snapshot: faceDetectionSnapshot
+                        )
+                    }
+                )
+                .environmentObject(localization)
+            }
         }
         .task(id: videoEffectToken) {
             await applyPreview()
@@ -200,6 +230,10 @@ struct EditorView: View {
             }
         }
         .onDisappear {
+            for task in faceTrackingTasks.values {
+                task.cancel()
+            }
+            faceTrackingTasks.removeAll()
             removePlayerObservers()
             player.pause()
             voicePreview.stop(unload: true)
@@ -234,6 +268,27 @@ struct EditorView: View {
                     meta: manualMaskCountLabel,
                     isExpanded: $showManualMaskEditor
                 ) {
+                    Button {
+                        Task {
+                            await detectFacesAtCurrentFrame()
+                        }
+                    } label: {
+                        if isDetectingFaces {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            Label(
+                                localization.t("editor.detectFaces"),
+                                systemImage: "person.crop.rectangle.stack"
+                            )
+                            .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.mint)
+                    .foregroundStyle(.black)
+                    .disabled(isDetectingFaces)
+
                     HStack(spacing: 10) {
                         Button {
                             addManualMask(shape: .ellipse)
@@ -256,6 +311,16 @@ struct EditorView: View {
                             .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
+                    }
+
+                    if let faceDetectionMessage {
+                        Label(
+                            faceDetectionMessage,
+                            systemImage: "exclamationmark.triangle.fill"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.yellow)
+                        .fixedSize(horizontal: false, vertical: true)
                     }
 
                     if !options.maskTracks.isEmpty {
@@ -345,6 +410,10 @@ struct EditorView: View {
                                 .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.bordered)
+                        }
+
+                        if let selectedFaceTrack {
+                            faceTrackingStatus(selectedFaceTrack)
                         }
                     }
 
@@ -492,13 +561,15 @@ struct EditorView: View {
     private var manualMaskTimelineMarkers: [VideoTimelineMarker] {
         guard showManualMaskEditor || showFullScreenMaskEditor else { return [] }
         return options.maskTracks.flatMap { track in
-            track.keyframes.map { keyframe in
-                VideoTimelineMarker(
-                    id: keyframe.id,
-                    timeSeconds: keyframe.timeSeconds,
-                    isSelected: track.id == selectedMaskTrackID
-                )
-            }
+            track.keyframes
+                .filter { $0.origin == .manual }
+                .map { keyframe in
+                    VideoTimelineMarker(
+                        id: keyframe.id,
+                        timeSeconds: keyframe.timeSeconds,
+                        isSelected: track.id == selectedMaskTrackID
+                    )
+                }
         }
     }
 
@@ -528,9 +599,13 @@ struct EditorView: View {
                     } label: {
                         Label(
                             localization.format("editor.maskItem", Int64(index + 1)),
-                            systemImage: track.shape == .ellipse
-                                ? "circle.dashed"
-                                : "rectangle.dashed"
+                            systemImage: track.source == .detectedFace
+                                ? "person.crop.circle"
+                                : (
+                                    track.shape == .ellipse
+                                        ? "circle.dashed"
+                                        : "rectangle.dashed"
+                                )
                         )
                         .font(.caption.bold())
                         .padding(.horizontal, 11)
@@ -572,6 +647,144 @@ struct EditorView: View {
         refreshMaskPreview()
     }
 
+    @MainActor
+    private func detectFacesAtCurrentFrame() async {
+        guard !isDetectingFaces else { return }
+        player.pause()
+        voicePreview.pause()
+        isDetectingFaces = true
+        faceDetectionMessage = nil
+        defer { isDetectingFaces = false }
+
+        do {
+            let snapshot = try await FaceTrackingService.detectFaces(
+                in: videoURL,
+                at: editingTimeSeconds
+            )
+            faceDetectionSnapshot = snapshot
+            guard !snapshot.candidates.isEmpty else {
+                faceDetectionMessage = localization.t("faceSelection.noneHint")
+                return
+            }
+            showFaceSelection = true
+        } catch is CancellationError {
+            return
+        } catch {
+            faceDetectionMessage = localization.t("faceSelection.failed")
+        }
+    }
+
+    private func addDetectedFaceTracks(
+        candidates: [DetectedFaceCandidate],
+        snapshot: FaceDetectionSnapshot
+    ) {
+        guard !candidates.isEmpty else { return }
+        player.pause()
+        voicePreview.pause()
+        showManualMaskEditor = true
+        // Individually selected faces replace the broad automatic person/face
+        // mask while leaving independently selected pet masking untouched.
+        options.subjects.remove(.person)
+        options.subjects.remove(.face)
+
+        for candidate in candidates {
+            let track = MaskTrack(
+                shape: .ellipse,
+                source: .detectedFace,
+                sourceIdentifier: candidate.id.uuidString,
+                activeFromSeconds: snapshot.actualTimeSeconds,
+                trackingState: .tracking,
+                keyframes: [
+                    MaskKeyframe(
+                        timeSeconds: snapshot.actualTimeSeconds,
+                        rect: candidate.coverageRect
+                    )
+                ]
+            )
+            options.maskTracks.append(track)
+            selectedMaskTrackID = track.id
+            startTracking(
+                trackID: track.id,
+                from: snapshot.actualTimeSeconds,
+                initialVisionBoundingBox: candidate.visionBoundingBox
+            )
+        }
+        faceDetectionMessage = nil
+        refreshMaskPreview()
+    }
+
+    private func startTracking(
+        trackID: MaskTrack.ID,
+        from timeSeconds: TimeInterval,
+        initialVisionBoundingBox: CGRect
+    ) {
+        faceTrackingTasks[trackID]?.cancel()
+        if let index = options.maskTracks.firstIndex(where: { $0.id == trackID }) {
+            options.maskTracks[index].trackingState = .tracking
+            options.maskTracks[index].trackingLostAtSeconds = nil
+        }
+
+        faceTrackingTasks[trackID] = Task {
+            defer {
+                faceTrackingTasks[trackID] = nil
+            }
+            do {
+                let result = try await FaceTrackingService.trackFace(
+                    in: videoURL,
+                    from: timeSeconds,
+                    initialVisionBoundingBox: initialVisionBoundingBox
+                )
+                guard !Task.isCancelled,
+                      let index = options.maskTracks.firstIndex(where: {
+                          $0.id == trackID
+                      }) else {
+                    return
+                }
+                options.maskTracks[index].applyTrackingResult(
+                    keyframes: result.keyframes,
+                    lostAtSeconds: result.lostAtSeconds
+                )
+                refreshMaskPreview()
+            } catch is CancellationError {
+                return
+            } catch {
+                guard let index = options.maskTracks.firstIndex(where: {
+                    $0.id == trackID
+                }) else {
+                    return
+                }
+                options.maskTracks[index].trackingState = .lost
+                options.maskTracks[index].trackingLostAtSeconds = timeSeconds
+                refreshMaskPreview()
+            }
+        }
+    }
+
+    private func retrySelectedFaceTracking() {
+        guard let selectedMaskIndex,
+              options.maskTracks[selectedMaskIndex].source == .detectedFace,
+              let rect = options.maskTracks[selectedMaskIndex]
+                .keyframedRect(at: editingTimeSeconds) else {
+            return
+        }
+        let trackID = options.maskTracks[selectedMaskIndex].id
+        options.maskTracks[selectedMaskIndex].removeKeyframes(
+            after: editingTimeSeconds
+        )
+        options.maskTracks[selectedMaskIndex].setKeyframe(
+            MaskKeyframe(timeSeconds: editingTimeSeconds, rect: rect)
+        )
+        let trackingRect = rect
+            .scaledAroundCenter(by: 0.68, minimumDimension: 0.02)
+            .visionBoundingBox
+        startTracking(
+            trackID: trackID,
+            from: editingTimeSeconds,
+            initialVisionBoundingBox: trackingRect
+        )
+        refreshMaskPreview()
+    }
+
     private var editingTimeSeconds: TimeInterval {
         let current = player.currentTime().seconds
         return current.isFinite ? max(0, current) : max(0, playheadSeconds)
@@ -580,6 +793,83 @@ struct EditorView: View {
     private var selectedMaskIndex: Int? {
         guard let selectedMaskTrackID else { return nil }
         return options.maskTracks.firstIndex { $0.id == selectedMaskTrackID }
+    }
+
+    private var selectedFaceTrack: MaskTrack? {
+        guard let selectedMaskIndex,
+              options.maskTracks[selectedMaskIndex].source == .detectedFace else {
+            return nil
+        }
+        return options.maskTracks[selectedMaskIndex]
+    }
+
+    private var hasTrackingInProgress: Bool {
+        options.maskTracks.contains { $0.trackingState == .tracking }
+    }
+
+    @ViewBuilder
+    private func faceTrackingStatus(_ track: MaskTrack) -> some View {
+        switch track.trackingState {
+        case .tracking:
+            ProgressView(localization.t("tracking.inProgress"))
+                .font(.caption)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        case .tracked:
+            Label(
+                localization.t("tracking.complete"),
+                systemImage: "checkmark.circle.fill"
+            )
+            .font(.caption)
+            .foregroundStyle(.mint)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        case .lost:
+            VStack(alignment: .leading, spacing: 8) {
+                Label(
+                    localization.format(
+                        "tracking.lostAt",
+                        formatTimestamp(track.trackingLostAtSeconds ?? editingTimeSeconds)
+                    ),
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(.yellow)
+                .fixedSize(horizontal: false, vertical: true)
+
+                Text(localization.t("tracking.correctionHint"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Button(action: retrySelectedFaceTracking) {
+                    Label(
+                        localization.t("tracking.continue"),
+                        systemImage: "scope"
+                    )
+                }
+                .buttonStyle(.bordered)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        case .needsRetracking:
+            VStack(alignment: .leading, spacing: 8) {
+                Label(
+                    localization.t("tracking.correctionSaved"),
+                    systemImage: "diamond.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(.mint)
+
+                Button(action: retrySelectedFaceTracking) {
+                    Label(
+                        localization.t("tracking.continue"),
+                        systemImage: "scope"
+                    )
+                }
+                .buttonStyle(.bordered)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        case .notTracked:
+            EmptyView()
+        }
     }
 
     private var currentKeyframe: MaskKeyframe? {
@@ -683,6 +973,8 @@ struct EditorView: View {
             return
         }
         options.maskTracks.remove(at: removedIndex)
+        faceTrackingTasks[id]?.cancel()
+        faceTrackingTasks[id] = nil
         if selectedMaskTrackID == id {
             guard !options.maskTracks.isEmpty else {
                 selectedMaskTrackID = nil
@@ -697,6 +989,21 @@ struct EditorView: View {
 
     private func refreshMaskPreview() {
         maskPreviewRevision += 1
+    }
+
+    private func finishMaskEditing() {
+        if let selectedMaskIndex {
+            options.maskTracks[selectedMaskIndex].markManualCorrection(
+                at: editingTimeSeconds
+            )
+        }
+        refreshMaskPreview()
+    }
+
+    private func formatTimestamp(_ seconds: TimeInterval) -> String {
+        let safeSeconds = max(0, seconds.isFinite ? seconds : 0)
+        let total = Int(safeSeconds.rounded(.down))
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 
     @MainActor

@@ -17,6 +17,8 @@ struct JingyinApp: App {
                     await entitlements.prepare()
                     #if DEBUG
                     LocalizationResolverSmoke.run()
+                    VideoCoordinateSpaceSmoke.run()
+                    MaskTrackSmoke.run()
                     #endif
                 }
         }

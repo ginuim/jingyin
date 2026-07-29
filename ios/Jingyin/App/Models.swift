@@ -152,10 +152,9 @@ struct SourceVideoMetadata: Equatable {
         let naturalSize = try await track.load(.naturalSize)
         let preferredTransform = try await track.load(.preferredTransform)
         let nominalFrameRate = try await track.load(.nominalFrameRate)
-        let transformed = naturalSize.applying(preferredTransform)
-        let displaySize = CGSize(
-            width: abs(transformed.width),
-            height: abs(transformed.height)
+        let displaySize = VideoCoordinateSpace.displaySize(
+            naturalSize: naturalSize,
+            preferredTransform: preferredTransform
         )
         let loadedFrameRate = Double(nominalFrameRate)
         return Self(
