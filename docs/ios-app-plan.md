@@ -170,6 +170,8 @@ Android 第二阶段可采用 Kotlin、Jetpack Compose、Media3 Transformer/Medi
 
 首发平台：iOS。
 
-首发重点：先解决“本地高精度视频处理稳定完成”，再扩大设备覆盖和功能范围。
+首发重点：本地短视频处理稳定完成，并纳入照片批量打码；再扩大设备覆盖和功能范围。人脸贴纸与车辆识别后置。
+
+定价：当前售价 ¥28 / $4.99；美国目标 $9.99（稳定后永久改价）；中国大陆先观察。详见 [app-store-market-and-pricing.md](./app-store-market-and-pricing.md)。
 
 Android 与鸿蒙：在 iOS MVP 的模型、遮罩、导出和错误处理协议稳定后进入下一阶段。

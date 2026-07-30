@@ -14,8 +14,8 @@
 - [x] Developer 注册 Bundle ID `com.reaidea.jingyin`
 - [x] App Store Connect 创建 App `镜隐`（Apple ID `6795803353`，SKU `jingyin`，主语言简中）
 - [x] App Store Connect 创建 `com.reaidea.jingyin.lifetime`（IAP Apple ID `6795803473`，非消耗型，参考名「镜隐永久版」）
-- [x] 配置中国大陆 ¥28（手动覆盖）、美国 $4.99 及其他地区自动换算价
-- [x] IAP 本地化：简中 / 繁中 / 英文 / 日文
+- [x] 配置中国大陆 ¥28（手动覆盖）、美国 $4.99 及其他地区自动换算价（2026-07-30：当前售价维持；美国目标 $9.99 仅稳定后永久改价；大陆先观察不预设涨价，见 [app-store-market-and-pricing.md](./app-store-market-and-pricing.md)）
+- [x] IAP 本地化：简中 / 繁中 / 英文 / 日文（上架前须把描述改为「完整视频与照片批量」，见 connect 记录）
 - [x] 补充 IAP 审核截图和审核说明（截图：`artifacts/asc/iap-review-640x920.png`）
 - [x] App 定价设为 Free（$0.00，175 个国家或地区）
 - [x] 签署 Paid Apps Agreement
@@ -28,12 +28,13 @@
 - [ ] 创建 Sandbox 测试账号（ASC → 用户和访问 → 沙盒；自动化创建遇 Apple unknown error，需手动建）
 - [ ] 真机用 Sandbox 验证：加载商品、购买、取消、恢复、删装再恢复
 - [ ] TestFlight 验证真实商店价格与产品 ID
+- [ ] 处理器内强制：免费照片每次最多导出 1 张；买断解锁批量（随照片功能一并落地）
 
 ### App Store Connect
 
 完整配置与核对记录见 **[app-store-connect.md](./app-store-connect.md)**。
 
-摘要（2026-07-29）：付费协议有效 · 银行可用 · 税表使用中 · Family Sharing 已开 · DSA 正在审核 · IAP `com.reaidea.jingyin.lifetime` 准备提交（¥28 / $4.99）。
+摘要（2026-07-30）：付费协议有效 · 银行可用 · 税表使用中 · Family Sharing 已开 · DSA 正在审核 · IAP `com.reaidea.jingyin.lifetime` 当前售价 ¥28 / $4.99；美国目标 $9.99（稳定后再改）；大陆观察中。
 
 ## P0：可控遮盖
 
@@ -55,6 +56,20 @@
 - [x] 离开项目、取消、失败和完成后清理输入副本与临时文件（结果页内保留成品供保存/分享，离开时删除；启动时兜底清理 `jingyin-` 前缀遗留文件）
 - [x] 统一 README、界面和实际视频时长限制（导入层与 `VideoProcessor` 双重强制最长 5 分钟、最大 1 GB）
 - [x] 免费/买断导出均覆盖原声、静音和变音（2026-07-30 iOS 18.1 模拟器 35 秒竖屏素材六路径通过：免费版均为 30 秒 / 720p，永久版均保留 35 秒；静音约 -91 dB，-4 半音将 440 Hz 测试音降至约 350–357 Hz；真实 iPhone 仍在下方真机矩阵验收）
+
+## P0：照片批量打码（上架硬门槛）
+
+路线：批量统一设置 + 逐张复核；免费每次导出 1 张，买断解锁多图批量。人脸贴纸后置，不阻塞本项。
+
+- [ ] 首页区分「处理视频」与「处理照片」；照片支持系统相册多选
+- [ ] 抽离帧级识别与效果合成，供视频帧与静态图共用
+- [ ] 顺序处理多图（避免同时解码多张原图）；状态：待处理 / 已识别 / 需复核 / 完成 / 失败
+- [ ] 批量统一主体与效果；复核页可逐张补充、移动、缩放、删除蒙版
+- [ ] 导出保持方向与合理分辨率，清除位置 / 设备 / 拍摄时间等 metadata
+- [ ] 单张保存或分享；批量逐张报告成败，失败可重试；临时文件清理
+- [ ] 处理器内强制免费最多 1 张、买断可批量；预览不限
+- [ ] 更新永久版说明、商店文案与 Paywall：永久版 = 完整视频 + 照片批量
+- [ ] 验收：单张/多图、横竖图、HEIC/JPEG/PNG、旋转、超大图、部分损坏、漏检后手动补充
 
 ## P0：真机验收
 
@@ -102,9 +117,9 @@ Apple 要求签署 Paid Apps Agreement 后才能提供 IAP；收款还需要税�
 | Product ID | `com.reaidea.jingyin.lifetime` |
 | 类型 | Non-Consumable |
 | Display Name（简中） | `永久版` |
-| Description（简中） | `一次购买，永久解锁完整视频隐私处理` |
+| Description（简中） | `一次购买，永久解锁完整视频与照片批量处理` |
 | Display Name（英文） | `Lifetime Access` |
-| Description（英文） | `One-time purchase for full video privacy exports` |
+| Description（英文） | `One-time unlock for full video and batch photo privacy exports` |
 | Display Name（日文） | `永久版` |
 | Display Name（繁中） | `永久版` |
 
@@ -117,12 +132,13 @@ Product ID 保存后不可编辑，也不能在同一个 App 中复用已删除�
 
 进入该 IAP 的 `Price Schedule → Add Pricing`：
 
-- 中国大陆目标价：`¥28`
-- 美国目标价：`$4.99`
-- 其他国家/地区先使用 Apple 自动生成的可比价格
+- 中国大陆当前价：`¥28`（手动覆盖；先观察，不预设涨到 ¥48/¥68）
+- 美国等当前价：`$4.99`（稳定后再评估永久改到 `$9.99`；不排 Temporary 自动涨回）
+- 其他国家/地区先使用 Apple 自动生成的可比价格；改美国价时勿连带自动改大陆手动价
 - Availability 至少包含 China mainland、United States，以及实际计划上架的地区
 - Start Date 设为立即可用；End Date 选择 No End Date
-- 不要设置订阅、试用期、Offer Code 或 Promotional Offer
+- 不要设置订阅、试用期、Offer Code 或 Promotional Offer 作为首发全站折扣手段
+- 定价决策全文见 [app-store-market-and-pricing.md](./app-store-market-and-pricing.md)
 
 如果 Apple 自动生成的价格与目标市场不一致，再单独覆盖对应地区。手动覆盖后，Apple
 不会继续自动调整该地区价格。参考：[IAP 价格设置](https://developer.apple.com/help/app-store-connect/manage-in-app-purchases/set-a-price-for-an-in-app-purchase/)。
@@ -145,7 +161,8 @@ Product ID 保存后不可编辑，也不能在同一个 App 中复用已删除�
 - Review Notes 说明：
   - App 不需要登录
   - 视频完全在设备本地处理，不上传服务器
-  - 免费用户可预览并导出前 30 秒
+  - 免费用户可预览；视频导出前 30 秒 / 720p；照片每次 1 张
+  - 永久版一次解锁完整视频导出与照片批量
   - 点击“永久解锁”即可触发 Non-Consumable 购买
   - Settings → Lifetime Access → Restore Purchases 可恢复购买
   - 若使用 Sandbox，提供测试 Apple Account 和测试步骤
@@ -187,6 +204,7 @@ App 定价保持 Free，付费只通过 Non-Consumable IAP 完成。参考：[Ap
 
 ## 后续版本
 
+- [ ] 人脸贴纸（趣味遮挡；默认仍推荐隐私级像素化；不单独 IAP）
 - [ ] 指定整个人物的实例分割与身份关联
 - [ ] 指定任意物体的交互式视频分割：用户可在关键帧点击、框选、涂抹或圈出目标，模型在设备端生成遮罩并向前后帧传播
 - [ ] 支持在不同帧追加提示以修正遮罩漂移；将修正保存为 `MaskTrack` 关键帧，不在 App 内为单个视频重新训练模型
@@ -195,3 +213,4 @@ App 定价保持 Free，付费只通过 Non-Consumable IAP 完成。参考：[Ap
 - [ ] 4K/HDR 保留验证
 - [ ] 后台处理与中断恢复
 - [ ] 十几分钟 vlog 专项模式
+- [ ] 车辆识别（当前代码无车辆；勿借照片功能顺带扩张）
