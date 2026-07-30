@@ -4,6 +4,7 @@ import Foundation
 enum ProductLimits {
     static let maximumInputDurationSeconds: TimeInterval = 5 * 60
     static let maximumInputFileSizeBytes = 1_000_000_000
+    static let maximumPhotoBatchCount = 20
 }
 
 enum QualityMode: String, CaseIterable, Identifiable {

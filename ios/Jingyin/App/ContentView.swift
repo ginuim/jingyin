@@ -174,7 +174,7 @@ struct ContentView: View {
         return VStack(spacing: 12) {
             PhotosPicker(
                 selection: $pickedPhotoItems,
-                maxSelectionCount: 50,
+                maxSelectionCount: ProductLimits.maximumPhotoBatchCount,
                 matching: .images,
                 preferredItemEncoding: .current
             ) {
