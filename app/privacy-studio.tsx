@@ -45,9 +45,8 @@ type VoiceAudioGraph = {
 type BiquadCoefficients = { b0: number; b1: number; b2: number; a1: number; a2: number };
 type BiquadState = { x1: number; x2: number; y1: number; y2: number };
 
-// High precision remains implemented for future iteration, but its current
-// visual quality is not strong enough to expose in the product.
-const PRECISE_MODE_ENABLED = false;
+// Desktop WebGPU YOLO instance masks; mobile still gated by supportsPreciseWebMode().
+const PRECISE_MODE_ENABLED = true;
 
 function formatTime(seconds: number) {
   if (!Number.isFinite(seconds)) return "00:00";
@@ -412,17 +411,47 @@ export default function PrivacyStudio() {
     if (!expandedMaskCanvasRef.current) expandedMaskCanvasRef.current = document.createElement("canvas");
     const maskCanvas = maskCanvasRef.current;
     const expandedMask = expandedMaskCanvasRef.current;
-    const maskWidth = Math.min(segmentation.width, qualityRef.current === "precise" ? 1080 : 640);
+    // Precise YOLO masks arrive at letterbox content size (~200–384px). Upscale before
+    // any safety work so a few mask pixels don't become tens of display pixels.
+    const maskWidth = qualityRef.current === "precise"
+      ? Math.min(1080, Math.max(segmentation.width, 720))
+      : Math.min(segmentation.width, 640);
     const maskScale = maskWidth / segmentation.width;
     const maskHeight = Math.max(1, Math.round(segmentation.height * maskScale));
-    maskCanvas.width = maskWidth;
-    maskCanvas.height = maskHeight;
-    expandedMask.width = maskWidth;
-    expandedMask.height = maskHeight;
     const maskCtx = maskCanvas.getContext("2d");
     const expandedCtx = expandedMask.getContext("2d");
     if (!maskCtx || !expandedCtx) return;
 
+    expandedMask.width = maskWidth;
+    expandedMask.height = maskHeight;
+    expandedCtx.clearRect(0, 0, maskWidth, maskHeight);
+    expandedCtx.globalAlpha = 1;
+
+    if (qualityRef.current === "precise") {
+      // Build binary at native YOLO size, then smooth-scale + light blur.
+      // Nearest-neighbor upscale of a 96-proto mask is what made the stairs.
+      maskCanvas.width = segmentation.width;
+      maskCanvas.height = segmentation.height;
+      const native = maskCtx.createImageData(segmentation.width, segmentation.height);
+      for (let index = 0; index < segmentation.data.length; index += 1) {
+        const offset = index * 4;
+        native.data[offset] = 255;
+        native.data[offset + 1] = 255;
+        native.data[offset + 2] = 255;
+        native.data[offset + 3] = segmentation.data[index] ? 255 : 0;
+      }
+      maskCtx.putImageData(native, 0, 0);
+      expandedCtx.imageSmoothingEnabled = true;
+      expandedCtx.imageSmoothingQuality = "high";
+      // ~1.5px at ≥720px ≈ soft AA, not the old fat safety halo.
+      expandedCtx.filter = "blur(1.5px)";
+      expandedCtx.drawImage(maskCanvas, 0, 0, maskWidth, maskHeight);
+      expandedCtx.filter = "none";
+      return;
+    }
+
+    maskCanvas.width = maskWidth;
+    maskCanvas.height = maskHeight;
     const imageData = maskCtx.createImageData(maskWidth, maskHeight);
     for (let y = 0; y < maskHeight; y += 1) {
       const sourceY = Math.min(segmentation.height - 1, Math.floor(y / maskScale));
@@ -446,39 +475,33 @@ export default function PrivacyStudio() {
       ["leftHip", "leftKnee"], ["leftKnee", "leftAnkle"],
       ["rightHip", "rightKnee"], ["rightKnee", "rightAnkle"],
     ];
-    if (qualityRef.current !== "precise") {
-      maskCtx.save();
-      maskCtx.strokeStyle = "#fff";
-      maskCtx.fillStyle = "#fff";
-      maskCtx.lineCap = "round";
-      maskCtx.lineJoin = "round";
-      maskCtx.lineWidth = Math.max(14, maskWidth * 0.034);
-      segmentation.allPoses.forEach((pose) => {
-        const points = new Map(pose.keypoints.map((point) => [point.part, point]));
-        limbPairs.forEach(([fromName, toName]) => {
-          const from = points.get(fromName);
-          const to = points.get(toName);
-          if (!from || !to || from.score < 0.16 || to.score < 0.16) return;
-          maskCtx.beginPath();
-          maskCtx.moveTo(from.position.x * maskScale, from.position.y * maskScale);
-          maskCtx.lineTo(to.position.x * maskScale, to.position.y * maskScale);
-          maskCtx.stroke();
-        });
-        const nose = points.get("nose");
-        if (nose && nose.score > 0.16) {
-          maskCtx.beginPath();
-          maskCtx.arc(nose.position.x * maskScale, nose.position.y * maskScale, Math.max(18, maskWidth * 0.045), 0, Math.PI * 2);
-          maskCtx.fill();
-        }
+    maskCtx.save();
+    maskCtx.strokeStyle = "#fff";
+    maskCtx.fillStyle = "#fff";
+    maskCtx.lineCap = "round";
+    maskCtx.lineJoin = "round";
+    maskCtx.lineWidth = Math.max(14, maskWidth * 0.034);
+    segmentation.allPoses.forEach((pose) => {
+      const points = new Map(pose.keypoints.map((point) => [point.part, point]));
+      limbPairs.forEach(([fromName, toName]) => {
+        const from = points.get(fromName);
+        const to = points.get(toName);
+        if (!from || !to || from.score < 0.16 || to.score < 0.16) return;
+        maskCtx.beginPath();
+        maskCtx.moveTo(from.position.x * maskScale, from.position.y * maskScale);
+        maskCtx.lineTo(to.position.x * maskScale, to.position.y * maskScale);
+        maskCtx.stroke();
       });
-      maskCtx.restore();
-    }
+      const nose = points.get("nose");
+      if (nose && nose.score > 0.16) {
+        maskCtx.beginPath();
+        maskCtx.arc(nose.position.x * maskScale, nose.position.y * maskScale, Math.max(18, maskWidth * 0.045), 0, Math.PI * 2);
+        maskCtx.fill();
+      }
+    });
+    maskCtx.restore();
 
-    expandedCtx.clearRect(0, 0, maskWidth, maskHeight);
-    const safetyRadius = qualityRef.current === "precise"
-      ? Math.max(8, Math.min(22, maskWidth * 0.015))
-      : Math.max(12, Math.min(34, maskWidth * 0.028));
-    expandedCtx.globalAlpha = 1;
+    const safetyRadius = Math.max(12, Math.min(34, maskWidth * 0.028));
     expandedCtx.drawImage(maskCanvas, 0, 0);
     for (let step = 0; step < 12; step += 1) {
       const angle = (step / 12) * Math.PI * 2;
@@ -623,7 +646,8 @@ export default function PrivacyStudio() {
       effectCtx.filter = blurred ? `blur(${blurAmount}px)` : "none";
       effectCtx.drawImage(source, 0, 0, width, height);
       effectCtx.globalCompositeOperation = "destination-in";
-      effectCtx.filter = "blur(4px)";
+      // Precise mask is already soft-scaled; 2px here only kills remaining stairs.
+      effectCtx.filter = qualityRef.current === "precise" ? "blur(2px)" : "blur(4px)";
       effectCtx.drawImage(maskCanvas, 0, 0, width, height);
       effectCtx.globalCompositeOperation = "source-over";
       effectCtx.filter = "none";

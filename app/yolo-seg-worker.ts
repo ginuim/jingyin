@@ -175,11 +175,22 @@ async function segment(bitmap: ImageBitmap, sourceWidth: number, sourceHeight: n
     const right = Math.min(contentWidth, Math.ceil(proposal.modelBox[0] + proposal.modelBox[2] - offsetX));
     const bottom = Math.min(contentHeight, Math.ceil(proposal.modelBox[1] + proposal.modelBox[3] - offsetY));
     for (let y = top; y < bottom; y += 1) {
-      const protoY = Math.max(0, Math.min(PROTO_SIZE - 1, Math.floor((y + offsetY) / 4)));
+      const protoYf = Math.max(0, Math.min(PROTO_SIZE - 1, (y + offsetY) / 4));
+      const y0 = Math.floor(protoYf);
+      const y1 = Math.min(PROTO_SIZE - 1, y0 + 1);
+      const ty = protoYf - y0;
       for (let x = left; x < right; x += 1) {
-        const protoX = Math.max(0, Math.min(PROTO_SIZE - 1, Math.floor((x + offsetX) / 4)));
-        const protoOffset = protoY * PROTO_SIZE + protoX;
-        if (protoLogits[protoOffset] > -0.08) data[y * contentWidth + x] = 1;
+        const protoXf = Math.max(0, Math.min(PROTO_SIZE - 1, (x + offsetX) / 4));
+        const x0 = Math.floor(protoXf);
+        const x1 = Math.min(PROTO_SIZE - 1, x0 + 1);
+        const tx = protoXf - x0;
+        const v00 = protoLogits[y0 * PROTO_SIZE + x0];
+        const v10 = protoLogits[y0 * PROTO_SIZE + x1];
+        const v01 = protoLogits[y1 * PROTO_SIZE + x0];
+        const v11 = protoLogits[y1 * PROTO_SIZE + x1];
+        const value = v00 * (1 - tx) * (1 - ty) + v10 * tx * (1 - ty) + v01 * (1 - tx) * ty + v11 * tx * ty;
+        // 0 is the natural sigmoid midpoint; -0.08 was over-inclusive and fattened outlines.
+        if (value > 0) data[y * contentWidth + x] = 1;
       }
     }
     return { detection: proposal.detection, data, width: contentWidth, height: contentHeight };
