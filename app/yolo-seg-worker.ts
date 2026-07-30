@@ -19,7 +19,7 @@ const CLASS_NAMES = [
   "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors",
   "teddy bear", "hair drier", "toothbrush",
 ];
-const WANTED_CLASSES = new Set([0, 1, 2, 3, 5, 7, 15, 16]);
+const WANTED_CLASSES = new Set([0, 15, 16]);
 
 type OrtModule = typeof import("onnxruntime-web/webgpu");
 type OrtSession = import("onnxruntime-web").InferenceSession;

@@ -338,7 +338,7 @@ const zh: StudioCopy = {
     detectedTitle: "当前画面识别到的主体",
     detectedCount: (n) => `${n} 个`,
     waiting: "等待识别",
-    empty: "加载后会在这里列出人物、车辆和宠物，可逐个勾选。",
+    empty: "加载后会在这里列出人物和宠物，可逐个勾选。",
     trackingNote: "主体编号由本地跟踪生成；多人交叉遮挡或离开后重新出现时，可能生成新编号。",
   },
   comingSoon: { title: "人脸与车牌", sub: "精细识别模型 · 即将支持" },
@@ -584,7 +584,7 @@ const en: StudioCopy = {
     detectedTitle: "Detected in this frame",
     detectedCount: (n) => `${n}`,
     waiting: "Waiting for detection",
-    empty: "People, vehicles, and pets will show up here after detection. Tap to include or exclude.",
+    empty: "People and pets will show up here after detection. Tap to include or exclude.",
     trackingNote: "IDs come from on-device tracking. New IDs may appear after overlap or when someone leaves and returns.",
   },
   comingSoon: { title: "Faces & plates", sub: "Dedicated models · coming soon" },
@@ -714,7 +714,6 @@ export function getStudioCopy(locale: Locale): StudioCopy {
 
 export const ENTITY_CLASS_GROUPS: Array<{ key: EntityKey; classes: string[] }> = [
   { key: "person", classes: ["person"] },
-  { key: "vehicle", classes: ["car", "truck", "bus", "motorcycle", "bicycle"] },
   { key: "pet", classes: ["cat", "dog"] },
 ];
 

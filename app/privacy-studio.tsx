@@ -200,6 +200,8 @@ export default function PrivacyStudio() {
   const bodyPixRef = useRef<BodyPix | null>(null);
   const detectionsRef = useRef<TrackedDetection[]>([]);
   const segmentationRef = useRef<SemanticPersonSegmentation | null>(null);
+  const lastYoloResultsRef = useRef<YoloMask[] | null>(null);
+  const lastBodyPixInstancesRef = useRef<PersonSegmentation[] | null>(null);
   const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const expandedMaskCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const effectCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -260,12 +262,10 @@ export default function PrivacyStudio() {
 
   useEffect(() => {
     selectedRef.current = selected;
-    drawFrameRef.current?.();
   }, [selected]);
 
   useEffect(() => {
     selectedSubjectIdsRef.current = selectedSubjectIds;
-    drawFrameRef.current?.();
   }, [selectedSubjectIds]);
 
   useEffect(() => {
@@ -502,7 +502,8 @@ export default function PrivacyStudio() {
     maskCtx.fillStyle = "#fff";
     maskCtx.lineCap = "round";
     maskCtx.lineJoin = "round";
-    maskCtx.lineWidth = Math.max(14, maskWidth * 0.034);
+    // Thin limb seal only — old 3.4% strokes fattened the whole torso into a blob.
+    maskCtx.lineWidth = Math.max(5, maskWidth * 0.01);
     segmentation.allPoses.forEach((pose) => {
       const points = new Map(pose.keypoints.map((point) => [point.part, point]));
       limbPairs.forEach(([fromName, toName]) => {
@@ -517,26 +518,40 @@ export default function PrivacyStudio() {
       const nose = points.get("nose");
       if (nose && nose.score > 0.16) {
         maskCtx.beginPath();
-        maskCtx.arc(nose.position.x * maskScale, nose.position.y * maskScale, Math.max(18, maskWidth * 0.045), 0, Math.PI * 2);
+        maskCtx.arc(nose.position.x * maskScale, nose.position.y * maskScale, Math.max(7, maskWidth * 0.016), 0, Math.PI * 2);
         maskCtx.fill();
       }
     });
     maskCtx.restore();
 
-    const safetyRadius = Math.max(12, Math.min(34, maskWidth * 0.028));
+    // Small morphological seal. Old 2.8%/34px dilation ate a wide ring of background.
+    const safetyRadius = Math.max(2, Math.min(6, maskWidth * 0.006));
+    expandedCtx.imageSmoothingEnabled = true;
+    expandedCtx.imageSmoothingQuality = "high";
+    expandedCtx.filter = "blur(1.25px)";
     expandedCtx.drawImage(maskCanvas, 0, 0);
-    for (let step = 0; step < 12; step += 1) {
-      const angle = (step / 12) * Math.PI * 2;
+    expandedCtx.filter = "none";
+    for (let step = 0; step < 8; step += 1) {
+      const angle = (step / 8) * Math.PI * 2;
       expandedCtx.drawImage(maskCanvas, Math.cos(angle) * safetyRadius, Math.sin(angle) * safetyRadius);
     }
   }, []);
 
+  const clearExpandedMask = useCallback(() => {
+    segmentationRef.current = null;
+    const expanded = expandedMaskCanvasRef.current;
+    const ctx = expanded?.getContext("2d");
+    if (expanded && ctx) ctx.clearRect(0, 0, expanded.width, expanded.height);
+  }, []);
+
   const applyYoloResults = useCallback((results: YoloMask[], source: CanvasImageSource, updateList = false, updateCount = true) => {
+    lastYoloResultsRef.current = results;
+    lastBodyPixInstancesRef.current = null;
     const tracked = assignTracks(results.map((result) => result.detection));
     detectionsRef.current = tracked;
     if (updateList) updateSubjectList(tracked, source);
     if (!results.length) {
-      segmentationRef.current = null;
+      clearExpandedMask();
       if (updateCount) setDetectedCount(0);
       return;
     }
@@ -550,7 +565,45 @@ export default function PrivacyStudio() {
     segmentationRef.current = segmentation;
     prepareSegmentationMask(segmentation);
     if (updateCount) setDetectedCount(tracked.filter((item) => item.score > 0.36 && isSelectedDetection(item)).length);
-  }, [assignTracks, isSelectedDetection, prepareSegmentationMask, updateSubjectList]);
+  }, [assignTracks, clearExpandedMask, isSelectedDetection, prepareSegmentationMask, updateSubjectList]);
+
+  const applyBodyPixInstances = useCallback((instances: PersonSegmentation[], detections: TrackedDetection[], updateCount = true) => {
+    lastBodyPixInstancesRef.current = instances;
+    lastYoloResultsRef.current = null;
+    const segmentation = combineSelectedPeople(instances, detections);
+    segmentationRef.current = segmentation;
+    if (segmentation) prepareSegmentationMask(segmentation);
+    else clearExpandedMask();
+    if (updateCount) {
+      setDetectedCount(
+        detections.filter((item) => item.score > 0.42 && isSelectedDetection(item) && item.class !== "person").length
+          + (segmentation?.allPoses.length || 0),
+      );
+    }
+  }, [clearExpandedMask, combineSelectedPeople, isSelectedDetection, prepareSegmentationMask]);
+
+  const rebuildMaskFromSelection = useCallback(() => {
+    const yoloResults = lastYoloResultsRef.current;
+    if (qualityRef.current === "precise" && preciseModelReadyRef.current && yoloResults) {
+      const source = videoRef.current || canvasRef.current;
+      if (source) applyYoloResults(yoloResults, source, false, true);
+      drawFrameRef.current?.();
+      return;
+    }
+    const instances = lastBodyPixInstancesRef.current;
+    if (instances?.length) {
+      applyBodyPixInstances(instances, detectionsRef.current, true);
+      drawFrameRef.current?.();
+      return;
+    }
+    // Boxes-only / no cached outlines: selection still affects boxObjects on redraw.
+    if (!selectedRef.current.has("person")) clearExpandedMask();
+    drawFrameRef.current?.();
+  }, [applyBodyPixInstances, applyYoloResults, clearExpandedMask]);
+
+  useEffect(() => {
+    rebuildMaskFromSelection();
+  }, [selected, selectedSubjectIds, rebuildMaskFromSelection]);
 
   const renderProcessedFrame = useCallback((source: CanvasImageSource, targetCanvas: HTMLCanvasElement, width: number, height: number) => {
     if (targetCanvas.width !== width || targetCanvas.height !== height) {
@@ -571,7 +624,7 @@ export default function PrivacyStudio() {
       : precisePerson
         ? selectedObjects.filter((item) => item.class !== "person")
         : selectedObjects;
-    const personSafetyObjects = precisePerson && qualityRef.current === "balanced" && scopeRef.current === "subjects" ? selectedObjects.filter((item) => item.class === "person") : [];
+    // Dropped the old personSafetyObjects roundRect blur — it drew a fat oval over the torso.
 
     const drawFullFrame = (blurred: boolean) => {
       if (!blurred) {
@@ -674,8 +727,8 @@ export default function PrivacyStudio() {
       effectCtx.filter = blurred ? `blur(${blurAmount}px)` : "none";
       effectCtx.drawImage(source, 0, 0, width, height);
       effectCtx.globalCompositeOperation = "destination-in";
-      // Precise mask is already soft-scaled; 2px here only kills remaining stairs.
-      effectCtx.filter = qualityRef.current === "precise" ? "blur(2px)" : "blur(4px)";
+      // Light edge AA only — 4px on an inflated mask read as a wide halo into the background.
+      effectCtx.filter = "blur(2px)";
       effectCtx.drawImage(maskCanvas, 0, 0, width, height);
       effectCtx.globalCompositeOperation = "source-over";
       effectCtx.filter = "none";
@@ -694,22 +747,9 @@ export default function PrivacyStudio() {
       if (precisePerson) drawSegmentedPerson(true);
     }
 
-    if (scopeRef.current !== "full") personSafetyObjects.forEach((item) => {
-      const [x, y, w, h] = item.bbox;
-      const pad = Math.max(18, Math.min(w, h) * 0.18);
-      ctx.save();
-      ctx.beginPath();
-      ctx.roundRect(x - pad, y + h * 0.1, w + pad * 2, h * 0.58, Math.min(w * 0.34, h * 0.2));
-      ctx.roundRect(x + w * 0.16, y - pad, w * 0.68, h + pad * 2, Math.min(w * 0.34, h * 0.18));
-      ctx.clip();
-      ctx.filter = `blur(${blurAmount}px)`;
-      ctx.drawImage(source, 0, 0, width, height);
-      ctx.restore();
-    });
-
     if (scopeRef.current !== "full") boxObjects.forEach((item) => {
       const [x, y, w, h] = item.bbox;
-      const pad = Math.max(12, Math.min(w, h) * (qualityRef.current === "precise" ? 0.14 : 0.1));
+      const pad = Math.max(8, Math.min(w, h) * (qualityRef.current === "precise" ? 0.1 : 0.06));
       ctx.save();
       ctx.beginPath();
       if (item.class === "person") {
@@ -824,17 +864,11 @@ export default function PrivacyStudio() {
       }
       const bodyPixOptions = qualityRef.current === "precise" ? BODYPIX_PRECISE_OPTIONS : BODYPIX_BALANCED_OPTIONS;
       if (inferenceSource) void runWithPixelFallback(inferenceSource, (source) => segmentationModel.segmentMultiPerson(source, bodyPixOptions)).then((instances) => {
-        const segmentation = combineSelectedPeople(instances, detectionsRef.current);
-        if (!segmentation) {
-          segmentationRef.current = null;
-          return;
-        }
-        segmentationRef.current = segmentation;
-        prepareSegmentationMask(segmentation);
+        applyBodyPixInstances(instances, detectionsRef.current, false);
       }).catch(handleInferenceError).finally(() => { segmentingRef.current = false; });
     }
     if (!video.paused && !video.ended) animationRef.current = requestAnimationFrame(renderLoop);
-  }, [applyYoloResults, assignTracks, combineSelectedPeople, drawFrame, getSegmentationModel, handleInferenceError, isSelectedDetection, preciseModelState, prepareInferenceSource, prepareSegmentationMask, runWithPixelFallback, updateSubjectList]);
+  }, [applyBodyPixInstances, applyYoloResults, assignTracks, drawFrame, getSegmentationModel, handleInferenceError, isSelectedDetection, preciseModelState, prepareInferenceSource, runWithPixelFallback, updateSubjectList]);
 
   const analyzeCurrentFrame = useCallback(async (video: HTMLVideoElement) => {
     if (scopeRef.current === "full") {
@@ -861,17 +895,21 @@ export default function PrivacyStudio() {
     const tracked = assignTracks(detections);
     detectionsRef.current = tracked;
     updateSubjectList(tracked, video);
-    const segmentation = wantPeople ? combineSelectedPeople(instances, tracked) : null;
-    segmentationRef.current = segmentation;
-    if (segmentation) prepareSegmentationMask(segmentation);
-    setDetectedCount(tracked.filter((item) => item.score > 0.42 && isSelectedDetection(item) && item.class !== "person").length + (segmentation?.allPoses.length || 0));
+    if (wantPeople) applyBodyPixInstances(instances, tracked, true);
+    else {
+      lastBodyPixInstancesRef.current = null;
+      clearExpandedMask();
+      setDetectedCount(tracked.filter((item) => item.score > 0.42 && isSelectedDetection(item) && item.class !== "person").length);
+    }
     drawFrame();
-  }, [applyYoloResults, assignTracks, combineSelectedPeople, drawFrame, getSegmentationModel, isSelectedDetection, preciseModelState, prepareInferenceSource, prepareSegmentationMask, runWithPixelFallback, updateSubjectList]);
+  }, [applyBodyPixInstances, applyYoloResults, assignTracks, clearExpandedMask, drawFrame, getSegmentationModel, isSelectedDetection, preciseModelState, prepareInferenceSource, runWithPixelFallback, updateSubjectList]);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (video && video.paused && modelState === "ready") void analyzeCurrentFrame(video).catch(handleInferenceError);
-  }, [analyzeCurrentFrame, handleInferenceError, modelState, quality, selectedSubjectIds]);
+    if (video && video.paused && modelState === "ready" && scopeRef.current !== "full") {
+      void analyzeCurrentFrame(video).catch(handleInferenceError);
+    }
+  }, [analyzeCurrentFrame, handleInferenceError, modelState, quality, selected, selectedSubjectIds]);
 
   useEffect(() => {
     if (!highLoadRequested || quality !== "precise" || modelState !== "ready" || (preciseModelState !== "idle" && preciseModelState !== "error")) return;
@@ -954,6 +992,8 @@ export default function PrivacyStudio() {
     if (downloadUrl) URL.revokeObjectURL(downloadUrl);
     detectionsRef.current = [];
     segmentationRef.current = null;
+    lastYoloResultsRef.current = null;
+    lastBodyPixInstancesRef.current = null;
     tracksRef.current.clear();
     knownSubjectIdsRef.current.clear();
     trackCounterRef.current = { person: 0, vehicle: 0, pet: 0 };
@@ -1012,16 +1052,11 @@ export default function PrivacyStudio() {
         }));
         await Promise.all(tasks);
         const segmentationModel = getSegmentationModel();
-        if (segmentationModel && qualityRef.current === "balanced") {
-          const instances = await runWithPixelFallback(inferenceSource, (source) => segmentationModel.segmentMultiPerson(source, {
-            internalResolution: "medium",
-            segmentationThreshold: 0.34,
-            minKeypointScore: 0.2,
-            refineSteps: 7,
-          }));
-          const segmentation = combineSelectedPeople(instances, detectionsRef.current);
-          segmentationRef.current = segmentation;
-          if (segmentation) prepareSegmentationMask(segmentation);
+        const wantPeople = selectedRef.current.has("person");
+        if (segmentationModel && wantPeople && (qualityRef.current === "balanced" || (qualityRef.current === "precise" && preciseModelState !== "ready"))) {
+          const bodyPixOptions = qualityRef.current === "precise" ? BODYPIX_PRECISE_OPTIONS : BODYPIX_BALANCED_OPTIONS;
+          const instances = await runWithPixelFallback(inferenceSource, (source) => segmentationModel.segmentMultiPerson(source, bodyPixOptions));
+          applyBodyPixInstances(instances, detectionsRef.current, true);
         }
         drawFrame();
       } catch (error) {
@@ -1553,7 +1588,7 @@ export default function PrivacyStudio() {
     document.title = copy.documentTitle;
   }, [copy.documentTitle]);
 
-  const entityGroups = (["person", "vehicle", "pet"] as const).map((key) => ({
+  const entityGroups = (["person", "pet"] as const).map((key) => ({
     key,
     ...copy.entities[key],
   }));
