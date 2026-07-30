@@ -2,6 +2,7 @@ import AVFoundation
 import AVKit
 import Combine
 import SwiftUI
+import UIKit
 
 struct VideoTimelineMarker: Equatable, Identifiable {
     let id: UUID
@@ -14,6 +15,35 @@ struct VideoTimelineRange: Equatable, Identifiable {
     let startSeconds: TimeInterval
     let endSeconds: TimeInterval?
     let isSelected: Bool
+}
+
+/// Renders `AVPlayer` frames without AVKit's built-in transport chrome.
+/// Custom play/scrub UI lives in `ControlledVideoPlayer` instead.
+struct BareVideoPlayer: UIViewRepresentable {
+    let player: AVPlayer
+
+    func makeUIView(context: Context) -> PlayerContainerView {
+        let view = PlayerContainerView()
+        view.playerLayer.player = player
+        view.playerLayer.videoGravity = .resizeAspect
+        view.backgroundColor = .black
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ uiView: PlayerContainerView, context: Context) {
+        if uiView.playerLayer.player !== player {
+            uiView.playerLayer.player = player
+        }
+    }
+
+    final class PlayerContainerView: UIView {
+        override class var layerClass: AnyClass { AVPlayerLayer.self }
+
+        var playerLayer: AVPlayerLayer {
+            layer as! AVPlayerLayer
+        }
+    }
 }
 
 /// Adds an always-visible transport bar without replacing the AVPlayer or its

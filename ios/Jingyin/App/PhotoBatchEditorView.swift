@@ -16,6 +16,7 @@ struct PhotoBatchEditorView: View {
     @State private var isExporting = false
     @State private var isSaving = false
     @State private var savedCount = 0
+    @State private var exportSuccessCount: Int?
     @State private var showPaywall = false
     @State private var showShare = false
     @State private var analysisTask: Task<Void, Never>?
@@ -94,6 +95,19 @@ struct PhotoBatchEditorView: View {
         }
         .sheet(isPresented: $showShare) {
             ShareSheet(items: outputURLs)
+        }
+        .alert(
+            localization.t("photo.exportSuccess"),
+            isPresented: Binding(
+                get: { exportSuccessCount != nil },
+                set: { if !$0 { exportSuccessCount = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            if let exportSuccessCount {
+                Text(localization.format("photo.exportSuccessDetail", Int64(exportSuccessCount)))
+            }
         }
         .onDisappear {
             analysisTask?.cancel()
@@ -793,6 +807,7 @@ struct PhotoBatchEditorView: View {
                 options: options,
                 access: access
             )
+            var successCount = 0
             for target in targets {
                 guard let index = drafts.firstIndex(where: { $0.id == target.id }) else {
                     continue
@@ -801,11 +816,15 @@ struct PhotoBatchEditorView: View {
                 case let .success(url):
                     drafts[index].outputURL = url
                     drafts[index].status = .completed
+                    successCount += 1
                 case .failure, .none:
                     drafts[index].status = .failed
                 }
             }
             isExporting = false
+            if successCount > 0 {
+                exportSuccessCount = successCount
+            }
         }
     }
 

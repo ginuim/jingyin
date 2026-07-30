@@ -251,7 +251,7 @@ struct EditorView: View {
                 isVideoPinned.toggle()
             }
         ) {
-            VideoPlayer(player: player)
+            BareVideoPlayer(player: player)
                 .aspectRatio(16 / 10, contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: 20))
                 .overlay {

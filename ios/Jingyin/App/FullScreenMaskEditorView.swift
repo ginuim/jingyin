@@ -32,7 +32,7 @@ struct FullScreenMaskEditorView: View {
                     timelineRanges: timelineRanges,
                     onTimeChanged: { playheadSeconds = $0 }
                 ) {
-                    VideoPlayer(player: player)
+                    BareVideoPlayer(player: player)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .aspectRatio(videoAspectRatio, contentMode: .fit)
                         .overlay {

@@ -146,25 +146,25 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "受算法、光线、角度与姿势等影响，无法保证 100% 完美遮盖；导出前请仔细检查，必要时手动补充。"
+            "value": "受算法、光线、角度、姿势与主体大小等影响，无法保证 100% 完美遮盖；导出前请仔细检查，必要时手动补充。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "受演算法、光線、角度與姿勢等影響，無法保證 100% 完美遮蓋；匯出前請仔細檢查，必要時手動補充。"
+            "value": "受演算法、光線、角度、姿勢與主體大小等影響，無法保證 100% 完美遮蓋；匯出前請仔細檢查，必要時手動補充。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Due to algorithm limits, lighting, angle, and pose, coverage can’t be 100% perfect. Review before export and add masks if needed."
+            "value": "Due to algorithm limits, lighting, angle, pose, and subject size, coverage can’t be 100% perfect. Review before export and add masks if needed."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "アルゴリズムや光・角度・姿勢などの影響で、100%の完璧な覆い隠しは保証できません。書き出し前に確認し、必要なら手動で追加してください。"
+            "value": "アルゴリズムや光・角度・姿勢・被写体サイズなどの影響で、100%の完璧な覆い隠しは保証できません。書き出し前に確認し、必要なら手動で追加してください。"
           }
         }
       }
@@ -339,6 +339,22 @@
         "zh-Hant": {"stringUnit": {"state": "translated", "value": "免費匯出目前照片"}},
         "en": {"stringUnit": {"state": "translated", "value": "Export Current Photo Free"}},
         "ja": {"stringUnit": {"state": "translated", "value": "現在の写真を無料で書き出す"}}
+      }
+    },
+    "photo.exportSuccess": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "导出成功"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "匯出成功"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Export Complete"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "書き出し完了"}}
+      }
+    },
+    "photo.exportSuccessDetail": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "已处理 %lld 张，可保存到相册或分享"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "已處理 %lld 張，可儲存到相簿或分享"}},
+        "en": {"stringUnit": {"state": "translated", "value": "%lld photo(s) ready. Save to Photos or share."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "%lld枚の処理が完了しました。写真に保存するか共有できます。"}}
       }
     },
     "photo.savedCount": {

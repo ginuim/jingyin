@@ -58,7 +58,7 @@ struct ProcessingView: View {
 
             if let previewPlayer {
                 ControlledVideoPlayer(player: previewPlayer) {
-                    VideoPlayer(player: previewPlayer)
+                    BareVideoPlayer(player: previewPlayer)
                         .frame(height: 220)
                         .clipShape(RoundedRectangle(cornerRadius: 18))
                 }
