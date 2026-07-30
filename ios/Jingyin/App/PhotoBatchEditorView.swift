@@ -1,0 +1,579 @@
+import SwiftUI
+
+struct PhotoBatchEditorView: View {
+    let inputURLs: [URL]
+
+    @EnvironmentObject private var localization: LocalizationManager
+    @EnvironmentObject private var entitlements: EntitlementStore
+    @State private var drafts: [PhotoDraft]
+    @State private var currentIndex = 0
+    @State private var selectedTrackID: MaskTrack.ID?
+    @State private var options = ProcessingOptions()
+    @State private var renderedPreview: UIImage?
+    @State private var isAnalyzing = false
+    @State private var isRenderingPreview = false
+    @State private var isExporting = false
+    @State private var isSaving = false
+    @State private var savedCount = 0
+    @State private var showPaywall = false
+    @State private var showShare = false
+    @State private var analysisTask: Task<Void, Never>?
+    @State private var previewTask: Task<Void, Never>?
+    @State private var exportTask: Task<Void, Never>?
+
+    init(inputURLs: [URL]) {
+        self.inputURLs = inputURLs
+        _drafts = State(initialValue: inputURLs.map { PhotoDraft(inputURL: $0) })
+        var initialOptions = ProcessingOptions()
+        initialOptions.subjects = [.face]
+        _options = State(initialValue: initialOptions)
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 18) {
+                batchHeader
+                photoStrip
+                preview
+                maskActions
+                subjectOptions
+                effectOptions
+                exportSection
+            }
+            .padding()
+        }
+        .background(Color(red: 0.035, green: 0.065, blue: 0.07))
+        .navigationTitle(localization.t("photo.title"))
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            guard drafts.allSatisfy({ $0.status == .pending }) else { return }
+            analyzeAll()
+        }
+        .onChange(of: currentIndex) { _, _ in
+            selectedTrackID = nil
+            refreshPreview()
+        }
+        .onChange(of: options.style) { _, style in
+            switch style {
+            case .blur: options.strength = 32
+            case .pixel: options.strength = 24
+            case .ascii: options.strength = 16
+            }
+            invalidateOutputs(at: Array(drafts.indices))
+            refreshPreview()
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
+                .environmentObject(localization)
+                .environmentObject(entitlements)
+        }
+        .sheet(isPresented: $showShare) {
+            ShareSheet(items: outputURLs)
+        }
+        .onDisappear {
+            analysisTask?.cancel()
+            previewTask?.cancel()
+            exportTask?.cancel()
+            PhotoProcessor.removeOutputs(from: drafts)
+        }
+    }
+
+    private var currentDraft: PhotoDraft? {
+        drafts.indices.contains(currentIndex) ? drafts[currentIndex] : nil
+    }
+
+    private var currentTracks: Binding<[MaskTrack]> {
+        Binding(
+            get: {
+                guard drafts.indices.contains(currentIndex) else { return [] }
+                return drafts[currentIndex].tracks
+            },
+            set: { value in
+                guard drafts.indices.contains(currentIndex) else { return }
+                invalidateOutputs(at: [currentIndex])
+                drafts[currentIndex].tracks = value
+            }
+        )
+    }
+
+    private var outputURLs: [URL] {
+        drafts.compactMap(\.outputURL)
+    }
+
+    private var batchHeader: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(localization.format("photo.batchCount", Int64(drafts.count)))
+                    .font(.headline)
+                Text(statusText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if isAnalyzing || isExporting {
+                ProgressView()
+                    .tint(.mint)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var statusText: String {
+        if isAnalyzing {
+            let ready = drafts.filter { $0.status == .ready }.count
+            return localization.format(
+                "photo.analyzingProgress",
+                Int64(ready),
+                Int64(drafts.count)
+            )
+        }
+        let failed = drafts.filter { $0.status == .failed }.count
+        if failed > 0 {
+            return localization.format("photo.failedCount", Int64(failed))
+        }
+        return localization.t("photo.reviewHint")
+    }
+
+    private var photoStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(Array(drafts.enumerated()), id: \.element.id) { index, draft in
+                    Button {
+                        currentIndex = index
+                    } label: {
+                        ZStack(alignment: .bottomTrailing) {
+                            Group {
+                                if let image = draft.previewImage {
+                                    Image(uiImage: image)
+                                        .resizable()
+                                        .scaledToFill()
+                                } else {
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(.white.opacity(0.08))
+                                        .overlay { ProgressView() }
+                                }
+                            }
+                            .frame(width: 66, height: 66)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                            statusBadge(draft.status)
+                        }
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 11)
+                                .stroke(index == currentIndex ? .mint : .clear, lineWidth: 3)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 3)
+        }
+    }
+
+    private func statusBadge(_ status: PhotoWorkStatus) -> some View {
+        let symbol: String
+        let color: Color
+        switch status {
+        case .pending, .analyzing:
+            symbol = "clock.fill"
+            color = .gray
+        case .ready:
+            symbol = "checkmark.circle.fill"
+            color = .mint
+        case .exporting:
+            symbol = "arrow.up.circle.fill"
+            color = .blue
+        case .completed:
+            symbol = "checkmark.seal.fill"
+            color = .green
+        case .failed:
+            symbol = "exclamationmark.triangle.fill"
+            color = .red
+        }
+        return Image(systemName: symbol)
+            .font(.caption)
+            .foregroundStyle(color)
+            .padding(4)
+            .background(.black.opacity(0.65), in: Circle())
+    }
+
+    private var preview: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 18)
+                .fill(.black.opacity(0.35))
+
+            if let image = renderedPreview ?? currentDraft?.previewImage {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                MaskEditorOverlay(
+                    tracks: currentTracks,
+                    selectedTrackID: $selectedTrackID,
+                    timeSeconds: 0,
+                    videoDisplaySize: currentDraft?.displaySize,
+                    onEditingBegan: {},
+                    onEditingEnded: refreshPreview,
+                    onDeleteTrack: deleteTrack
+                )
+            } else if currentDraft?.status == .failed {
+                ContentUnavailableView(
+                    localization.t("photo.invalid"),
+                    systemImage: "photo.badge.exclamationmark"
+                )
+            } else {
+                ProgressView(localization.t("photo.analyzing"))
+            }
+
+            if isRenderingPreview {
+                ProgressView()
+                    .padding(12)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+        }
+        .frame(height: 390)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+    }
+
+    private var maskActions: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(localization.format(
+                    "photo.maskCount",
+                    Int64(currentDraft?.tracks.count ?? 0)
+                ))
+                .font(.headline)
+                Spacer()
+                Button {
+                    addManualMask(shape: .ellipse)
+                } label: {
+                    Label(localization.t("photo.addEllipse"), systemImage: "circle")
+                }
+                Button {
+                    addManualMask(shape: .rectangle)
+                } label: {
+                    Label(localization.t("photo.addRectangle"), systemImage: "rectangle")
+                }
+            }
+            .buttonStyle(.bordered)
+
+            if let tracks = currentDraft?.tracks, !tracks.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
+                            Button {
+                                selectedTrackID = track.id
+                            } label: {
+                                Text(localization.format(
+                                    "editor.maskItem",
+                                    Int64(index + 1)
+                                ))
+                                .font(.caption.weight(.semibold))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(
+                                    selectedTrackID == track.id
+                                        ? Color.mint
+                                        : Color.white.opacity(0.08),
+                                    in: Capsule()
+                                )
+                                .foregroundStyle(
+                                    selectedTrackID == track.id ? .black : .primary
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+
+            Text(localization.t("photo.maskHint"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding()
+        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var subjectOptions: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(localization.t("editor.subjects"))
+                    .font(.headline)
+                Spacer()
+                Button(localization.t("photo.redetect")) {
+                    analyzeAll()
+                }
+                .disabled(isAnalyzing)
+            }
+            HStack(spacing: 8) {
+                ForEach(SubjectKind.allCases) { subject in
+                    Button {
+                        options.toggleSubject(subject)
+                    } label: {
+                        Label(subject.title(localization.bundle), systemImage: subject.icon)
+                            .font(.caption.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(
+                                options.subjects.contains(subject)
+                                    ? Color.mint
+                                    : Color.white.opacity(0.08),
+                                in: RoundedRectangle(cornerRadius: 11)
+                            )
+                            .foregroundStyle(
+                                options.subjects.contains(subject) ? .black : .primary
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding()
+        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var effectOptions: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(localization.t("editor.style"))
+                .font(.headline)
+            HStack(spacing: 8) {
+                ForEach(EffectStyle.allCases) { style in
+                    Button {
+                        options.style = style
+                    } label: {
+                        Text(style.title(localization.bundle))
+                            .font(.caption.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(
+                                options.style == style
+                                    ? Color.mint
+                                    : Color.white.opacity(0.08),
+                                in: RoundedRectangle(cornerRadius: 11)
+                            )
+                            .foregroundStyle(options.style == style ? .black : .primary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding()
+        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var exportSection: some View {
+        VStack(spacing: 12) {
+            if !entitlements.isUnlocked && drafts.count > 1 {
+                PurchaseStatusCard {
+                    showPaywall = true
+                }
+            }
+
+            Button {
+                exportPhotos()
+            } label: {
+                Label(
+                    entitlements.isUnlocked
+                        ? localization.t("photo.exportBatch")
+                        : localization.t("photo.exportCurrent"),
+                    systemImage: "square.and.arrow.up"
+                )
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.mint)
+            .foregroundStyle(.black)
+            .disabled(isAnalyzing || isExporting || currentDraft?.status == .failed)
+
+            if !outputURLs.isEmpty {
+                HStack {
+                    Button {
+                        saveOutputs()
+                    } label: {
+                        Label(
+                            savedCount > 0
+                                ? localization.format("photo.savedCount", Int64(savedCount))
+                                : localization.t("photo.save"),
+                            systemImage: "square.and.arrow.down"
+                        )
+                    }
+                    .disabled(isSaving)
+
+                    Button {
+                        showShare = true
+                    } label: {
+                        Label(localization.t("processing.share"), systemImage: "square.and.arrow.up")
+                    }
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+    }
+
+    private func analyzeAll() {
+        analysisTask?.cancel()
+        previewTask?.cancel()
+        invalidateOutputs(at: Array(drafts.indices))
+        renderedPreview = nil
+        isAnalyzing = true
+        let subjects = options.subjects
+        analysisTask = Task {
+            for index in drafts.indices {
+                if Task.isCancelled { break }
+                let manualTracks = drafts[index].tracks.filter { $0.source == .manual }
+                drafts[index].status = .analyzing
+                do {
+                    let analysis = try await PhotoProcessor.analyze(
+                        url: drafts[index].inputURL,
+                        subjects: subjects
+                    )
+                    drafts[index].previewImage = analysis.previewImage
+                    drafts[index].displaySize = analysis.displaySize
+                    drafts[index].tracks = analysis.tracks + manualTracks
+                    drafts[index].status = .ready
+                    if index == currentIndex {
+                        selectedTrackID = nil
+                        refreshPreview()
+                    }
+                } catch {
+                    drafts[index].status = .failed
+                }
+            }
+            isAnalyzing = false
+            refreshPreview()
+        }
+    }
+
+    private func refreshPreview() {
+        previewTask?.cancel()
+        renderedPreview = nil
+        guard let currentDraft, currentDraft.status != .failed else { return }
+        let expectedID = currentDraft.id
+        let renderOptions = PhotoProcessor.optionsForExport(
+            options,
+            tracks: currentDraft.tracks
+        )
+        isRenderingPreview = true
+        previewTask = Task {
+            defer { isRenderingPreview = false }
+            guard let rendered = try? await PhotoProcessor.renderPreview(
+                url: currentDraft.inputURL,
+                options: renderOptions
+            ), !Task.isCancelled,
+               drafts.indices.contains(currentIndex),
+               drafts[currentIndex].id == expectedID else {
+                return
+            }
+            renderedPreview = rendered.image
+        }
+    }
+
+    private func addManualMask(shape: MaskTrackShape) {
+        guard drafts.indices.contains(currentIndex) else { return }
+        let track = MaskTrack(
+            shape: shape,
+            source: .manual,
+            keyframes: [
+                MaskKeyframe(
+                    timeSeconds: 0,
+                    rect: NormalizedVideoRect(
+                        x: 0.30,
+                        y: 0.30,
+                        width: 0.40,
+                        height: 0.30
+                    )
+                )
+            ]
+        )
+        drafts[currentIndex].tracks.append(track)
+        selectedTrackID = track.id
+        invalidateOutputs(at: [currentIndex])
+        refreshPreview()
+    }
+
+    private func deleteTrack(_ id: MaskTrack.ID) {
+        guard drafts.indices.contains(currentIndex) else { return }
+        drafts[currentIndex].tracks.removeAll { $0.id == id }
+        if selectedTrackID == id {
+            selectedTrackID = nil
+        }
+        invalidateOutputs(at: [currentIndex])
+        refreshPreview()
+    }
+
+    private func invalidateOutputs(at indices: [Int]) {
+        for index in indices where drafts.indices.contains(index) {
+            if let outputURL = drafts[index].outputURL {
+                try? FileManager.default.removeItem(at: outputURL)
+            }
+            drafts[index].outputURL = nil
+            if drafts[index].status == .completed {
+                drafts[index].status = .ready
+            }
+        }
+        savedCount = 0
+    }
+
+    private func exportPhotos() {
+        exportTask?.cancel()
+        savedCount = 0
+        let targets: [PhotoDraft]
+        if entitlements.isUnlocked {
+            targets = drafts.filter { $0.status != .failed }
+        } else if let currentDraft, currentDraft.status != .failed {
+            targets = [currentDraft]
+        } else {
+            return
+        }
+        for target in targets {
+            if let index = drafts.firstIndex(where: { $0.id == target.id }) {
+                if let oldOutput = drafts[index].outputURL {
+                    try? FileManager.default.removeItem(at: oldOutput)
+                }
+                drafts[index].outputURL = nil
+                drafts[index].status = .exporting
+            }
+        }
+        isExporting = true
+        let access = entitlements.access
+        exportTask = Task {
+            let results = await PhotoProcessor.export(
+                drafts: targets,
+                options: options,
+                access: access
+            )
+            for target in targets {
+                guard let index = drafts.firstIndex(where: { $0.id == target.id }) else {
+                    continue
+                }
+                switch results[target.id] {
+                case let .success(url):
+                    drafts[index].outputURL = url
+                    drafts[index].status = .completed
+                case .failure, .none:
+                    drafts[index].status = .failed
+                }
+            }
+            isExporting = false
+        }
+    }
+
+    private func saveOutputs() {
+        let urls = outputURLs
+        guard !urls.isEmpty else { return }
+        isSaving = true
+        Task {
+            defer { isSaving = false }
+            do {
+                try await PhotoProcessor.saveToPhotos(urls)
+                savedCount = urls.count
+            } catch {
+                savedCount = 0
+            }
+        }
+    }
+}

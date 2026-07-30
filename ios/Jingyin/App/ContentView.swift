@@ -8,106 +8,31 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @EnvironmentObject private var localization: LocalizationManager
     @State private var pickedItem: PhotosPickerItem?
+    @State private var pickedPhotoItems: [PhotosPickerItem] = []
     @State private var importedURL: URL?
+    @State private var importedPhotos: PhotoBatchSelection?
     @State private var ownedInputURL: URL?
+    @State private var ownedPhotoURLs: [URL] = []
     @State private var securityScopedInputURL: URL?
     @State private var showFileImporter = false
     @State private var loadingImport = false
     @State private var importFraction: Double?
     @State private var activeImportProgress: Progress?
     @State private var importProgressTask: Task<Void, Never>?
+    @State private var photoImportTask: Task<Void, Never>?
     @State private var showSettings = false
     @State private var hasCleanedTemporaryFiles = false
     @State private var importErrorKey: String?
 
     var body: some View {
-        let pickPhotosTitle = localization.t("home.pickPhotos")
-        return NavigationStack {
-            ZStack {
-                LinearGradient(
-                    colors: [Color(red: 0.04, green: 0.08, blue: 0.09), Color(red: 0.06, green: 0.15, blue: 0.13)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+        NavigationStack {
+            landingWithImporters
+        }
+        .preferredColorScheme(.dark)
+    }
 
-                VStack(spacing: 22) {
-                    Spacer()
-                    Image(systemName: "eye.slash.fill")
-                        .font(.system(size: 58, weight: .semibold))
-                        .foregroundStyle(.mint)
-                        .padding(24)
-                        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 28))
-
-                    VStack(spacing: 8) {
-                        Text(localization.t("brand.name"))
-                            .font(.system(size: 38, weight: .bold, design: .rounded))
-                        Text(localization.t("home.tagline"))
-                            .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.72))
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.horizontal, 28)
-                    }
-
-                    VStack(spacing: 12) {
-                        PhotosPicker(
-                            selection: $pickedItem,
-                            matching: .videos,
-                            preferredItemEncoding: .current
-                        ) {
-                            Label(pickPhotosTitle, systemImage: "photo.on.rectangle.angled")
-                                .lineLimit(2)
-                                .minimumScaleFactor(0.85)
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(PrimaryButtonStyle())
-
-                        Button {
-                            showFileImporter = true
-                        } label: {
-                            Label(localization.t("home.pickFiles"), systemImage: "folder")
-                                .lineLimit(2)
-                                .minimumScaleFactor(0.85)
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(SecondaryButtonStyle())
-                    }
-                    .padding(.horizontal, 28)
-                    .disabled(loadingImport)
-
-                    Label(localization.t("home.privacy"), systemImage: "lock.shield.fill")
-                        .font(.footnote)
-                        .foregroundStyle(.white.opacity(0.55))
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, 28)
-                    Spacer()
-                }
-                .foregroundStyle(.white)
-
-                if loadingImport {
-                    VStack(spacing: 10) {
-                        if let importFraction, importFraction > 0 {
-                            ProgressView(value: importFraction)
-                                .frame(width: 180)
-                            Text("\(Int(importFraction * 100))%")
-                                .font(.headline.monospacedDigit())
-                        } else {
-                            ProgressView()
-                        }
-                        Text(localization.t("home.reading"))
-                        if activeImportProgress != nil {
-                            Button(localization.t("processing.cancel"), role: .cancel) {
-                                cancelPhotoImport()
-                            }
-                            .font(.footnote)
-                        }
-                    }
-                    .padding(22)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
-                }
-            }
+    private var landingWithNavigation: some View {
+        homeLanding
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -124,9 +49,21 @@ struct ContentView: View {
             .navigationDestination(item: $importedURL) { url in
                 EditorView(videoURL: url)
             }
+            .navigationDestination(item: $importedPhotos) { selection in
+                PhotoBatchEditorView(inputURLs: selection.urls)
+            }
+    }
+
+    private var landingWithLifecycle: some View {
+        landingWithNavigation
             .onChange(of: importedURL) { _, url in
                 if url == nil {
                     releaseImportedVideo()
+                }
+            }
+            .onChange(of: importedPhotos) { _, selection in
+                if selection == nil {
+                    releaseImportedPhotos()
                 }
             }
             .task {
@@ -137,12 +74,22 @@ struct ContentView: View {
                 guard let item else { return }
                 beginPhotoImport(item)
             }
+            .onChange(of: pickedPhotoItems) { _, items in
+                guard !items.isEmpty else { return }
+                beginBatchPhotoImport(items)
+            }
+    }
+
+    private var landingWithImporters: some View {
+        landingWithLifecycle
             .fileImporter(
                 isPresented: $showFileImporter,
                 allowedContentTypes: [.movie, .video],
                 allowsMultipleSelection: false
             ) { result in
-                guard case let .success(urls) = result, let source = urls.first else { return }
+                guard case let .success(urls) = result, let source = urls.first else {
+                    return
+                }
                 Task { await importFile(source) }
             }
             .alert(
@@ -151,8 +98,120 @@ struct ContentView: View {
             ) {
                 Button(localization.t("processing.cancel"), role: .cancel) {}
             }
+    }
+
+    private var homeLanding: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.04, green: 0.08, blue: 0.09),
+                    Color(red: 0.06, green: 0.15, blue: 0.13)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 22) {
+                Spacer()
+                Image(systemName: "eye.slash.fill")
+                    .font(.system(size: 58, weight: .semibold))
+                    .foregroundStyle(.mint)
+                    .padding(24)
+                    .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 28))
+
+                VStack(spacing: 8) {
+                    Text(localization.t("brand.name"))
+                        .font(.system(size: 38, weight: .bold, design: .rounded))
+                    Text(localization.t("home.tagline"))
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.72))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 28)
+                }
+
+                importButtons
+
+                Label(localization.t("home.privacy"), systemImage: "lock.shield.fill")
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.55))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 28)
+                Spacer()
+            }
+            .foregroundStyle(.white)
+
+            if loadingImport {
+                importProgressOverlay
+            }
         }
-        .preferredColorScheme(.dark)
+    }
+
+    private var importButtons: some View {
+        let videoTitle = localization.t("home.pickPhotos")
+        let photoTitle = localization.t("home.pickImages")
+        return VStack(spacing: 12) {
+            PhotosPicker(
+                selection: $pickedItem,
+                matching: .videos,
+                preferredItemEncoding: .current
+            ) {
+                Label(videoTitle, systemImage: "video.fill")
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PrimaryButtonStyle())
+
+            PhotosPicker(
+                selection: $pickedPhotoItems,
+                maxSelectionCount: 50,
+                matching: .images,
+                preferredItemEncoding: .current
+            ) {
+                Label(photoTitle, systemImage: "photo.stack.fill")
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PrimaryButtonStyle())
+
+            Button {
+                showFileImporter = true
+            } label: {
+                Label(localization.t("home.pickFiles"), systemImage: "folder")
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(SecondaryButtonStyle())
+        }
+        .padding(.horizontal, 28)
+        .disabled(loadingImport)
+    }
+
+    private var importProgressOverlay: some View {
+        VStack(spacing: 10) {
+            if let importFraction, importFraction > 0 {
+                ProgressView(value: importFraction)
+                    .frame(width: 180)
+                Text("\(Int(importFraction * 100))%")
+                    .font(.headline.monospacedDigit())
+            } else {
+                ProgressView()
+            }
+            Text(localization.t("home.reading"))
+            if activeImportProgress != nil || photoImportTask != nil {
+                Button(localization.t("processing.cancel"), role: .cancel) {
+                    cancelPhotoImport()
+                }
+                .font(.footnote)
+            }
+        }
+        .padding(22)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
     }
 
     private var importErrorMessage: String {
@@ -163,6 +222,8 @@ struct ContentView: View {
             localization.t("error.videoTooLong")
         case "error.invalidVideo":
             localization.t("error.invalidVideo")
+        case "error.invalidPhoto":
+            localization.t("error.invalidPhoto")
         default:
             ""
         }
@@ -227,12 +288,15 @@ struct ContentView: View {
     @MainActor
     private func cancelPhotoImport() {
         activeImportProgress?.cancel()
+        photoImportTask?.cancel()
+        photoImportTask = nil
         activeImportProgress = nil
         importProgressTask?.cancel()
         importProgressTask = nil
         importFraction = nil
         loadingImport = false
         pickedItem = nil
+        pickedPhotoItems = []
     }
 
     @MainActor
@@ -254,6 +318,56 @@ struct ContentView: View {
         }
         Task {
             await acceptImportedVideo(with: video.url, ownsFile: true)
+        }
+    }
+
+    @MainActor
+    private func beginBatchPhotoImport(_ items: [PhotosPickerItem]) {
+        photoImportTask?.cancel()
+        loadingImport = true
+        importFraction = 0
+        photoImportTask = Task {
+            var imported: [URL] = []
+            defer {
+                if Task.isCancelled {
+                    for url in imported {
+                        try? FileManager.default.removeItem(at: url)
+                    }
+                }
+                loadingImport = false
+                importFraction = nil
+                pickedPhotoItems = []
+                photoImportTask = nil
+            }
+
+            for (index, item) in items.enumerated() {
+                if Task.isCancelled { return }
+                do {
+                    guard let data = try await item.loadTransferable(type: Data.self) else {
+                        continue
+                    }
+                    let pathExtension = item.supportedContentTypes
+                        .compactMap(\.preferredFilenameExtension)
+                        .first ?? "jpg"
+                    let destination = FileManager.default.temporaryDirectory
+                        .appendingPathComponent("jingyin-photo-input-\(UUID().uuidString)")
+                        .appendingPathExtension(pathExtension)
+                    try data.write(to: destination, options: .atomic)
+                    imported.append(destination)
+                } catch {
+                    continue
+                }
+                importFraction = Double(index + 1) / Double(items.count)
+            }
+
+            guard !Task.isCancelled else { return }
+            guard !imported.isEmpty else {
+                importErrorKey = "error.invalidPhoto"
+                return
+            }
+            releaseImportedPhotos()
+            ownedPhotoURLs = imported
+            importedPhotos = PhotoBatchSelection(urls: imported)
         }
     }
 
@@ -315,6 +429,14 @@ struct ContentView: View {
         securityScopedInputURL = nil
     }
 
+    @MainActor
+    private func releaseImportedPhotos() {
+        for url in ownedPhotoURLs {
+            try? FileManager.default.removeItem(at: url)
+        }
+        ownedPhotoURLs = []
+    }
+
     private func validateImportedVideo(at url: URL) async -> String? {
         let fileSize = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize
         if let fileSize, fileSize > ProductLimits.maximumInputFileSizeBytes {
@@ -329,6 +451,11 @@ struct ContentView: View {
         }
         return nil
     }
+}
+
+private struct PhotoBatchSelection: Identifiable, Equatable, Hashable {
+    let id = UUID()
+    let urls: [URL]
 }
 
 private struct ImportedVideo: Transferable {

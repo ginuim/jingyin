@@ -146,6 +146,8 @@ enum MaskTrackShape: String, Codable, CaseIterable, Sendable {
 enum MaskTrackSource: String, Codable, Sendable {
     case manual
     case detectedFace
+    case detectedPerson
+    case detectedPet
 }
 
 enum MaskTrackingState: String, Codable, Sendable {

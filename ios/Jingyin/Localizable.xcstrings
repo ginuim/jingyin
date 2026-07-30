@@ -34,25 +34,25 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "视频隐私，只留在你的设备里"
+            "value": "视频与照片隐私，只留在你的设备里"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "影片隱私，只留在你的裝置裡"
+            "value": "影片與照片隱私，只留在你的裝置裡"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Video privacy, stays on your device"
+            "value": "Video and photo privacy, stays on your device"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "動画のプライバシーは端末内だけに"
+            "value": "動画と写真のプライバシーは端末内だけに"
           }
         }
       }
@@ -118,25 +118,25 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "原视频、识别数据和结果均不会上传"
+            "value": "原视频、照片、识别数据和结果均不会上传"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "原始影片、辨識資料與結果皆不會上傳"
+            "value": "原始影片、照片、辨識資料與結果皆不會上傳"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Original video, detection data, and results never leave the device"
+            "value": "Original videos, photos, detection data, and results never leave the device"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "元動画・検出データ・結果は送信しません"
+            "value": "元の動画・写真・検出データ・結果は送信しません"
           }
         }
       }
@@ -146,27 +146,171 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在读取视频…"
+            "value": "正在读取素材…"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在讀取影片…"
+            "value": "正在讀取素材…"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reading video…"
+            "value": "Reading media…"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "動画を読み込み中…"
+            "value": "素材を読み込み中…"
           }
         }
+      }
+    },
+    "home.pickImages": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "批量处理照片"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "批次處理照片"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Process Photos"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "写真をまとめて処理"}}
+      }
+    },
+    "error.invalidPhoto": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "未能读取所选照片，请换一张后重试。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "無法讀取所選照片，請更換後再試。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "The selected photos could not be read. Try different photos."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "選択した写真を読み込めませんでした。別の写真でお試しください。"}}
+      }
+    },
+    "photo.title": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "照片批量遮罩"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "照片批次遮罩"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Batch Photo Masks"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "写真の一括マスク"}}
+      }
+    },
+    "photo.batchCount": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "已选择 %lld 张照片"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "已選擇 %lld 張照片"}},
+        "en": {"stringUnit": {"state": "translated", "value": "%lld photos selected"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "%lld枚の写真を選択"}}
+      }
+    },
+    "photo.analyzingProgress": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "正在本地识别 %lld / %lld"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "正在本機辨識 %lld / %lld"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Analyzing on device %lld / %lld"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "端末内で解析中 %lld / %lld"}}
+      }
+    },
+    "photo.failedCount": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "%lld 张处理失败，可重新识别或导出重试"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "%lld 張處理失敗，可重新辨識或匯出重試"}},
+        "en": {"stringUnit": {"state": "translated", "value": "%lld failed. Re-analyze or retry export."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "%lld枚失敗しました。再解析または再書き出しできます。"}}
+      }
+    },
+    "photo.reviewHint": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "逐张检查自动遮罩，确认没有漏掉隐私区域"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "逐張檢查自動遮罩，確認沒有遺漏隱私區域"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Review every photo for missed private areas."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "各写真を確認し、隠し忘れがないか確認してください。"}}
+      }
+    },
+    "photo.invalid": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "照片无法读取"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "照片無法讀取"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Photo Unavailable"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "写真を読み込めません"}}
+      }
+    },
+    "photo.analyzing": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "正在识别照片…"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "正在辨識照片…"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Analyzing photo…"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "写真を解析中…"}}
+      }
+    },
+    "photo.maskCount": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "%lld 组遮罩"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "%lld 組遮罩"}},
+        "en": {"stringUnit": {"state": "translated", "value": "%lld mask groups"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "%lld個のマスク"}}
+      }
+    },
+    "photo.addEllipse": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "椭圆"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "橢圓"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Ellipse"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "楕円"}}
+      }
+    },
+    "photo.addRectangle": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "矩形"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "矩形"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Rectangle"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "長方形"}}
+      }
+    },
+    "photo.maskHint": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "每个自动识别结果都是独立遮罩组。点选后可删除、拖动或缩放。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "每個自動辨識結果都是獨立遮罩組。點選後可刪除、拖動或縮放。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Each detection is an independent mask group. Select it to delete, move, or resize."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "検出結果ごとに独立したマスクです。選択して削除・移動・サイズ変更できます。"}}
+      }
+    },
+    "photo.redetect": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "重新识别全部"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "重新辨識全部"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Re-analyze All"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "すべて再解析"}}
+      }
+    },
+    "photo.exportBatch": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "导出全部照片"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "匯出全部照片"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Export All Photos"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "すべての写真を書き出す"}}
+      }
+    },
+    "photo.exportCurrent": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "免费导出当前照片"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "免費匯出目前照片"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Export Current Photo Free"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "現在の写真を無料で書き出す"}}
+      }
+    },
+    "photo.savedCount": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "已保存 %lld 张"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "已儲存 %lld 張"}},
+        "en": {"stringUnit": {"state": "translated", "value": "%lld Saved"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "%lld枚保存済み"}}
+      }
+    },
+    "photo.save": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "保存到相册"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "儲存到相簿"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Save to Photos"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "写真に保存"}}
       }
     },
     "settings.title": {
@@ -3227,10 +3371,10 @@
     },
     "purchase.unlocked.detail": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "可导出完整时长和可用分辨率"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "可匯出完整時長和可用解析度"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Full duration and available resolutions"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "全編と利用可能な解像度で書き出し"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "完整视频规格与照片批量导出"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "完整影片規格與照片批次匯出"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Full video quality and batch photo exports"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "動画全編と写真の一括書き出し"}}
       }
     },
     "purchase.freePlan": {
@@ -3243,10 +3387,10 @@
     },
     "purchase.freePlan.detail": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "可导出前 30 秒，最高 720p，无水印"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "可匯出前 30 秒，最高 720p，無浮水印"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Export the first 30 seconds up to 720p, no watermark"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "先頭30秒を最大720p・透かしなしで書き出し"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "视频前 30 秒 / 720p；照片每次 1 张，无水印"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "影片前 30 秒 / 720p；照片每次 1 張，無浮水印"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Video: first 30s at 720p; photos: one per export, no watermark"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "動画は先頭30秒・720p、写真は1回1枚、透かしなし"}}
       }
     },
     "purchase.unlock": {
@@ -3331,10 +3475,10 @@
     },
     "paywall.subtitle": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "先免费预览和导出短片，满意后再解锁完整导出。"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "先免費預覽和匯出短片，滿意後再解鎖完整匯出。"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Preview and export a short clip free, then unlock full exports."}},
-        "ja": {"stringUnit": {"state": "translated", "value": "無料で短い動画を試してから、完全な書き出しを解放できます。"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "先免费处理短片或单张照片，满意后解锁完整视频与照片批量。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "先免費處理短片或單張照片，滿意後解鎖完整影片與照片批次。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Try a short video or one photo free, then unlock full videos and batch photos."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "短い動画または写真1枚を無料で試し、動画全編と写真一括処理を解放できます。"}}
       }
     },
     "paywall.benefit.full": {
@@ -3347,10 +3491,10 @@
     },
     "paywall.benefit.quality": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "开放素材支持的完整导出分辨率"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "開放素材支援的完整匯出解析度"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Use all export resolutions supported by the source"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "素材が対応するすべての解像度で書き出し"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "一次选择并批量导出多张照片"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "一次選擇並批次匯出多張照片"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Select and export multiple photos as one batch"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "複数の写真を選択してまとめて書き出し"}}
       }
     },
     "paywall.benefit.simple": {
@@ -3363,10 +3507,10 @@
     },
     "paywall.benefit.privacy": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "视频和识别数据始终留在设备上"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "影片和辨識資料始終留在裝置上"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Video and detection data stay on your device"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "動画と検出データは常に端末内に保存"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "视频、照片和识别数据始终留在设备上"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "影片、照片和辨識資料始終留在裝置上"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Videos, photos, and detection data stay on your device"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "動画・写真・検出データは常に端末内に保存"}}
       }
     },
     "paywall.oneTime": {
