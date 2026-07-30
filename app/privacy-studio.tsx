@@ -45,8 +45,28 @@ type VoiceAudioGraph = {
 type BiquadCoefficients = { b0: number; b1: number; b2: number; a1: number; a2: number };
 type BiquadState = { x1: number; x2: number; y1: number; y2: number };
 
-// Desktop WebGPU YOLO instance masks; mobile still gated by supportsPreciseWebMode().
+// High mode = frame-by-frame export; YOLO is an optional WebGPU boost (desktop).
 const PRECISE_MODE_ENABLED = true;
+
+const BODYPIX_BALANCED_OPTIONS = {
+  internalResolution: "medium" as const,
+  segmentationThreshold: 0.34,
+  maxDetections: 10,
+  scoreThreshold: 0.2,
+  nmsRadius: 20,
+  minKeypointScore: 0.2,
+  refineSteps: 7,
+};
+
+const BODYPIX_PRECISE_OPTIONS = {
+  internalResolution: "high" as const,
+  segmentationThreshold: 0.4,
+  maxDetections: 10,
+  scoreThreshold: 0.2,
+  nmsRadius: 20,
+  minKeypointScore: 0.2,
+  refineSteps: 10,
+};
 
 function formatTime(seconds: number) {
   if (!Number.isFinite(seconds)) return "00:00";
@@ -192,6 +212,7 @@ export default function PrivacyStudio() {
   const trackCounterRef = useRef<Record<EntityKey, number>>({ person: 0, vehicle: 0, pet: 0 });
   const trackingFrameRef = useRef(0);
   const qualityRef = useRef<QualityMode>("balanced");
+  const preciseModelReadyRef = useRef(false);
   const scopeRef = useRef<MaskScope>("full");
   const fullFrameStyleRef = useRef<FullFrameStyle>("blur");
   const effectStrengthRef = useRef(46);
@@ -249,11 +270,12 @@ export default function PrivacyStudio() {
 
   useEffect(() => {
     qualityRef.current = quality;
+    preciseModelReadyRef.current = preciseModelState === "ready";
     scopeRef.current = maskScope;
     fullFrameStyleRef.current = fullFrameStyle;
     effectStrengthRef.current = effectStrength;
     drawFrameRef.current?.();
-  }, [effectStrength, fullFrameStyle, quality, maskScope]);
+  }, [effectStrength, fullFrameStyle, quality, maskScope, preciseModelState]);
 
   useEffect(() => () => {
     if (videoUrl) URL.revokeObjectURL(videoUrl);
@@ -538,11 +560,17 @@ export default function PrivacyStudio() {
     const ctx = targetCanvas.getContext("2d");
     if (!ctx) return;
     const blurAmount = Math.max(2, effectStrengthRef.current);
+    const yoloReady = preciseModelReadyRef.current;
     const precisePerson = qualityRef.current === "precise"
       ? segmentationRef.current
       : qualityRef.current === "balanced" && selectedRef.current.has("person") && segmentationRef.current;
     const selectedObjects = detectionsRef.current.filter((item) => item.score > 0.42 && isSelectedDetection(item));
-    const boxObjects = qualityRef.current === "precise" ? [] : precisePerson ? selectedObjects.filter((item) => item.class !== "person") : selectedObjects;
+    // Precise + YOLO: instance masks cover all classes. Precise without YOLO: BodyPix people + coco boxes for pets/vehicles.
+    const boxObjects = qualityRef.current === "precise"
+      ? (yoloReady ? [] : selectedObjects.filter((item) => item.class !== "person"))
+      : precisePerson
+        ? selectedObjects.filter((item) => item.class !== "person")
+        : selectedObjects;
     const personSafetyObjects = precisePerson && qualityRef.current === "balanced" && scopeRef.current === "subjects" ? selectedObjects.filter((item) => item.class === "person") : [];
 
     const drawFullFrame = (blurred: boolean) => {
@@ -753,8 +781,11 @@ export default function PrivacyStudio() {
       if (!video.paused && !video.ended) animationRef.current = requestAnimationFrame(renderLoop);
       return;
     }
-    const detectionInterval = qualityRef.current === "balanced" ? 150 : 300;
-    if (qualityRef.current !== "precise" && modelRef.current && !detectingRef.current && time - lastDetectionRef.current > detectionInterval && !video.paused) {
+    const detectionInterval = qualityRef.current === "balanced" ? 150 : qualityRef.current === "precise" ? 200 : 300;
+    const useYoloPrecise = qualityRef.current === "precise" && preciseModelState === "ready";
+    const useBodyPixOutline = (qualityRef.current === "balanced" || (qualityRef.current === "precise" && !useYoloPrecise))
+      && selectedRef.current.has("person");
+    if (!useYoloPrecise && modelRef.current && !detectingRef.current && time - lastDetectionRef.current > detectionInterval && !video.paused) {
       detectingRef.current = true;
       lastDetectionRef.current = time;
       let inferenceSource: HTMLCanvasElement | null = null;
@@ -769,19 +800,19 @@ export default function PrivacyStudio() {
         detectionsRef.current = tracked;
         updateSubjectList(tracked, video);
         const objectCount = tracked.filter((item) => item.score > 0.42 && isSelectedDetection(item) && (qualityRef.current === "fast" || item.class !== "person")).length;
-        const peopleCount = qualityRef.current === "balanced" && selectedRef.current.has("person") ? (segmentationRef.current?.allPoses.length || 0) : 0;
+        const peopleCount = useBodyPixOutline ? (segmentationRef.current?.allPoses.length || 0) : 0;
         setDetectedCount(objectCount + peopleCount);
       }).catch(handleInferenceError).finally(() => { detectingRef.current = false; });
     }
     const segmentationModel = getSegmentationModel();
-    if (qualityRef.current === "precise" && preciseModelState === "ready" && !segmentingRef.current && time - lastSegmentationRef.current > 160 && !video.paused) {
+    if (useYoloPrecise && !segmentingRef.current && time - lastSegmentationRef.current > 160 && !video.paused) {
       segmentingRef.current = true;
       lastSegmentationRef.current = time;
       void segmentWithYolo(video, video.videoWidth, video.videoHeight)
         .then((results) => applyYoloResults(results, video, true))
         .catch(handleInferenceError)
         .finally(() => { segmentingRef.current = false; });
-    } else if (qualityRef.current === "balanced" && selectedRef.current.has("person") && segmentationModel && !segmentingRef.current && time - lastSegmentationRef.current > 100 && !video.paused) {
+    } else if (useBodyPixOutline && segmentationModel && !segmentingRef.current && time - lastSegmentationRef.current > (qualityRef.current === "precise" ? 140 : 100) && !video.paused) {
       segmentingRef.current = true;
       lastSegmentationRef.current = time;
       let inferenceSource: HTMLCanvasElement | null = null;
@@ -791,15 +822,8 @@ export default function PrivacyStudio() {
         segmentingRef.current = false;
         handleInferenceError(error);
       }
-      if (inferenceSource) void runWithPixelFallback(inferenceSource, (source) => segmentationModel.segmentMultiPerson(source, {
-        internalResolution: "medium",
-        segmentationThreshold: 0.34,
-        maxDetections: 10,
-        scoreThreshold: 0.2,
-        nmsRadius: 20,
-        minKeypointScore: 0.2,
-        refineSteps: 7,
-      })).then((instances) => {
+      const bodyPixOptions = qualityRef.current === "precise" ? BODYPIX_PRECISE_OPTIONS : BODYPIX_BALANCED_OPTIONS;
+      if (inferenceSource) void runWithPixelFallback(inferenceSource, (source) => segmentationModel.segmentMultiPerson(source, bodyPixOptions)).then((instances) => {
         const segmentation = combineSelectedPeople(instances, detectionsRef.current);
         if (!segmentation) {
           segmentationRef.current = null;
@@ -819,34 +843,25 @@ export default function PrivacyStudio() {
     }
     const segmentationModel = getSegmentationModel();
     if (!modelRef.current || !segmentationModel || video.readyState < 2) return;
-    if (qualityRef.current === "precise") {
-      if (preciseModelState === "ready") {
-        const results = await segmentWithYolo(video, video.videoWidth, video.videoHeight);
-        applyYoloResults(results, video, true);
-        drawFrame();
-      } else {
-        const inferenceSource = prepareInferenceSource(video);
-        const detections = await runWithPixelFallback(inferenceSource, (source) => modelRef.current!.detect(source, 14, 0.34));
-        const tracked = assignTracks(detections);
-        detectionsRef.current = tracked;
-        updateSubjectList(tracked, video);
-      }
+    if (qualityRef.current === "precise" && preciseModelState === "ready") {
+      const results = await segmentWithYolo(video, video.videoWidth, video.videoHeight);
+      applyYoloResults(results, video, true);
+      drawFrame();
       return;
     }
     const inferenceSource = prepareInferenceSource(video);
+    const wantPeople = selectedRef.current.has("person");
+    const bodyPixOptions = qualityRef.current === "precise" ? BODYPIX_PRECISE_OPTIONS : BODYPIX_BALANCED_OPTIONS;
     const [detections, instances] = await Promise.all([
       runWithPixelFallback(inferenceSource, (source) => modelRef.current!.detect(source, 14, 0.34)),
-      runWithPixelFallback(inferenceSource, (source) => segmentationModel.segmentMultiPerson(source, {
-        internalResolution: "medium",
-        segmentationThreshold: 0.34,
-        minKeypointScore: 0.2,
-        refineSteps: 7,
-      })),
+      wantPeople
+        ? runWithPixelFallback(inferenceSource, (source) => segmentationModel.segmentMultiPerson(source, bodyPixOptions))
+        : Promise.resolve([] as PersonSegmentation[]),
     ]);
     const tracked = assignTracks(detections);
     detectionsRef.current = tracked;
     updateSubjectList(tracked, video);
-    const segmentation = combineSelectedPeople(instances, tracked);
+    const segmentation = wantPeople ? combineSelectedPeople(instances, tracked) : null;
     segmentationRef.current = segmentation;
     if (segmentation) prepareSegmentationMask(segmentation);
     setDetectedCount(tracked.filter((item) => item.score > 0.42 && isSelectedDetection(item) && item.class !== "person").length + (segmentation?.allPoses.length || 0));
@@ -1191,14 +1206,7 @@ export default function PrivacyStudio() {
       return;
     }
 
-    setMessage(msg.confirmingYolo);
-    try {
-      await loadPreciseModel();
-    } catch {
-      setMessage(msg.preciseModelFailed);
-      return;
-    }
-
+    const useYolo = preciseModelState === "ready";
     setExporting(true);
     setDownloadUrl("");
     setProgress(0);
@@ -1242,6 +1250,8 @@ export default function PrivacyStudio() {
       outputCanvas.height = height;
       const sourceCtx = sourceCanvas.getContext("2d", { alpha: false });
       if (!sourceCtx) throw new Error("NO_CANVAS_CONTEXT");
+      const segmentationModel = bodyPixRef.current;
+      const wantPeople = selectedRef.current.has("person");
 
       let voicePreviousInput: number[] = [];
       let voicePreviousHighpass: number[] = [];
@@ -1275,8 +1285,30 @@ export default function PrivacyStudio() {
           process: (sample) => runInOrder(async () => {
             sourceCtx.clearRect(0, 0, width, height);
             sample.draw(sourceCtx, 0, 0, width, height);
-            const results = await segmentWithYolo(sourceCanvas, width, height);
-            applyYoloResults(results, sourceCanvas, false, false);
+            if (useYolo) {
+              const results = await segmentWithYolo(sourceCanvas, width, height);
+              applyYoloResults(results, sourceCanvas, false, false);
+            } else {
+              const [detections, instances] = await Promise.all([
+                modelRef.current!.detect(sourceCanvas, 14, 0.34),
+                wantPeople
+                  ? segmentationModel.segmentMultiPerson(sourceCanvas, BODYPIX_PRECISE_OPTIONS)
+                  : Promise.resolve([] as PersonSegmentation[]),
+              ]);
+              const tracked = assignTracks(detections);
+              detectionsRef.current = tracked;
+              const segmentation = wantPeople ? combineSelectedPeople(instances, tracked) : null;
+              segmentationRef.current = segmentation;
+              if (segmentation) prepareSegmentationMask(segmentation);
+              else {
+                // Keep mask canvas empty when no people selected.
+                if (expandedMaskCanvasRef.current) {
+                  const empty = expandedMaskCanvasRef.current;
+                  const emptyCtx = empty.getContext("2d");
+                  emptyCtx?.clearRect(0, 0, empty.width, empty.height);
+                }
+              }
+            }
             renderProcessedFrame(sourceCanvas, outputCanvas, width, height);
             frameNumber += 1;
             if (frameNumber % 12 === 0) {
@@ -1678,26 +1710,26 @@ export default function PrivacyStudio() {
                     <button type="button" disabled={exporting} className={quality === "fast" ? "active" : ""} aria-pressed={quality === "fast"} onClick={() => setQuality("fast")}>{copy.quality.low} <small>{copy.quality.lowSub}</small></button>
                     <button type="button" disabled={exporting} className={quality === "balanced" ? "active" : ""} aria-pressed={quality === "balanced"} onClick={() => setQuality("balanced")}>{copy.quality.mid} <small>{copy.quality.midSub}</small></button>
                     {PRECISE_MODE_ENABLED && <button type="button" disabled={exporting} className={quality === "precise" ? "active" : ""} aria-pressed={quality === "precise"} onClick={() => {
-                      if (!supportsPreciseWebMode()) {
-                        setMessage(msg.mobileHighDisabled);
-                        return;
-                      }
                       setQuality("precise");
-                      if (preciseModelState !== "ready") setMessage(msg.highModelSizeHint);
+                      if (preciseModelState !== "ready") setMessage(msg.highModeBodyPixHint);
                     }}>{copy.quality.high} <small>{copy.quality.highSub}</small></button>}
                   </div>
                 </div>
                 {PRECISE_MODE_ENABLED && quality === "precise" && (
                   <div className="offline-notice">
                     <strong>{copy.quality.preciseNoticeTitle}</strong>
-                    <span>{copy.quality.preciseNoticeBodyReady}{preciseModelState === "ready" ? (estimatedHighSeconds === null ? copy.quality.preciseNoticeBodyBenchmarking : copy.quality.preciseEstimateDone(formatTime(estimatedHighSeconds))) : copy.quality.preciseNoticeBodyIdle}</span>
-                    {(preciseModelState === "idle" || preciseModelState === "error") && (
+                    <span>
+                      {preciseModelState === "ready"
+                        ? <>{copy.quality.preciseNoticeBodyReady}{estimatedHighSeconds === null ? copy.quality.preciseNoticeBodyBenchmarking : copy.quality.preciseEstimateDone(formatTime(estimatedHighSeconds))}</>
+                        : copy.quality.preciseNoticeBodyIdle}
+                    </span>
+                    {(preciseModelState === "idle" || preciseModelState === "error") && supportsPreciseWebMode() && (
                       <button className="high-model-trigger" type="button" disabled={modelState !== "ready" || highLoadRequested} onClick={() => {
                         setMessage(msg.highModelInitSoon);
                         setHighLoadRequested(true);
                       }}>{preciseModelState === "error" ? copy.quality.preciseReload : copy.quality.preciseConfirmLoad}</button>
                     )}
-                    {estimatedHighSeconds !== null && estimatedHighSeconds > 360 && <span className="estimate-warning">{copy.quality.preciseEstimateWarning}</span>}
+                    {preciseModelState === "ready" && estimatedHighSeconds !== null && estimatedHighSeconds > 360 && <span className="estimate-warning">{copy.quality.preciseEstimateWarning}</span>}
                   </div>
                 )}
                 <div className="control-block effect-control">
@@ -1806,8 +1838,8 @@ export default function PrivacyStudio() {
                   <ArrowDownToLine size={19} /> {copy.export.download}
                 </a>
               ) : (
-                <button className="primary-action" type="button" disabled={maskScope !== "full" && (modelState !== "ready" || selected.size === 0 || (quality === "precise" && (preciseModelState !== "ready" || (estimatedHighSeconds !== null && estimatedHighSeconds > 360))))} onClick={exportVideo}>
-                  {maskScope === "full" ? copy.export.startFull : modelState === "loading" ? copy.export.aiPreparing : quality === "precise" && preciseModelState !== "ready" ? copy.export.confirmHighModel : quality === "precise" && estimatedHighSeconds !== null && estimatedHighSeconds > 360 ? copy.export.slowMachine : quality === "precise" ? copy.export.startPrecise : copy.export.startFast} <ChevronRight size={18} />
+                <button className="primary-action" type="button" disabled={maskScope !== "full" && (modelState !== "ready" || selected.size === 0 || (quality === "precise" && preciseModelState === "ready" && estimatedHighSeconds !== null && estimatedHighSeconds > 360))} onClick={exportVideo}>
+                  {maskScope === "full" ? copy.export.startFull : modelState === "loading" ? copy.export.aiPreparing : quality === "precise" && preciseModelState === "ready" && estimatedHighSeconds !== null && estimatedHighSeconds > 360 ? copy.export.slowMachine : quality === "precise" ? copy.export.startPrecise : copy.export.startFast} <ChevronRight size={18} />
                 </button>
               )}
               {message && !hideModelStatus && <p className={`status-message ${modelState === "error" ? "error" : ""}`}>{message}</p>}
