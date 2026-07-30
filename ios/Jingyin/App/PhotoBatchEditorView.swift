@@ -86,12 +86,18 @@ struct PhotoBatchEditorView: View {
         Binding(
             get: {
                 guard drafts.indices.contains(currentIndex) else { return [] }
-                return drafts[currentIndex].tracks
+                return drafts[currentIndex].maskGroups.map(\.track)
             },
             set: { value in
                 guard drafts.indices.contains(currentIndex) else { return }
                 invalidateOutputs(at: [currentIndex])
-                drafts[currentIndex].tracks = value
+                for track in value {
+                    guard let groupIndex = drafts[currentIndex].maskGroups
+                        .firstIndex(where: { $0.id == track.id }) else {
+                        continue
+                    }
+                    drafts[currentIndex].maskGroups[groupIndex].track = track
+                }
             }
         )
     }
@@ -241,7 +247,7 @@ struct PhotoBatchEditorView: View {
             HStack {
                 Text(localization.format(
                     "photo.maskCount",
-                    Int64(currentDraft?.tracks.count ?? 0)
+                    Int64(currentDraft?.maskGroups.count ?? 0)
                 ))
                 .font(.headline)
                 Spacer()
@@ -258,31 +264,44 @@ struct PhotoBatchEditorView: View {
             }
             .buttonStyle(.bordered)
 
-            if let tracks = currentDraft?.tracks, !tracks.isEmpty {
+            if let groups = currentDraft?.maskGroups, !groups.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
+                        ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
                             Button {
-                                selectedTrackID = track.id
+                                selectedTrackID = group.id
                             } label: {
-                                Text(localization.format(
-                                    "editor.maskItem",
-                                    Int64(index + 1)
-                                ))
+                                Label {
+                                    Text(localization.format(
+                                        "editor.maskItem",
+                                        Int64(index + 1)
+                                    ))
+                                } icon: {
+                                    Image(
+                                        systemName: group.hasEdgeMask
+                                            ? "wand.and.stars"
+                                            : "square.dashed"
+                                    )
+                                }
                                 .font(.caption.weight(.semibold))
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
                                 .background(
-                                    selectedTrackID == track.id
+                                    selectedTrackID == group.id
                                         ? Color.mint
                                         : Color.white.opacity(0.08),
                                     in: Capsule()
                                 )
                                 .foregroundStyle(
-                                    selectedTrackID == track.id ? .black : .primary
+                                    selectedTrackID == group.id ? .black : .primary
                                 )
                             }
                             .buttonStyle(.plain)
+                            .accessibilityHint(localization.t(
+                                group.hasEdgeMask
+                                    ? "photo.mask.edge"
+                                    : "photo.mask.fallback"
+                            ))
                         }
                     }
                 }
@@ -424,7 +443,9 @@ struct PhotoBatchEditorView: View {
         analysisTask = Task {
             for index in drafts.indices {
                 if Task.isCancelled { break }
-                let manualTracks = drafts[index].tracks.filter { $0.source == .manual }
+                let manualGroups = drafts[index].maskGroups.filter {
+                    $0.track.source == .manual
+                }
                 drafts[index].status = .analyzing
                 do {
                     let analysis = try await PhotoProcessor.analyze(
@@ -433,7 +454,8 @@ struct PhotoBatchEditorView: View {
                     )
                     drafts[index].previewImage = analysis.previewImage
                     drafts[index].displaySize = analysis.displaySize
-                    drafts[index].tracks = analysis.tracks + manualTracks
+                    drafts[index].maskGroups = analysis.maskGroups + manualGroups
+                    drafts[index].maskPlanes = analysis.maskPlanes
                     drafts[index].status = .ready
                     if index == currentIndex {
                         selectedTrackID = nil
@@ -453,16 +475,18 @@ struct PhotoBatchEditorView: View {
         renderedPreview = nil
         guard let currentDraft, currentDraft.status != .failed else { return }
         let expectedID = currentDraft.id
-        let renderOptions = PhotoProcessor.optionsForExport(
+        let renderOptions = PhotoProcessor.optionsForPhoto(
             options,
-            tracks: currentDraft.tracks
+            maskGroups: currentDraft.maskGroups
         )
         isRenderingPreview = true
         previewTask = Task {
             defer { isRenderingPreview = false }
             guard let rendered = try? await PhotoProcessor.renderPreview(
                 url: currentDraft.inputURL,
-                options: renderOptions
+                options: renderOptions,
+                maskGroups: currentDraft.maskGroups,
+                maskPlanes: currentDraft.maskPlanes
             ), !Task.isCancelled,
                drafts.indices.contains(currentIndex),
                drafts[currentIndex].id == expectedID else {
@@ -489,7 +513,7 @@ struct PhotoBatchEditorView: View {
                 )
             ]
         )
-        drafts[currentIndex].tracks.append(track)
+        drafts[currentIndex].maskGroups.append(PhotoMaskGroup(track: track))
         selectedTrackID = track.id
         invalidateOutputs(at: [currentIndex])
         refreshPreview()
@@ -497,7 +521,7 @@ struct PhotoBatchEditorView: View {
 
     private func deleteTrack(_ id: MaskTrack.ID) {
         guard drafts.indices.contains(currentIndex) else { return }
-        drafts[currentIndex].tracks.removeAll { $0.id == id }
+        drafts[currentIndex].maskGroups.removeAll { $0.id == id }
         if selectedTrackID == id {
             selectedTrackID = nil
         }

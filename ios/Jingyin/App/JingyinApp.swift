@@ -19,6 +19,7 @@ struct JingyinApp: App {
                     LocalizationResolverSmoke.run()
                     VideoCoordinateSpaceSmoke.run()
                     MaskTrackSmoke.run()
+                    PhotoProcessor.runSmokeTests()
                     #endif
                 }
         }

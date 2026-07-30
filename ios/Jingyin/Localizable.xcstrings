@@ -267,10 +267,26 @@
     },
     "photo.maskHint": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "每个自动识别结果都是独立遮罩组。点选后可删除、拖动或缩放。"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "每個自動辨識結果都是獨立遮罩組。點選後可刪除、拖動或縮放。"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Each detection is an independent mask group. Select it to delete, move, or resize."}},
-        "ja": {"stringUnit": {"state": "translated", "value": "検出結果ごとに独立したマスクです。選択して削除・移動・サイズ変更できます。"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "每个实体都是独立遮罩组，可删除、拖动或缩放。星光表示精细边缘，虚线框表示安全区兜底。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "每個實體都是獨立遮罩組，可刪除、拖動或縮放。星光表示精細邊緣，虛線框表示安全區備援。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Each subject is an independent group. A sparkle marks precise edges; a dashed square marks a safety fallback."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "被写体ごとに独立したマスクです。星は高精度な境界、破線は安全領域のフォールバックを示します。"}}
+      }
+    },
+    "photo.mask.edge": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "精细实体边缘"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "精細實體邊緣"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Precise subject edge"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "高精度な被写体境界"}}
+      }
+    },
+    "photo.mask.fallback": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "安全区兜底遮罩"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "安全區備援遮罩"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Safety-area fallback mask"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "安全領域のフォールバックマスク"}}
       }
     },
     "photo.redetect": {

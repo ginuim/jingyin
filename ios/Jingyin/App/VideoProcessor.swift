@@ -680,7 +680,8 @@ final class FrameEffectProcessor: @unchecked Sendable {
     func render(
         _ sourceImage: CIImage,
         at compositionTime: CMTime = .zero,
-        renderSize: CGSize? = nil
+        renderSize: CGSize? = nil,
+        externalMask: CIImage? = nil
     ) -> CIImage {
         let source = Self.scaledImage(sourceImage, to: renderSize)
         let extent = source.extent
@@ -713,9 +714,14 @@ final class FrameEffectProcessor: @unchecked Sendable {
             ? compositionTime.seconds
             : 0
         let trackMask = maskTrackMask(at: timeSeconds, extent: extent)
-        guard var mask = Self.combinedMask(
+        let detectedAndManualMask = Self.combinedMask(
             cachedMask,
             trackMask,
+            extent: extent
+        )
+        guard var mask = Self.combinedMask(
+            detectedAndManualMask,
+            externalMask,
             extent: extent
         ) else {
             return source
@@ -913,13 +919,25 @@ final class FrameEffectProcessor: @unchecked Sendable {
         do {
             let detectionHandler = VNImageRequestHandler(ciImage: image, orientation: .up)
             try detectionHandler.perform([humans, faces])
-            let humanBoxes: [CGRect] = (humans.results ?? []).map { $0.boundingBox }
-            let faceBoxes: [CGRect] = (faces.results ?? []).map { face in
-                let box = face.boundingBox
-                return box.insetBy(dx: -box.width * 1.2, dy: -box.height * 1.8)
+            let humanBoxes = (humans.results ?? [])
+                .filter { $0.confidence >= 0.35 }
+                .map(\.boundingBox)
+            if !humanBoxes.isEmpty {
+                return boxMask(
+                    for: humanBoxes,
+                    extent: extent,
+                    padding: 0.025
+                )
             }
-            let detected = humanBoxes + faceBoxes
-            return boxMask(for: detected, extent: extent, padding: 0.035)
+
+            // A face does not provide enough evidence to estimate the person's
+            // full body. The previous 3.4× / 4.6× rectangle frequently covered
+            // most of a portrait video. If body detection is unavailable, mask
+            // only the identity-bearing face area instead.
+            let faceBoxes = (faces.results ?? [])
+                .filter { $0.confidence >= 0.35 }
+                .map(\.boundingBox)
+            return ellipseMask(for: faceBoxes, extent: extent)
         } catch {
             return nil
         }
