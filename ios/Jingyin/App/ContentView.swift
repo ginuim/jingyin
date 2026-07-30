@@ -131,6 +131,8 @@ struct ContentView: View {
                         .padding(.horizontal, 28)
                 }
 
+                coverageDisclaimer
+
                 importButtons
 
                 Label(localization.t("home.privacy"), systemImage: "lock.shield.fill")
@@ -149,22 +151,27 @@ struct ContentView: View {
         }
     }
 
+    private var coverageDisclaimer: some View {
+        Label(localization.t("home.coverageDisclaimer"), systemImage: "exclamationmark.triangle.fill")
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(.orange)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(Color.orange.opacity(0.14), in: RoundedRectangle(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .strokeBorder(Color.orange.opacity(0.35), lineWidth: 1)
+            )
+            .padding(.horizontal, 28)
+            .accessibilityLabel(localization.t("home.coverageDisclaimer"))
+    }
+
     private var importButtons: some View {
         let videoTitle = localization.t("home.pickPhotos")
         let photoTitle = localization.t("home.pickImages")
         return VStack(spacing: 12) {
-            PhotosPicker(
-                selection: $pickedItem,
-                matching: .videos,
-                preferredItemEncoding: .current
-            ) {
-                Label(videoTitle, systemImage: "video.fill")
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.85)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(PrimaryButtonStyle())
-
             PhotosPicker(
                 selection: $pickedPhotoItems,
                 maxSelectionCount: 50,
@@ -172,6 +179,18 @@ struct ContentView: View {
                 preferredItemEncoding: .current
             ) {
                 Label(photoTitle, systemImage: "photo.stack.fill")
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PrimaryButtonStyle())
+
+            PhotosPicker(
+                selection: $pickedItem,
+                matching: .videos,
+                preferredItemEncoding: .current
+            ) {
+                Label(videoTitle, systemImage: "video.fill")
                     .lineLimit(2)
                     .minimumScaleFactor(0.85)
                     .frame(maxWidth: .infinity)

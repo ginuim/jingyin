@@ -141,6 +141,34 @@
         }
       }
     },
+    "home.coverageDisclaimer": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "受算法、光线、角度与姿势等影响，无法保证 100% 完美遮盖；导出前请仔细检查，必要时手动补充。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "受演算法、光線、角度與姿勢等影響，無法保證 100% 完美遮蓋；匯出前請仔細檢查，必要時手動補充。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Due to algorithm limits, lighting, angle, and pose, coverage can’t be 100% perfect. Review before export and add masks if needed."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アルゴリズムや光・角度・姿勢などの影響で、100%の完璧な覆い隠しは保証できません。書き出し前に確認し、必要なら手動で追加してください。"
+          }
+        }
+      }
+    },
     "home.reading": {
       "localizations": {
         "zh-Hans": {
