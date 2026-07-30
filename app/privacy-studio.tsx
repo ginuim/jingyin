@@ -24,7 +24,7 @@ import {
 import type { ObjectDetection, DetectedObject } from "@tensorflow-models/coco-ssd";
 import type { BodyPix, PersonSegmentation, SemanticPersonSegmentation } from "@tensorflow-models/body-pix";
 import soundTouchProcessorUrl from "@soundtouchjs/audio-worklet/processor?url";
-import { loadYoloSegModel, segmentWithYolo, supportsPreciseWebMode, supportsWebGpu, type YoloLoadProgress, type YoloMask } from "./yolo-seg";
+import { isMobileLikeDevice, loadYoloSegModel, segmentWithYolo, supportsPreciseWebMode, supportsWebGpu, type YoloLoadProgress, type YoloMask } from "./yolo-seg";
 import { useLocale } from "./i18n/locale";
 import { useTheme } from "./i18n/theme";
 import { ENTITY_CLASS_GROUPS, entityKeyForClass, getStudioCopy, type EntityKey } from "./i18n/studio-copy";
@@ -47,6 +47,8 @@ type BiquadState = { x1: number; x2: number; y1: number; y2: number };
 
 // High mode = frame-by-frame export; YOLO is an optional WebGPU boost (desktop).
 const PRECISE_MODE_ENABLED = true;
+// Phone/touch clients need a wider privacy seal; desktop keeps the tighter contour.
+const MOBILE_MASK_SOFT = typeof navigator !== "undefined" && isMobileLikeDevice();
 
 const BODYPIX_BALANCED_OPTIONS = {
   internalResolution: "medium" as const,
@@ -465,8 +467,7 @@ export default function PrivacyStudio() {
       maskCtx.putImageData(native, 0, 0);
       expandedCtx.imageSmoothingEnabled = true;
       expandedCtx.imageSmoothingQuality = "high";
-      // ~1.5px at ≥720px ≈ soft AA, not the old fat safety halo.
-      expandedCtx.filter = "blur(1.5px)";
+      expandedCtx.filter = MOBILE_MASK_SOFT ? "blur(3.5px)" : "blur(1.5px)";
       expandedCtx.drawImage(maskCanvas, 0, 0, maskWidth, maskHeight);
       expandedCtx.filter = "none";
       return;
@@ -502,8 +503,9 @@ export default function PrivacyStudio() {
     maskCtx.fillStyle = "#fff";
     maskCtx.lineCap = "round";
     maskCtx.lineJoin = "round";
-    // Thin limb seal only — old 3.4% strokes fattened the whole torso into a blob.
-    maskCtx.lineWidth = Math.max(5, maskWidth * 0.01);
+    maskCtx.lineWidth = MOBILE_MASK_SOFT
+      ? Math.max(10, maskWidth * 0.022)
+      : Math.max(5, maskWidth * 0.01);
     segmentation.allPoses.forEach((pose) => {
       const points = new Map(pose.keypoints.map((point) => [point.part, point]));
       limbPairs.forEach(([fromName, toName]) => {
@@ -518,21 +520,29 @@ export default function PrivacyStudio() {
       const nose = points.get("nose");
       if (nose && nose.score > 0.16) {
         maskCtx.beginPath();
-        maskCtx.arc(nose.position.x * maskScale, nose.position.y * maskScale, Math.max(7, maskWidth * 0.016), 0, Math.PI * 2);
+        maskCtx.arc(
+          nose.position.x * maskScale,
+          nose.position.y * maskScale,
+          MOBILE_MASK_SOFT ? Math.max(12, maskWidth * 0.03) : Math.max(7, maskWidth * 0.016),
+          0,
+          Math.PI * 2,
+        );
         maskCtx.fill();
       }
     });
     maskCtx.restore();
 
-    // Small morphological seal. Old 2.8%/34px dilation ate a wide ring of background.
-    const safetyRadius = Math.max(2, Math.min(6, maskWidth * 0.006));
+    const safetyRadius = MOBILE_MASK_SOFT
+      ? Math.max(8, Math.min(18, maskWidth * 0.018))
+      : Math.max(2, Math.min(6, maskWidth * 0.006));
     expandedCtx.imageSmoothingEnabled = true;
     expandedCtx.imageSmoothingQuality = "high";
-    expandedCtx.filter = "blur(1.25px)";
+    expandedCtx.filter = MOBILE_MASK_SOFT ? "blur(2.75px)" : "blur(1.25px)";
     expandedCtx.drawImage(maskCanvas, 0, 0);
     expandedCtx.filter = "none";
-    for (let step = 0; step < 8; step += 1) {
-      const angle = (step / 8) * Math.PI * 2;
+    const sealSteps = MOBILE_MASK_SOFT ? 12 : 8;
+    for (let step = 0; step < sealSteps; step += 1) {
+      const angle = (step / sealSteps) * Math.PI * 2;
       expandedCtx.drawImage(maskCanvas, Math.cos(angle) * safetyRadius, Math.sin(angle) * safetyRadius);
     }
   }, []);
@@ -727,8 +737,7 @@ export default function PrivacyStudio() {
       effectCtx.filter = blurred ? `blur(${blurAmount}px)` : "none";
       effectCtx.drawImage(source, 0, 0, width, height);
       effectCtx.globalCompositeOperation = "destination-in";
-      // Light edge AA only — 4px on an inflated mask read as a wide halo into the background.
-      effectCtx.filter = "blur(2px)";
+      effectCtx.filter = MOBILE_MASK_SOFT ? "blur(6px)" : "blur(2px)";
       effectCtx.drawImage(maskCanvas, 0, 0, width, height);
       effectCtx.globalCompositeOperation = "source-over";
       effectCtx.filter = "none";
@@ -749,7 +758,12 @@ export default function PrivacyStudio() {
 
     if (scopeRef.current !== "full") boxObjects.forEach((item) => {
       const [x, y, w, h] = item.bbox;
-      const pad = Math.max(8, Math.min(w, h) * (qualityRef.current === "precise" ? 0.1 : 0.06));
+      const pad = Math.max(
+        MOBILE_MASK_SOFT ? 14 : 8,
+        Math.min(w, h) * (qualityRef.current === "precise"
+          ? (MOBILE_MASK_SOFT ? 0.16 : 0.1)
+          : (MOBILE_MASK_SOFT ? 0.12 : 0.06)),
+      );
       ctx.save();
       ctx.beginPath();
       if (item.class === "person") {
