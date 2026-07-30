@@ -662,9 +662,11 @@ final class FrameEffectProcessor: @unchecked Sendable {
     private let asciiGlyphTiles: [CIImage]
     private var cachedMask: CIImage?
     private var frameIndex = 0
+    private var liveEntities: [MaskEntity]
 
     init(options: ProcessingOptions) {
         self.options = options
+        liveEntities = options.maskEntities
         asciiGlyphTiles = options.style == .ascii
             ? Self.makeASCIIGlyphTiles(
                 cellSize: CGFloat(options.strength),
@@ -673,8 +675,28 @@ final class FrameEffectProcessor: @unchecked Sendable {
             : []
     }
 
+    /// Latest auto-detected entities after a render or `syncEntities` pass.
+    var currentEntities: [MaskEntity] {
+        lock.lock()
+        defer { lock.unlock() }
+        return liveEntities
+    }
+
     func warmUp() async {
         _ = context.createCGImage(CIImage(color: .black).cropped(to: CGRect(x: 0, y: 0, width: 8, height: 8)), from: CGRect(x: 0, y: 0, width: 8, height: 8))
+    }
+
+    /// Updates entity association from a still frame without applying effects.
+    @discardableResult
+    func syncEntities(from image: CIImage) -> [MaskEntity] {
+        lock.lock()
+        defer { lock.unlock() }
+        let prepared = detectSubjects(in: image, extent: image.extent)
+        liveEntities = MaskEntityAssociation.associate(
+            existing: liveEntities.filter { options.subjects.contains($0.kind) },
+            detections: prepared.map(\.association)
+        )
+        return liveEntities
     }
 
     func render(
@@ -708,7 +730,8 @@ final class FrameEffectProcessor: @unchecked Sendable {
         defer { lock.unlock() }
         frameIndex += 1
         if frameIndex == 1 || frameIndex.isMultiple(of: options.quality.frameInterval) {
-            cachedMask = subjectMask(for: source, extent: extent) ?? cachedMask
+            // nil is intentional when every entity is disabled or nothing is found.
+            cachedMask = subjectMask(for: source, extent: extent)
         }
         let timeSeconds = compositionTime.seconds.isFinite
             ? compositionTime.seconds
@@ -750,6 +773,278 @@ final class FrameEffectProcessor: @unchecked Sendable {
             kCIInputBackgroundImageKey: source,
             kCIInputMaskImageKey: mask
         ]).cropped(to: extent)
+    }
+
+    private struct PreparedDetection {
+        let association: MaskEntityAssociation.Detection
+        let mask: CIImage
+    }
+
+    private func subjectMask(for image: CIImage, extent: CGRect) -> CIImage? {
+        let prepared = detectSubjects(in: image, extent: extent)
+        liveEntities = MaskEntityAssociation.associate(
+            existing: liveEntities.filter { options.subjects.contains($0.kind) },
+            detections: prepared.map(\.association)
+        )
+        let activeCount = prepared.count
+        var masks: [CIImage] = []
+        for index in 0..<activeCount where liveEntities[index].isEnabled {
+            masks.append(prepared[index].mask)
+        }
+        guard var combined = masks.first else { return nil }
+        for mask in masks.dropFirst() {
+            combined = mask.applyingFilter("CIMaximumCompositing", parameters: [
+                kCIInputBackgroundImageKey: combined
+            ])
+        }
+        return combined.cropped(to: extent)
+    }
+
+    private func detectSubjects(in image: CIImage, extent: CGRect) -> [PreparedDetection] {
+        var prepared: [PreparedDetection] = []
+        if options.subjects.contains(.person) {
+            prepared += personDetections(for: image, extent: extent)
+        }
+        if options.subjects.contains(.face) {
+            prepared += faceDetections(for: image, extent: extent)
+        }
+        if options.subjects.contains(.pet) {
+            prepared += petDetections(for: image, extent: extent)
+        }
+        return prepared
+    }
+
+    private func personDetections(for image: CIImage, extent: CGRect) -> [PreparedDetection] {
+        let instanceRequest = VNGeneratePersonInstanceMaskRequest()
+        let handler = VNImageRequestHandler(ciImage: image, orientation: .up)
+        if (try? handler.perform([instanceRequest])) != nil,
+           let observation = instanceRequest.results?.first,
+           !observation.allInstances.isEmpty {
+            var detections: [PreparedDetection] = []
+            for instance in observation.allInstances {
+                guard instance > 0 else { continue }
+                guard let buffer = try? observation.generateScaledMaskForImage(
+                    forInstances: IndexSet(integer: instance),
+                    from: handler
+                ) else { continue }
+                let mask = scaledMask(from: buffer, to: extent)
+                guard let rect = normalizedBounds(of: mask, extent: extent),
+                      rect.width * rect.height <= 0.95,
+                      rect.width * rect.height > 0.002 else {
+                    continue
+                }
+                detections.append(
+                    PreparedDetection(
+                        association: .init(
+                            kind: .person,
+                            source: .detectedPerson,
+                            rect: rect
+                        ),
+                        mask: mask
+                    )
+                )
+            }
+            if !detections.isEmpty {
+                return detections
+            }
+        }
+
+        // Semantic whole-frame person mask as a single entity when instances fail.
+        let segmentation = VNGeneratePersonSegmentationRequest()
+        segmentation.qualityLevel = options.quality == .fast
+            ? .fast
+            : (options.quality == .precise ? .accurate : .balanced)
+        segmentation.outputPixelFormat = kCVPixelFormatType_OneComponent8
+        do {
+            try VNImageRequestHandler(ciImage: image, orientation: .up)
+                .perform([segmentation])
+            if let buffer = segmentation.results?.first?.pixelBuffer {
+                var semanticMask = scaledMask(from: buffer, to: extent)
+                if options.quality == .precise,
+                   let foregroundMask = foregroundInstanceMask(for: image, extent: extent) {
+                    let semanticSafety = semanticMask
+                        .applyingFilter("CIMorphologyMaximum", parameters: [kCIInputRadiusKey: 6])
+                        .cropped(to: extent)
+                    semanticMask = foregroundMask
+                        .applyingFilter("CIMinimumCompositing", parameters: [
+                            kCIInputBackgroundImageKey: semanticSafety
+                        ])
+                        .cropped(to: extent)
+                }
+                if let rect = normalizedBounds(of: semanticMask, extent: extent),
+                   rect.width * rect.height > 0.002 {
+                    return [
+                        PreparedDetection(
+                            association: .init(
+                                kind: .person,
+                                source: .detectedPerson,
+                                rect: rect
+                            ),
+                            mask: semanticMask
+                        )
+                    ]
+                }
+            }
+        } catch {
+            // Fall through to geometry.
+        }
+
+        let humans = VNDetectHumanRectanglesRequest()
+        humans.upperBodyOnly = false
+        let faces = VNDetectFaceRectanglesRequest()
+        configureCPU(faces)
+        do {
+            try VNImageRequestHandler(ciImage: image, orientation: .up)
+                .perform([humans, faces])
+            let humanBoxes = (humans.results ?? [])
+                .filter { $0.confidence >= 0.35 }
+                .map(\.boundingBox)
+            if !humanBoxes.isEmpty {
+                return humanBoxes.compactMap { box in
+                    guard let mask = boxMask(for: [box], extent: extent, padding: 0.025) else {
+                        return nil
+                    }
+                    return PreparedDetection(
+                        association: .init(
+                            kind: .person,
+                            source: .detectedPerson,
+                            rect: NormalizedVideoRect(visionBoundingBox: box)
+                        ),
+                        mask: mask
+                    )
+                }
+            }
+            let faceBoxes = (faces.results ?? [])
+                .filter { $0.confidence >= 0.35 }
+                .map(\.boundingBox)
+            return faceBoxes.compactMap { box in
+                guard let mask = ellipseMask(for: [box], extent: extent) else { return nil }
+                return PreparedDetection(
+                    association: .init(
+                        kind: .person,
+                        source: .detectedPerson,
+                        rect: NormalizedVideoRect(visionBoundingBox: box).expandedForFaceCoverage()
+                    ),
+                    mask: mask
+                )
+            }
+        } catch {
+            return []
+        }
+    }
+
+    private func faceDetections(for image: CIImage, extent: CGRect) -> [PreparedDetection] {
+        let request = VNDetectFaceRectanglesRequest()
+        configureCPU(request)
+        do {
+            try VNImageRequestHandler(ciImage: image, orientation: .up)
+                .perform([request])
+            let boxes = (request.results ?? [])
+                .filter { $0.confidence >= 0.35 }
+                .map(\.boundingBox)
+            return boxes.compactMap { box in
+                guard let mask = ellipseMask(for: [box], extent: extent) else { return nil }
+                return PreparedDetection(
+                    association: .init(
+                        kind: .face,
+                        source: .detectedFace,
+                        rect: NormalizedVideoRect(visionBoundingBox: box).expandedForFaceCoverage()
+                    ),
+                    mask: mask
+                )
+            }
+        } catch {
+            return []
+        }
+    }
+
+    private func petDetections(for image: CIImage, extent: CGRect) -> [PreparedDetection] {
+        let request = VNRecognizeAnimalsRequest()
+        do {
+            try VNImageRequestHandler(ciImage: image, orientation: .up)
+                .perform([request])
+            let boxes = (request.results ?? [])
+                .filter { $0.confidence >= 0.35 }
+                .map(\.boundingBox)
+            return boxes.compactMap { box in
+                let mask = foregroundInstanceMask(
+                    for: image,
+                    extent: extent,
+                    matching: [box]
+                ) ?? boxMask(for: [box], extent: extent, padding: 0.025)
+                guard let mask else { return nil }
+                return PreparedDetection(
+                    association: .init(
+                        kind: .pet,
+                        source: .detectedPet,
+                        rect: NormalizedVideoRect(visionBoundingBox: box)
+                    ),
+                    mask: mask
+                )
+            }
+        } catch {
+            return []
+        }
+    }
+
+    private func configureCPU(_ request: VNRequest) {
+        if let stageDevices = try? request.supportedComputeStageDevices {
+            for (stage, devices) in stageDevices {
+                guard let cpu = devices.first(where: { device in
+                    if case .cpu = device { return true }
+                    return false
+                }) else {
+                    continue
+                }
+                request.setComputeDevice(cpu, for: stage)
+            }
+        }
+    }
+
+    /// Approximate display-normalized bounds from a white-on-black mask.
+    private func normalizedBounds(of mask: CIImage, extent: CGRect) -> NormalizedVideoRect? {
+        let width = 64
+        let height = max(1, Int((extent.height / max(extent.width, 1)) * CGFloat(width)))
+        let render = CGRect(x: 0, y: 0, width: width, height: height)
+        let scaled = mask
+            .transformed(by: CGAffineTransform(
+                scaleX: CGFloat(width) / extent.width,
+                y: CGFloat(height) / extent.height
+            ))
+            .transformed(by: CGAffineTransform(
+                translationX: -extent.minX * CGFloat(width) / extent.width,
+                y: -extent.minY * CGFloat(height) / extent.height
+            ))
+        guard let cgImage = context.createCGImage(scaled, from: render),
+              let data = cgImage.dataProvider?.data,
+              let bytes = CFDataGetBytePtr(data) else {
+            return nil
+        }
+        let bytesPerPixel = cgImage.bitsPerPixel / 8
+        let bytesPerRow = cgImage.bytesPerRow
+        var minX = width
+        var minY = height
+        var maxX = -1
+        var maxY = -1
+        for y in 0..<height {
+            for x in 0..<width {
+                let offset = y * bytesPerRow + x * bytesPerPixel
+                if bytes[offset] > 40 {
+                    minX = min(minX, x)
+                    minY = min(minY, y)
+                    maxX = max(maxX, x)
+                    maxY = max(maxY, y)
+                }
+            }
+        }
+        guard maxX >= minX, maxY >= minY else { return nil }
+        // cgImage rows are top-to-bottom; display space is also top-left.
+        return NormalizedVideoRect(
+            x: Double(minX) / Double(width),
+            y: Double(minY) / Double(height),
+            width: Double(maxX - minX + 1) / Double(width),
+            height: Double(maxY - minY + 1) / Double(height)
+        )
     }
 
     private static func combinedMask(
@@ -861,86 +1156,6 @@ final class FrameEffectProcessor: @unchecked Sendable {
         return scaled
             .transformed(by: offset)
             .cropped(to: target)
-    }
-
-    private func subjectMask(for image: CIImage, extent: CGRect) -> CIImage? {
-        var masks: [CIImage] = []
-        if options.subjects.contains(.person), let mask = personMask(for: image, extent: extent) {
-            masks.append(mask)
-        }
-        if options.subjects.contains(.face), let mask = faceMask(for: image, extent: extent) {
-            masks.append(mask)
-        }
-        if options.subjects.contains(.pet), let mask = petMask(for: image, extent: extent) {
-            masks.append(mask)
-        }
-        guard var combined = masks.first else { return nil }
-        for mask in masks.dropFirst() {
-            combined = mask.applyingFilter("CIMaximumCompositing", parameters: [
-                kCIInputBackgroundImageKey: combined
-            ])
-        }
-        return combined.cropped(to: extent)
-    }
-
-    private func personMask(for image: CIImage, extent: CGRect) -> CIImage? {
-        let segmentation = VNGeneratePersonSegmentationRequest()
-        segmentation.qualityLevel = options.quality == .fast ? .fast : (options.quality == .precise ? .accurate : .balanced)
-        segmentation.outputPixelFormat = kCVPixelFormatType_OneComponent8
-
-        do {
-            let segmentationHandler = VNImageRequestHandler(ciImage: image, orientation: .up)
-            try segmentationHandler.perform([segmentation])
-            if let buffer = segmentation.results?.first?.pixelBuffer {
-                let semanticMask = scaledMask(from: buffer, to: extent)
-                if options.quality == .precise,
-                   let foregroundMask = foregroundInstanceMask(for: image, extent: extent) {
-                    // The semantic request identifies people; the foreground request
-                    // contributes the higher-resolution hair, clothing and limb edges.
-                    let semanticSafety = semanticMask
-                        .applyingFilter("CIMorphologyMaximum", parameters: [kCIInputRadiusKey: 6])
-                        .cropped(to: extent)
-                    return foregroundMask
-                        .applyingFilter("CIMinimumCompositing", parameters: [
-                            kCIInputBackgroundImageKey: semanticSafety
-                        ])
-                        .cropped(to: extent)
-                }
-                return semanticMask
-            }
-        } catch {
-            // Rectangle detection below is only a fallback. Mixing rectangles into
-            // a successful pixel mask would destroy the person's precise outline.
-        }
-
-        let humans = VNDetectHumanRectanglesRequest()
-        humans.upperBodyOnly = false
-        let faces = VNDetectFaceRectanglesRequest()
-        do {
-            let detectionHandler = VNImageRequestHandler(ciImage: image, orientation: .up)
-            try detectionHandler.perform([humans, faces])
-            let humanBoxes = (humans.results ?? [])
-                .filter { $0.confidence >= 0.35 }
-                .map(\.boundingBox)
-            if !humanBoxes.isEmpty {
-                return boxMask(
-                    for: humanBoxes,
-                    extent: extent,
-                    padding: 0.025
-                )
-            }
-
-            // A face does not provide enough evidence to estimate the person's
-            // full body. The previous 3.4× / 4.6× rectangle frequently covered
-            // most of a portrait video. If body detection is unavailable, mask
-            // only the identity-bearing face area instead.
-            let faceBoxes = (faces.results ?? [])
-                .filter { $0.confidence >= 0.35 }
-                .map(\.boundingBox)
-            return ellipseMask(for: faceBoxes, extent: extent)
-        } catch {
-            return nil
-        }
     }
 
     private func foregroundInstanceMask(
@@ -1077,59 +1292,6 @@ final class FrameEffectProcessor: @unchecked Sendable {
             }
         }
         return selected
-    }
-
-    private func faceMask(for image: CIImage, extent: CGRect) -> CIImage? {
-        let request = VNDetectFaceRectanglesRequest()
-        // Face rectangles are lightweight, and forcing the CPU avoids Vision
-        // failing to create a GPU/Neural Engine inference context for
-        // AVVideoComposition-backed CIImage frames on some OS/device builds.
-        if let stageDevices = try? request.supportedComputeStageDevices {
-            for (stage, devices) in stageDevices {
-                guard let cpu = devices.first(where: { device in
-                    if case .cpu = device { return true }
-                    return false
-                }) else {
-                    continue
-                }
-                request.setComputeDevice(cpu, for: stage)
-            }
-        }
-        let handler = VNImageRequestHandler(ciImage: image, orientation: .up)
-        do {
-            try handler.perform([request])
-            let boxes = (request.results ?? [])
-                .filter { $0.confidence >= 0.35 }
-                .map(\.boundingBox)
-            return ellipseMask(for: boxes, extent: extent)
-        } catch {
-            return nil
-        }
-    }
-
-    private func petMask(for image: CIImage, extent: CGRect) -> CIImage? {
-        let request = VNRecognizeAnimalsRequest()
-        let handler = VNImageRequestHandler(ciImage: image, orientation: .up)
-        do {
-            try handler.perform([request])
-            guard let observations = request.results, !observations.isEmpty else { return nil }
-            let boxes = observations
-                .filter { $0.confidence >= 0.35 }
-                .map(\.boundingBox)
-            guard !boxes.isEmpty else { return nil }
-            if let preciseMask = foregroundInstanceMask(
-                for: image,
-                extent: extent,
-                matching: boxes
-            ) {
-                return preciseMask
-            }
-            // Older/unsupported devices and frames without a foreground
-            // instance keep the previous privacy-safe rectangle fallback.
-            return boxMask(for: boxes, extent: extent, padding: 0.025)
-        } catch {
-            return nil
-        }
     }
 
     private func boxMask(for boxes: [CGRect], extent: CGRect, padding: CGFloat) -> CIImage? {

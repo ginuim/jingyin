@@ -62,9 +62,9 @@
 路线：批量统一设置 + 逐张复核；免费每次导出 1 张，买断解锁多图批量。人脸贴纸后置，不阻塞本项。
 
 - [x] 首页区分「处理视频」与「处理照片」；照片支持系统相册多选（单批最多 20 张）
-- [ ] 抽离帧级识别与效果合成，供视频帧与静态图共用（静态图已复用 `FrameEffectProcessor` 效果合成；照片为支持逐组删除，暂保留独立检测结果而非复用视频的合并位图蒙版）
+- [x] 抽离帧级识别与效果合成，供视频帧与静态图共用（静态图已复用 `FrameEffectProcessor`；视频自动遮盖改为 `MaskEntity` 列表 + IoU 跨帧继承，可单独开关；照片仍用 `PhotoMaskGroup` 逐组删除。2026-07-30：照片编辑页补齐 scope / quality / strength / ASCII 与视频一致）
 - [x] 顺序处理多图（避免同时解码多张原图）；状态：待处理 / 已识别 / 需复核 / 完成 / 失败
-- [x] 批量统一主体与效果；复核页可逐张补充、移动、缩放、删除蒙版（人物使用 `VNGeneratePersonInstanceMaskRequest` 并与独立的 `VNGeneratePersonSegmentationRequest` 人体语义结果求交，过滤整图误判与边缘离群像素；人脸 / 宠物检测框匹配 `VNGenerateForegroundInstanceMaskRequest`；每个实体引用共享标签图中的独立实例编号，避免重复保存全尺寸蒙版；失败时回退扩大椭圆 / 矩形安全区；画面点选和蒙版编号列表均可选中）
+- [x] 批量统一主体与效果；复核页可逐张补充、移动、缩放、删除蒙版（人物使用 `VNGeneratePersonInstanceMaskRequest` 并与独立的 `VNGeneratePersonSegmentationRequest` 人体语义结果求交，过滤整图误判与边缘离群像素；人脸 / 宠物检测框匹配 `VNGenerateForegroundInstanceMaskRequest`；每个实体引用共享标签图中的独立实例编号，避免重复保存全尺寸蒙版；失败时回退扩大椭圆 / 矩形安全区；画面点选和蒙版编号列表均可选中；批量统一含遮盖范围 / 档位 / 强度 / ASCII 色）
 - [x] 导出保持方向与合理分辨率，清除位置 / 设备 / 拍摄时间等 metadata（2026-07-30 iOS 18.1 模拟器验证横竖两张输出为 1280×588 / 588×1280，orientation / creation / make / model 均为空）
 - [x] 单张保存或分享；批量逐张报告成败，失败可重试；临时文件清理
 - [x] 处理器内强制免费最多 1 张、买断可批量；预览不限（模拟器分别验证免费单张与 `-storekitUnlocked` 两张批量输出）

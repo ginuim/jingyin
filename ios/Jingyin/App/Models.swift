@@ -384,6 +384,30 @@ enum ASCIIColorRecentStore {
     }
 }
 
+/// One auto-detected subject that the user can enable/disable independently.
+/// Video keeps these in the edit session; masks are regenerated per frame.
+struct MaskEntity: Identifiable, Equatable, Hashable, Sendable {
+    let id: UUID
+    var kind: SubjectKind
+    var source: MaskTrackSource
+    var isEnabled: Bool
+    var lastRect: NormalizedVideoRect
+
+    init(
+        id: UUID = UUID(),
+        kind: SubjectKind,
+        source: MaskTrackSource,
+        isEnabled: Bool = true,
+        lastRect: NormalizedVideoRect
+    ) {
+        self.id = id
+        self.kind = kind
+        self.source = source
+        self.isEnabled = isEnabled
+        self.lastRect = lastRect
+    }
+}
+
 struct ProcessingOptions: Equatable {
     var quality: QualityMode = .balanced
     var scope: MaskScope = .subjects
@@ -395,6 +419,8 @@ struct ProcessingOptions: Equatable {
     var asciiBackground: EffectRGBA = .asciiDefaultBackground
     var subjects: Set<SubjectKind> = [.person]
     var maskTracks: [MaskTrack] = []
+    /// Auto-detected subjects for per-entity enable/disable (video session).
+    var maskEntities: [MaskEntity] = []
     var exportResolution: ExportResolution = .p1080
     var exportFrameRate = 30
 

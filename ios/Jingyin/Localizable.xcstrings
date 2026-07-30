@@ -925,6 +925,54 @@
         "ja": {"stringUnit": {"state": "translated", "value": "マスク %lld"}}
       }
     },
+    "editor.entityItem": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "主体 %lld"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "主體 %lld"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Subject %lld"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "対象 %lld"}}
+      }
+    },
+    "editor.entityOn": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "正在遮盖"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "正在遮蓋"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Currently masked"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "マスク中"}}
+      }
+    },
+    "editor.entityOff": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "已关闭遮盖"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "已關閉遮蓋"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Masking off"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "マスクオフ"}}
+      }
+    },
+    "editor.entityDisable": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "关闭此主体"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "關閉此主體"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Disable This Subject"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "この対象をオフ"}}
+      }
+    },
+    "editor.entityEnable": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "重新遮盖"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "重新遮蓋"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Mask Again"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "再度マスク"}}
+      }
+    },
+    "editor.entityHint": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "自动识别的主体可单独关闭；拖动时间轴时会尽量记住你的选择。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "自動辨識的主體可單獨關閉；拖動時間軸時會盡量記住你的選擇。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Turn off individual auto-detected subjects. Your choice is remembered while scrubbing when possible."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "自動検出した対象は個別にオフにできます。スクラブ中も可能な範囲で選択を維持します。"}}
+      }
+    },
     "editor.shrinkMask": {
       "localizations": {
         "zh-Hans": {"stringUnit": {"state": "translated", "value": "缩小覆盖"}},

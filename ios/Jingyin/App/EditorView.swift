@@ -1,5 +1,6 @@
 import AVFoundation
 import AVKit
+import CoreImage
 import SwiftUI
 import UIKit
 
@@ -17,6 +18,7 @@ struct EditorView: View {
     @State private var maskPreviewRevision = 0
     @State private var playheadSeconds = 0.0
     @State private var selectedMaskTrackID: MaskTrack.ID?
+    @State private var selectedEntityID: MaskEntity.ID?
     @State private var showManualMaskEditor = false
     @State private var showFullScreenMaskEditor = false
     @State private var faceDetectionSnapshot: FaceDetectionSnapshot?
@@ -228,7 +230,11 @@ struct EditorView: View {
         let subjects = options.subjects.map(\.rawValue).sorted().joined(separator: ",")
         let fg = options.asciiForeground
         let bg = options.asciiBackground
-        return "\(options.quality.rawValue)|\(options.scope.rawValue)|\(options.style.rawValue)|\(options.strength)|\(subjects)|\(maskPreviewRevision)|\(fg.r),\(fg.g),\(fg.b),\(fg.a)|\(bg.r),\(bg.g),\(bg.b),\(bg.a)"
+        let entities = options.maskEntities
+            .map { "\($0.id.uuidString):\($0.isEnabled ? 1 : 0)" }
+            .sorted()
+            .joined(separator: ",")
+        return "\(options.quality.rawValue)|\(options.scope.rawValue)|\(options.style.rawValue)|\(options.strength)|\(subjects)|\(maskPreviewRevision)|\(fg.r),\(fg.g),\(fg.b),\(fg.a)|\(bg.r),\(bg.g),\(bg.b),\(bg.a)|\(entities)"
     }
 
     private var videoPlayerSection: some View {
@@ -414,6 +420,15 @@ struct EditorView: View {
                             .accessibilityAddTraits(isSelected ? .isSelected : [])
                         }
                     }
+
+                    if !options.maskEntities.isEmpty {
+                        entitySelector
+                    }
+
+                    Text(localization.t("editor.entityHint"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 CollapsibleOptionSection(
@@ -520,6 +535,76 @@ struct EditorView: View {
 
     private func toggle(_ subject: SubjectKind) {
         options.toggleSubject(subject)
+        options.maskEntities.removeAll { !options.subjects.contains($0.kind) }
+        if let selectedEntityID,
+           !options.maskEntities.contains(where: { $0.id == selectedEntityID }) {
+            self.selectedEntityID = nil
+        }
+    }
+
+    private var entitySelector: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(Array(options.maskEntities.enumerated()), id: \.element.id) { index, entity in
+                        Button {
+                            selectedEntityID = entity.id
+                        } label: {
+                            Label {
+                                Text(localization.format(
+                                    "editor.entityItem",
+                                    Int64(index + 1)
+                                ))
+                            } icon: {
+                                Image(systemName: entity.kind.icon)
+                            }
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                selectedEntityID == entity.id
+                                    ? Color.mint
+                                    : Color.white.opacity(entity.isEnabled ? 0.12 : 0.05),
+                                in: Capsule()
+                            )
+                            .foregroundStyle(
+                                selectedEntityID == entity.id
+                                    ? .black
+                                    : (entity.isEnabled ? .primary : .secondary)
+                            )
+                            .opacity(entity.isEnabled ? 1 : 0.55)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint(
+                            localization.t(
+                                entity.isEnabled ? "editor.entityOn" : "editor.entityOff"
+                            )
+                        )
+                    }
+                }
+            }
+
+            if let selectedEntityID,
+               let index = options.maskEntities.firstIndex(where: { $0.id == selectedEntityID }) {
+                Button {
+                    options.maskEntities[index].isEnabled.toggle()
+                } label: {
+                    Label(
+                        localization.t(
+                            options.maskEntities[index].isEnabled
+                                ? "editor.entityDisable"
+                                : "editor.entityEnable"
+                        ),
+                        systemImage: options.maskEntities[index].isEnabled
+                            ? "eye.slash"
+                            : "eye"
+                    )
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(.top, 4)
     }
 
     private var manualMaskCountLabel: String? {
@@ -1238,7 +1323,25 @@ struct EditorView: View {
         let wasPlaying = player.rate > 0
         let time = player.currentTime()
         let asset = AVURLAsset(url: videoURL)
-        let processor = FrameEffectProcessor(options: options)
+        var seedOptions = options
+        let syncProcessor = FrameEffectProcessor(options: seedOptions)
+        await syncProcessor.warmUp()
+        guard generation == previewGeneration, !Task.isCancelled else { return }
+        if let synced = await syncMaskEntities(
+            using: syncProcessor,
+            asset: asset,
+            at: time
+        ) {
+            seedOptions.maskEntities = synced
+            options.maskEntities = synced
+            if let selectedEntityID,
+               !synced.contains(where: { $0.id == selectedEntityID }) {
+                self.selectedEntityID = nil
+            }
+        }
+        guard generation == previewGeneration, !Task.isCancelled else { return }
+
+        let processor = FrameEffectProcessor(options: seedOptions)
         await processor.warmUp()
         guard generation == previewGeneration, !Task.isCancelled else { return }
 
@@ -1261,6 +1364,24 @@ struct EditorView: View {
         applyAudioMode()
         if wasPlaying {
             player.play()
+        }
+    }
+
+    @MainActor
+    private func syncMaskEntities(
+        using processor: FrameEffectProcessor,
+        asset: AVURLAsset,
+        at time: CMTime
+    ) async -> [MaskEntity]? {
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.requestedTimeToleranceBefore = .zero
+        generator.requestedTimeToleranceAfter = .zero
+        do {
+            let cgImage = try await generator.image(at: time).image
+            return processor.syncEntities(from: CIImage(cgImage: cgImage))
+        } catch {
+            return nil
         }
     }
 
@@ -1515,7 +1636,7 @@ private struct CollapsibleOptionSection<Content: View>: View {
     }
 }
 
-private struct ASCIIColorSwatch: View {
+struct ASCIIColorSwatch: View {
     let pair: ASCIIColorPair
     let isSelected: Bool
     let accessibilityLabel: String

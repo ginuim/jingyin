@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct PhotoBatchEditorView: View {
     let inputURLs: [URL]
@@ -20,6 +21,8 @@ struct PhotoBatchEditorView: View {
     @State private var analysisTask: Task<Void, Never>?
     @State private var previewTask: Task<Void, Never>?
     @State private var exportTask: Task<Void, Never>?
+    @State private var asciiRecentPairs = ASCIIColorRecentStore.load()
+    @State private var showASCIIColorCustom = false
 
     init(inputURLs: [URL]) {
         self.inputURLs = inputURLs
@@ -37,6 +40,8 @@ struct PhotoBatchEditorView: View {
                 preview
                 maskActions
                 subjectOptions
+                scopeOptions
+                qualityOptions
                 effectOptions
                 exportSection
             }
@@ -57,8 +62,28 @@ struct PhotoBatchEditorView: View {
             switch style {
             case .blur: options.strength = 32
             case .pixel: options.strength = 24
-            case .ascii: options.strength = 16
+            case .ascii: options.strength = 14
             }
+            invalidateOutputs(at: Array(drafts.indices))
+            refreshPreview()
+        }
+        .onChange(of: options.scope) { _, _ in
+            invalidateOutputs(at: Array(drafts.indices))
+            refreshPreview()
+        }
+        .onChange(of: options.quality) { _, _ in
+            invalidateOutputs(at: Array(drafts.indices))
+            refreshPreview()
+        }
+        .onChange(of: options.strength) { _, _ in
+            invalidateOutputs(at: Array(drafts.indices))
+            refreshPreview()
+        }
+        .onChange(of: options.asciiForeground) { _, _ in
+            invalidateOutputs(at: Array(drafts.indices))
+            refreshPreview()
+        }
+        .onChange(of: options.asciiBackground) { _, _ in
             invalidateOutputs(at: Array(drafts.indices))
             refreshPreview()
         }
@@ -354,8 +379,51 @@ struct PhotoBatchEditorView: View {
         .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
     }
 
+    private var scopeOptions: some View {
+        let bundle = localization.bundle
+        return VStack(alignment: .leading, spacing: 12) {
+            Text(localization.t("editor.scope"))
+                .font(.headline)
+            Picker(localization.t("editor.scope"), selection: $options.scope) {
+                ForEach(MaskScope.allCases) {
+                    Text($0.title(bundle))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .tag($0)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
+        .padding()
+        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var qualityOptions: some View {
+        let bundle = localization.bundle
+        return VStack(alignment: .leading, spacing: 12) {
+            Text(localization.t("editor.quality"))
+                .font(.headline)
+            Picker(localization.t("editor.quality"), selection: $options.quality) {
+                ForEach(QualityMode.allCases) {
+                    Text($0.title(bundle))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .tag($0)
+                }
+            }
+            .pickerStyle(.segmented)
+            Text(options.quality.detail(bundle))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding()
+        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
+    }
+
     private var effectOptions: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let bundle = localization.bundle
+        return VStack(alignment: .leading, spacing: 12) {
             Text(localization.t("editor.style"))
                 .font(.headline)
             HStack(spacing: 8) {
@@ -363,7 +431,7 @@ struct PhotoBatchEditorView: View {
                     Button {
                         options.style = style
                     } label: {
-                        Text(style.title(localization.bundle))
+                        Text(style.title(bundle))
                             .font(.caption.weight(.semibold))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)
@@ -378,9 +446,164 @@ struct PhotoBatchEditorView: View {
                     .buttonStyle(.plain)
                 }
             }
+            Slider(value: $options.strength, in: strengthRange) {
+                Text(localization.t("editor.strength"))
+            } minimumValueLabel: {
+                Text(localization.t("editor.weak"))
+            } maximumValueLabel: {
+                Text(localization.t("editor.strong"))
+            }
+            Text(strengthDescription)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if options.style == .ascii {
+                asciiColorControls(bundle: bundle)
+            }
         }
         .padding()
         .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var strengthRange: ClosedRange<Double> {
+        switch options.style {
+        case .blur: 4...64
+        case .pixel: 6...48
+        case .ascii: 8...30
+        }
+    }
+
+    private var strengthDescription: String {
+        let value = Int64(options.strength)
+        switch options.style {
+        case .blur:
+            return localization.format("strength.blur", value)
+        case .pixel:
+            return localization.format("strength.pixel", value)
+        case .ascii:
+            return localization.format("strength.ascii", value)
+        }
+    }
+
+    private var currentASCIIColorPair: ASCIIColorPair {
+        ASCIIColorPair(
+            foreground: options.asciiForeground,
+            background: options.asciiBackground
+        )
+    }
+
+    @ViewBuilder
+    private func asciiColorControls(bundle: Bundle) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(localization.t("ascii.color"))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(ASCIIColorTheme.all) { theme in
+                        ASCIIColorSwatch(
+                            pair: theme.pair,
+                            isSelected: currentASCIIColorPair.matches(theme.pair),
+                            accessibilityLabel: theme.title(bundle)
+                        ) {
+                            applyASCIIColorPair(theme.pair, remember: false)
+                        }
+                    }
+
+                    if !asciiRecentPairs.isEmpty {
+                        Divider()
+                            .frame(height: 22)
+                        ForEach(asciiRecentPairs) { pair in
+                            ASCIIColorSwatch(
+                                pair: pair,
+                                isSelected: currentASCIIColorPair.matches(pair),
+                                accessibilityLabel: localization.t("ascii.color.recent")
+                            ) {
+                                applyASCIIColorPair(pair, remember: false)
+                            }
+                        }
+                    }
+
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showASCIIColorCustom.toggle()
+                        }
+                    } label: {
+                        Image(systemName: showASCIIColorCustom ? "xmark.circle.fill" : "plus.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.mint)
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(localization.t("ascii.color.custom"))
+                }
+            }
+
+            if showASCIIColorCustom {
+                ColorPicker(
+                    localization.t("ascii.color.foreground"),
+                    selection: asciiForegroundBinding,
+                    supportsOpacity: false
+                )
+                ColorPicker(
+                    localization.t("ascii.color.background"),
+                    selection: asciiBackgroundBinding,
+                    supportsOpacity: false
+                )
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    private var asciiForegroundBinding: Binding<Color> {
+        Binding(
+            get: { color(from: options.asciiForeground) },
+            set: { newValue in
+                options.asciiForeground = effectRGBA(from: newValue)
+                rememberCurrentASCIIColors()
+            }
+        )
+    }
+
+    private var asciiBackgroundBinding: Binding<Color> {
+        Binding(
+            get: { color(from: options.asciiBackground) },
+            set: { newValue in
+                options.asciiBackground = effectRGBA(from: newValue)
+                rememberCurrentASCIIColors()
+            }
+        )
+    }
+
+    private func applyASCIIColorPair(_ pair: ASCIIColorPair, remember: Bool) {
+        options.asciiForeground = pair.foreground
+        options.asciiBackground = pair.background
+        if remember {
+            rememberCurrentASCIIColors()
+        }
+    }
+
+    private func rememberCurrentASCIIColors() {
+        ASCIIColorRecentStore.remember(currentASCIIColorPair)
+        asciiRecentPairs = ASCIIColorRecentStore.load()
+    }
+
+    private func color(from rgba: EffectRGBA) -> Color {
+        Color(.sRGB, red: rgba.r, green: rgba.g, blue: rgba.b, opacity: rgba.a)
+    }
+
+    private func effectRGBA(from color: Color) -> EffectRGBA {
+        let uiColor = UIColor(color)
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        guard uiColor.getRed(&r, green: &g, blue: &b, alpha: &a) else {
+            return .asciiDefaultForeground
+        }
+        return EffectRGBA(r: Double(r), g: Double(g), b: Double(b), a: Double(a))
     }
 
     private var exportSection: some View {
