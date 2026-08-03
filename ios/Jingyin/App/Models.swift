@@ -187,6 +187,7 @@ enum EffectStyle: String, CaseIterable, Identifiable {
     case blur
     case pixel
     case ascii
+    case sticker
 
     var id: Self { self }
 
@@ -195,8 +196,22 @@ enum EffectStyle: String, CaseIterable, Identifiable {
         case .blur: String(localized: "style.blur", bundle: bundle)
         case .pixel: String(localized: "style.pixel", bundle: bundle)
         case .ascii: String(localized: "style.ascii", bundle: bundle)
+        case .sticker: String(localized: "style.sticker", bundle: bundle)
         }
     }
+}
+
+enum StickerEmoji: String, CaseIterable, Identifiable, Sendable {
+    case sunglasses = "😎"
+    case disguise = "🥸"
+    case clown = "🤡"
+    case alien = "👽"
+    case ghost = "👻"
+    case robot = "🤖"
+    case monkey = "🙈"
+    case cat = "😺"
+
+    var id: String { rawValue }
 }
 
 enum AudioMode: String, CaseIterable, Identifiable {
@@ -417,12 +432,20 @@ struct ProcessingOptions: Equatable {
     var strength = 24.0
     var asciiForeground: EffectRGBA = .asciiDefaultForeground
     var asciiBackground: EffectRGBA = .asciiDefaultBackground
+    var stickerEmoji: StickerEmoji = .sunglasses
+    /// Face rectangles already detected outside `FrameEffectProcessor`, such as
+    /// photo batch masks. Each rectangle receives exactly one sticker.
+    var stickerFaceRects: [NormalizedVideoRect] = []
     var subjects: Set<SubjectKind> = [.person]
     var maskTracks: [MaskTrack] = []
     /// Auto-detected subjects for per-entity enable/disable (video session).
     var maskEntities: [MaskEntity] = []
     var exportResolution: ExportResolution = .p1080
     var exportFrameRate = 30
+
+    var supportsFaceSticker: Bool {
+        scope == .subjects && subjects == [.face]
+    }
 
     mutating func toggleSubject(_ subject: SubjectKind) {
         if subjects.contains(subject) {

@@ -660,7 +660,9 @@ final class FrameEffectProcessor: @unchecked Sendable {
     private let context = CIContext(options: [.cacheIntermediates: false])
     private let lock = NSLock()
     private let asciiGlyphTiles: [CIImage]
+    private let stickerTile: CIImage?
     private var cachedMask: CIImage?
+    private var cachedFaceRects: [NormalizedVideoRect] = []
     private var frameIndex = 0
     private var liveEntities: [MaskEntity]
 
@@ -673,6 +675,12 @@ final class FrameEffectProcessor: @unchecked Sendable {
                 foreground: options.asciiForeground
             )
             : []
+        stickerTile = options.style == .sticker
+            ? Self.makeStickerTile(
+                emoji: options.stickerEmoji.rawValue,
+                cellSize: CGFloat(options.strength)
+            )
+            : nil
     }
 
     /// Latest auto-detected entities after a render or `syncEntities` pass.
@@ -707,7 +715,7 @@ final class FrameEffectProcessor: @unchecked Sendable {
     ) -> CIImage {
         let source = Self.scaledImage(sourceImage, to: renderSize)
         let extent = source.extent
-        let effected: CIImage
+        var effected: CIImage
         switch options.style {
         case .blur:
             effected = source
@@ -723,8 +731,13 @@ final class FrameEffectProcessor: @unchecked Sendable {
                 .cropped(to: extent)
         case .ascii:
             effected = asciiImage(for: source)
+        case .sticker:
+            // Sticker placement needs the face rectangles collected below.
+            effected = source
         }
-        guard options.scope != .full else { return effected }
+        guard options.scope != .full else {
+            return options.style == .sticker ? source : effected
+        }
 
         lock.lock()
         defer { lock.unlock() }
@@ -736,6 +749,18 @@ final class FrameEffectProcessor: @unchecked Sendable {
         let timeSeconds = compositionTime.seconds.isFinite
             ? compositionTime.seconds
             : 0
+        if options.style == .sticker {
+            guard options.supportsFaceSticker || !options.stickerFaceRects.isEmpty else {
+                return source
+            }
+            let faceRects = cachedFaceRects
+                + maskTrackRects(at: timeSeconds)
+                + options.stickerFaceRects
+            effected = stickerImage(over: source, faceRects: faceRects, extent: extent)
+            // A sticker is positioned by the face rectangle itself. Applying
+            // the segmentation mask again would clip and distort the emoji.
+            return effected
+        }
         let trackMask = maskTrackMask(at: timeSeconds, extent: extent)
         let detectedAndManualMask = Self.combinedMask(
             cachedMask,
@@ -788,8 +813,12 @@ final class FrameEffectProcessor: @unchecked Sendable {
         )
         let activeCount = prepared.count
         var masks: [CIImage] = []
+        cachedFaceRects = []
         for index in 0..<activeCount where liveEntities[index].isEnabled {
             masks.append(prepared[index].mask)
+            if prepared[index].association.kind == .face {
+                cachedFaceRects.append(prepared[index].association.rect)
+            }
         }
         guard var combined = masks.first else { return nil }
         for mask in masks.dropFirst() {
@@ -1098,6 +1127,13 @@ final class FrameEffectProcessor: @unchecked Sendable {
             )
         }
         return mask.cropped(to: extent)
+    }
+
+    private func maskTrackRects(at timeSeconds: TimeInterval) -> [NormalizedVideoRect] {
+        options.maskTracks.compactMap { track in
+            guard track.source == .detectedFace || track.source == .manual else { return nil }
+            return track.rect(at: timeSeconds)
+        }
     }
 
     private static func ellipseMask(in rect: CGRect, extent: CGRect) -> CIImage {
@@ -1469,4 +1505,106 @@ final class FrameEffectProcessor: @unchecked Sendable {
             return CIImage(image: image)
         }
     }
+
+    private func stickerImage(
+        over source: CIImage,
+        faceRects: [NormalizedVideoRect],
+        extent: CGRect
+    ) -> CIImage {
+        guard let stickerTile, !faceRects.isEmpty else { return source }
+        let tileExtent = stickerTile.extent
+        var result = source
+        for normalizedRect in faceRects where !normalizedRect.isEmpty {
+            let faceRect = normalizedRect.rect(inCoreImageExtent: extent)
+            let sizeScale = CGFloat(options.strength / 72)
+            let side = min(faceRect.width, faceRect.height) * 1.12 * sizeScale
+            let targetRect = CGRect(
+                x: faceRect.midX - side / 2,
+                y: faceRect.midY - side / 2,
+                width: side,
+                height: side
+            )
+            let scale = side / max(tileExtent.width, 1)
+            let sticker = stickerTile
+                .transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+                .transformed(by: CGAffineTransform(
+                    translationX: targetRect.minX,
+                    y: targetRect.minY
+                ))
+                .cropped(to: extent)
+            result = sticker.composited(over: result)
+        }
+        return result.cropped(to: extent)
+    }
+
+    private static func makeStickerTile(emoji: String, cellSize: CGFloat) -> CIImage? {
+        let side = max(32, ceil(cellSize))
+        let format = UIGraphicsImageRendererFormat()
+        format.opaque = false
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(
+            size: CGSize(width: side, height: side),
+            format: format
+        ).image { context in
+            UIColor(red: 0.08, green: 0.1, blue: 0.1, alpha: 1).setFill()
+            context.cgContext.fillEllipse(in: CGRect(
+                x: side * 0.01,
+                y: side * 0.01,
+                width: side * 0.98,
+                height: side * 0.98
+            ))
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: side * 0.9)
+            ]
+            let size = (emoji as NSString).size(withAttributes: attributes)
+            (emoji as NSString).draw(
+                at: CGPoint(
+                    x: (side - size.width) / 2,
+                    y: (side - size.height) / 2
+                ),
+                withAttributes: attributes
+            )
+        }
+        return CIImage(image: image)
+    }
 }
+
+#if DEBUG
+extension FrameEffectProcessor {
+    static func runStickerSmokeTest() {
+        var options = ProcessingOptions()
+        options.scope = .subjects
+        options.subjects = [.face]
+        options.style = .sticker
+        options.strength = 64
+        options.stickerEmoji = .alien
+        options.stickerFaceRects = [NormalizedVideoRect(
+            x: 0.25,
+            y: 0.25,
+            width: 0.5,
+            height: 0.5
+        )]
+        let extent = CGRect(x: 0, y: 0, width: 128, height: 128)
+        let source = CIImage(color: .red).cropped(to: extent)
+        let rendered = FrameEffectProcessor(options: options).render(source)
+        var pixels = [UInt8](repeating: 0, count: 128 * 128 * 4)
+        CIContext(options: [.cacheIntermediates: false]).render(
+            rendered,
+            toBitmap: &pixels,
+            rowBytes: 128 * 4,
+            bounds: extent,
+            format: .RGBA8,
+            colorSpace: CGColorSpace(name: CGColorSpace.sRGB)
+        )
+        let corner = 0
+        let center = (64 * 128 + 64) * 4
+        // One sticker changes the face center while leaving pixels outside the
+        // face rectangle untouched.
+        precondition(pixels[corner] > 200 && pixels[corner + 3] == 255)
+        let centerIsSourceRed = pixels[center] > 240
+            && pixels[center + 1] < 10
+            && pixels[center + 2] < 10
+        precondition(!centerIsSourceRed && pixels[center + 3] == 255)
+    }
+}
+#endif

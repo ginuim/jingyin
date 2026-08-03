@@ -20,6 +20,7 @@ struct JingyinApp: App {
                     VideoCoordinateSpaceSmoke.run()
                     MaskTrackSmoke.run()
                     PhotoProcessor.runSmokeTests()
+                    FrameEffectProcessor.runStickerSmokeTest()
                     #endif
                 }
         }

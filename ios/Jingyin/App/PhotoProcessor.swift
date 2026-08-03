@@ -381,6 +381,12 @@ enum PhotoProcessor {
         maskGroups: [PhotoMaskGroup]
     ) -> ProcessingOptions {
         var result = options
+        result.stickerFaceRects = maskGroups.compactMap { group in
+            guard group.track.source == .detectedFace || group.track.source == .manual else {
+                return nil
+            }
+            return group.track.rect(at: 0) ?? group.originalRect
+        }
         // Automatic detections have already been materialized as independent
         // raster groups. Only manual/fallback geometry stays in MaskTrack.
         result.subjects = []

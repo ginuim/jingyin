@@ -234,7 +234,7 @@ struct EditorView: View {
             .map { "\($0.id.uuidString):\($0.isEnabled ? 1 : 0)" }
             .sorted()
             .joined(separator: ",")
-        return "\(options.quality.rawValue)|\(options.scope.rawValue)|\(options.style.rawValue)|\(options.strength)|\(subjects)|\(maskPreviewRevision)|\(fg.r),\(fg.g),\(fg.b),\(fg.a)|\(bg.r),\(bg.g),\(bg.b),\(bg.a)|\(entities)"
+        return "\(options.quality.rawValue)|\(options.scope.rawValue)|\(options.style.rawValue)|\(options.strength)|\(options.stickerEmoji.rawValue)|\(subjects)|\(maskPreviewRevision)|\(fg.r),\(fg.g),\(fg.b),\(fg.a)|\(bg.r),\(bg.g),\(bg.b),\(bg.a)|\(entities)"
     }
 
     private var videoPlayerSection: some View {
@@ -290,6 +290,9 @@ struct EditorView: View {
                     }
                 }
                 .pickerStyle(.segmented)
+                .onChange(of: options.scope) { _, _ in
+                    resetStickerIfUnavailable()
+                }
             }
 
             if options.scope != .full {
@@ -458,7 +461,7 @@ struct EditorView: View {
                 isExpanded: $isStyleExpanded
             ) {
                 Picker(localization.t("editor.style"), selection: $options.style) {
-                    ForEach(EffectStyle.allCases) {
+                    ForEach(availableEffectStyles) {
                         Text($0.title(bundle))
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
@@ -471,6 +474,7 @@ struct EditorView: View {
                     case .blur: options.strength = 32
                     case .pixel: options.strength = 24
                     case .ascii: options.strength = 14
+                    case .sticker: options.strength = 72
                     }
                 }
                 Slider(value: $options.strength, in: strengthRange) {
@@ -487,6 +491,9 @@ struct EditorView: View {
 
                 if options.style == .ascii {
                     asciiColorControls(bundle: bundle)
+                }
+                if options.style == .sticker {
+                    stickerControls
                 }
             }
 
@@ -535,6 +542,7 @@ struct EditorView: View {
 
     private func toggle(_ subject: SubjectKind) {
         options.toggleSubject(subject)
+        resetStickerIfUnavailable()
         options.maskEntities.removeAll { !options.subjects.contains($0.kind) }
         if let selectedEntityID,
            !options.maskEntities.contains(where: { $0.id == selectedEntityID }) {
@@ -1181,7 +1189,18 @@ struct EditorView: View {
         case .blur: 4...64
         case .pixel: 6...48
         case .ascii: 8...30
+        case .sticker: 40...120
         }
+    }
+
+    private var availableEffectStyles: [EffectStyle] {
+        EffectStyle.allCases.filter { $0 != .sticker || options.supportsFaceSticker }
+    }
+
+    private func resetStickerIfUnavailable() {
+        guard options.style == .sticker, !options.supportsFaceSticker else { return }
+        options.style = .pixel
+        options.strength = 24
     }
 
     private var strengthDescription: String {
@@ -1193,6 +1212,35 @@ struct EditorView: View {
             return localization.format("strength.pixel", value)
         case .ascii:
             return localization.format("strength.ascii", value)
+        case .sticker:
+            return localization.format("strength.sticker", value)
+        }
+    }
+
+    private var stickerControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(localization.t("sticker.emoji"))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 8) {
+                ForEach(StickerEmoji.allCases) { emoji in
+                    Button {
+                        options.stickerEmoji = emoji
+                    } label: {
+                        Text(emoji.rawValue)
+                            .font(.system(size: 28))
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(
+                                options.stickerEmoji == emoji
+                                    ? Color.mint.opacity(0.9)
+                                    : Color.white.opacity(0.08),
+                                in: RoundedRectangle(cornerRadius: 10)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(options.stickerEmoji == emoji ? .isSelected : [])
+                }
+            }
         }
     }
 

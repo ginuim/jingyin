@@ -1733,6 +1733,22 @@
         }
       }
     },
+    "style.sticker": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "贴纸"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "貼圖"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Sticker"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "ステッカー"}}
+      }
+    },
+    "sticker.emoji": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "选择贴纸"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "選擇貼圖"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Choose a sticker"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "ステッカーを選択"}}
+      }
+    },
     "ascii.color": {
       "localizations": {
         "zh-Hans": {
@@ -2403,6 +2419,14 @@
             "value": "アスキー · %lld px"
           }
         }
+      }
+    },
+    "strength.sticker": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "贴纸大小 %lld px"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "貼圖大小 %lld px"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Sticker size %lld px"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "ステッカーサイズ %lld px"}}
       }
     },
     "stage.idle": {

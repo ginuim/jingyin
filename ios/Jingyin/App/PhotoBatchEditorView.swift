@@ -64,11 +64,18 @@ struct PhotoBatchEditorView: View {
             case .blur: options.strength = 32
             case .pixel: options.strength = 24
             case .ascii: options.strength = 14
+            case .sticker: options.strength = 72
             }
             invalidateOutputs(at: Array(drafts.indices))
             refreshPreview()
         }
         .onChange(of: options.scope) { _, _ in
+            resetStickerIfUnavailable()
+            invalidateOutputs(at: Array(drafts.indices))
+            refreshPreview()
+        }
+        .onChange(of: options.subjects) { _, _ in
+            resetStickerIfUnavailable()
             invalidateOutputs(at: Array(drafts.indices))
             refreshPreview()
         }
@@ -85,6 +92,10 @@ struct PhotoBatchEditorView: View {
             refreshPreview()
         }
         .onChange(of: options.asciiBackground) { _, _ in
+            invalidateOutputs(at: Array(drafts.indices))
+            refreshPreview()
+        }
+        .onChange(of: options.stickerEmoji) { _, _ in
             invalidateOutputs(at: Array(drafts.indices))
             refreshPreview()
         }
@@ -441,7 +452,7 @@ struct PhotoBatchEditorView: View {
             Text(localization.t("editor.style"))
                 .font(.headline)
             HStack(spacing: 8) {
-                ForEach(EffectStyle.allCases) { style in
+                ForEach(availableEffectStyles) { style in
                     Button {
                         options.style = style
                     } label: {
@@ -475,6 +486,9 @@ struct PhotoBatchEditorView: View {
             if options.style == .ascii {
                 asciiColorControls(bundle: bundle)
             }
+            if options.style == .sticker {
+                stickerControls
+            }
         }
         .padding()
         .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
@@ -485,7 +499,18 @@ struct PhotoBatchEditorView: View {
         case .blur: 4...64
         case .pixel: 6...48
         case .ascii: 8...30
+        case .sticker: 40...120
         }
+    }
+
+    private var availableEffectStyles: [EffectStyle] {
+        EffectStyle.allCases.filter { $0 != .sticker || options.supportsFaceSticker }
+    }
+
+    private func resetStickerIfUnavailable() {
+        guard options.style == .sticker, !options.supportsFaceSticker else { return }
+        options.style = .pixel
+        options.strength = 24
     }
 
     private var strengthDescription: String {
@@ -497,6 +522,35 @@ struct PhotoBatchEditorView: View {
             return localization.format("strength.pixel", value)
         case .ascii:
             return localization.format("strength.ascii", value)
+        case .sticker:
+            return localization.format("strength.sticker", value)
+        }
+    }
+
+    private var stickerControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(localization.t("sticker.emoji"))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 8) {
+                ForEach(StickerEmoji.allCases) { emoji in
+                    Button {
+                        options.stickerEmoji = emoji
+                    } label: {
+                        Text(emoji.rawValue)
+                            .font(.system(size: 28))
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(
+                                options.stickerEmoji == emoji
+                                    ? Color.mint.opacity(0.9)
+                                    : Color.white.opacity(0.08),
+                                in: RoundedRectangle(cornerRadius: 10)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(options.stickerEmoji == emoji ? .isSelected : [])
+                }
+            }
         }
     }
 
