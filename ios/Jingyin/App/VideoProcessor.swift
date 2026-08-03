@@ -677,8 +677,7 @@ final class FrameEffectProcessor: @unchecked Sendable {
             : []
         stickerTile = options.style == .sticker
             ? Self.makeStickerTile(
-                emoji: options.stickerEmoji.rawValue,
-                cellSize: CGFloat(options.strength)
+                emoji: options.stickerEmoji.rawValue
             )
             : nil
     }
@@ -1537,22 +1536,18 @@ final class FrameEffectProcessor: @unchecked Sendable {
         return result.cropped(to: extent)
     }
 
-    private static func makeStickerTile(emoji: String, cellSize: CGFloat) -> CIImage? {
-        let side = max(32, ceil(cellSize))
+    private static func makeStickerTile(emoji: String) -> CIImage? {
+        // Render once at export-grade resolution, then only downscale for each
+        // face. Using the UI size (for example 72 px) here made large faces
+        // visibly blurry after upscaling.
+        let side: CGFloat = 1024
         let format = UIGraphicsImageRendererFormat()
         format.opaque = false
         format.scale = 1
         let image = UIGraphicsImageRenderer(
             size: CGSize(width: side, height: side),
             format: format
-        ).image { context in
-            UIColor(red: 0.08, green: 0.1, blue: 0.1, alpha: 1).setFill()
-            context.cgContext.fillEllipse(in: CGRect(
-                x: side * 0.01,
-                y: side * 0.01,
-                width: side * 0.98,
-                height: side * 0.98
-            ))
+        ).image { _ in
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: UIFont.systemFont(ofSize: side * 0.9)
             ]
