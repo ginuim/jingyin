@@ -1,6 +1,6 @@
 # 镜隐 iOS 首发 TODO
 
-更新时间：2026-07-30
+更新时间：2026-08-04
 
 ## P0：付费闭环
 
@@ -19,12 +19,12 @@
 - [x] 补充 IAP 审核截图和审核说明（截图：`artifacts/asc/iap-review-640x920.png`）
 - [x] App 定价设为 Free（$0.00，175 个国家或地区）
 - [x] 签署 Paid Apps Agreement
-- [x] 提交银行账户（招商银行，CNY；状态：正在处理）
+- [x] 提交银行账户（招商银行，CNY；状态：可用）
 - [x] 提交美国税表 W-8BEN + Certificate of Foreign Status（状态：使用中；条约 Article 12 / 10%）
 - [x] 国务院令第 810 号合规（状态：有效）
-- [x] 等待银行与付费 App 协议审核通过（付费协议：**有效**；DSA：**正在审核**）
+- [x] 等待银行与付费 App 协议审核通过（付费协议：**有效**；DSA：**有效**）
 - [x] 开启 Family Sharing（已在 App Store Connect 确认开启；开启后不能关闭）
-- [x] 完成欧盟 DSA 交易商声明与联系信息（已提交，ASC 显示正在审核）
+- [x] 完成欧盟 DSA 交易商声明与联系信息（2026-08-04 核对：**有效**，覆盖欧盟 27 个国家或地区）
 - [ ] 创建 Sandbox 测试账号（ASC → 用户和访问 → 沙盒；自动化创建遇 Apple unknown error，需手动建）
 - [ ] 真机用 Sandbox 验证：加载商品、购买、取消、恢复、删装再恢复
 - [ ] TestFlight 验证真实商店价格与产品 ID
@@ -34,7 +34,7 @@
 
 完整配置与核对记录见 **[app-store-connect.md](./app-store-connect.md)**。
 
-摘要（2026-07-30）：付费协议有效 · 银行可用 · 税表使用中 · Family Sharing 已开 · DSA 正在审核 · IAP `com.reaidea.jingyin.lifetime` 当前售价 ¥28 / $4.99；美国目标 $9.99（稳定后再改）；大陆观察中。
+摘要（2026-08-04）：付费协议有效 · 银行可用 · 税表使用中 · Family Sharing 已开 · DSA 有效 · IAP `com.reaidea.jingyin.lifetime` 当前售价 ¥28 / $4.99；美国目标 $9.99（稳定后再改）；大陆观察中。
 
 ## P0：可控遮盖
 
@@ -84,7 +84,7 @@
 - [ ] 隐私政策与 App Privacy 填写（公开页面已实现：`https://lenshide.reaidea.com/privacy`；待部署确认并填写 App Store Connect）
 - [ ] 简中、繁中、英文、日文商店文案（[四语草稿已完成](./app-store-listing.md)，待填写 App Store Connect）
 - [ ] 免费版与永久版截图
-- [ ] TestFlight 内测
+- [x] TestFlight 内测（2026-08-04：上传 `0.1.0 (1)`，标记为 Internal Testing Only；创建「内部测试」群组并加入 1 位内部测试员，群组自动访问全部构建）
 - [ ] App Review Notes 说明完全本地处理和 IAP 测试路径（[英文草稿已完成](./app-store-listing.md#app-review-notes英文可直接粘贴)，待随构建填写）
 
 ## 给负责 App Store Connect 的 LLM：具体操作
@@ -204,7 +204,7 @@ App 定价保持 Free，付费只通过 Non-Consumable IAP 完成。参考：[Ap
 
 ## 后续版本
 
-- [x] 人脸贴纸（仅“遮盖主体 = 人脸”时开放；每张脸按检测框放置一个 Emoji；首批内置 8 个系统 Emoji，视频/照片预览与导出共用渲染路径；默认仍推荐隐私级像素化；不单独 IAP）
+- [x] 人脸贴纸（仅“遮盖主体 = 人脸”时开放；每张脸按检测框放置一个 Emoji；内置 16 个系统 Emoji，视频/照片共用选择组件及预览与导出渲染路径；默认仍推荐隐私级像素化；不单独 IAP）
 - [ ] 指定整个人物的实例分割与身份关联
 - [ ] 指定任意物体的交互式视频分割：用户可在关键帧点击、框选、涂抹或圈出目标，模型在设备端生成遮罩并向前后帧传播
 - [ ] 支持在不同帧追加提示以修正遮罩漂移；将修正保存为 `MaskTrack` 关键帧，不在 App 内为单个视频重新训练模型

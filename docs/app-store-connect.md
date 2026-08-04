@@ -1,12 +1,12 @@
 # 镜隐 App Store Connect 配置记录
 
-更新时间：2026-07-30
+更新时间：2026-08-04
 
 配套文档：市场与定价见 [app-store-market-and-pricing.md](./app-store-market-and-pricing.md)；首发清单见 [ios-launch-todo.md](./ios-launch-todo.md)。
 
 ## 结论
 
-付费闭环在 Connect 侧的前置条件已齐：Paid Apps Agreement **有效**、银行 **可用**、美国税表 **使用中**、Family Sharing **已开**、IAP 与 App 定价已配好。DSA 交易商信息已提交，状态为 **正在审核**。下一步是手动创建 Sandbox 账号并做真机 / TestFlight 购买验证。
+付费闭环在 Connect 侧的前置条件已齐：Paid Apps Agreement **有效**、银行 **可用**、美国税表 **使用中**、Family Sharing **已开**、IAP 与 App 定价已配好，DSA 交易商信息 **有效**。TestFlight `0.1.0 (1)` 已作为仅限内部测试的构建发布；下一步是手动创建 Sandbox 账号并做真机购买与 TestFlight 商店价格验证。
 
 ## 账号与标识
 
@@ -80,13 +80,24 @@ ASC 上若仍是「仅视频」旧描述，照片批量上线前提交版本前�
 | U.S. Form W-8BEN | **使用中**（个人；中国大陆居民；条约 Article 12 / 10%；Income from the sale of applications） |
 | U.S. Certificate of Foreign Status | **使用中**（Individual/Sole proprietor；Title: Owner） |
 | 国务院令第 810 号 | **有效** |
-| 欧盟 DSA | 交易商已声明并提交联系信息 · **正在审核**（27 个国家或地区） |
+| 欧盟 DSA | 交易商已声明并完成核验 · **有效**（27 个国家或地区） |
 
 说明：
 
 - 银行联络信息（户名、地址）按 Apple 要求用英文/拼音，不用汉字。
 - 招商银行北京建国门支行公开联行号参考：`308100005490`（以开户行确认为准）。
-- DSA 审核中一般不挡中美上架；欧盟分发需等核验通过。
+- DSA 已于 2026-08-04 在 App Store Connect 核对为有效。
+
+## TestFlight 内部测试
+
+| 项 | 状态 |
+| --- | --- |
+| 版本 / 构建 | `0.1.0 (1)` |
+| 上传状态 | 上传并处理完成 |
+| 分发范围 | **Internal Testing Only**（不能转为外部测试或正式 App Store 构建） |
+| 出口合规 | 不使用专有、标准或其他非豁免加密；App Store Connect 已接受声明 |
+| 内部群组 | 「内部测试」；自动访问全部构建 |
+| 测试员 | 已加入 1 位现有 App Store Connect 内部用户 |
 
 ## Sandbox / 真机验证（待办）
 

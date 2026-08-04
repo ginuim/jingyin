@@ -24,6 +24,11 @@ struct PhotoBatchEditorView: View {
     @State private var exportTask: Task<Void, Never>?
     @State private var asciiRecentPairs = ASCIIColorRecentStore.load()
     @State private var showASCIIColorCustom = false
+    @State private var isManualMaskExpanded = false
+    @State private var isSubjectsExpanded = true
+    @State private var isScopeExpanded = true
+    @State private var isQualityExpanded = true
+    @State private var isEffectExpanded = true
 
     init(inputURLs: [URL]) {
         self.inputURLs = inputURLs
@@ -293,13 +298,17 @@ struct PhotoBatchEditorView: View {
     }
 
     private var maskActions: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        PhotoCollapsibleOptionSection(
+            title: localization.t("editor.manualMasks"),
+            systemImage: "square.dashed",
+            meta: localization.format(
+                "photo.maskCount",
+                Int64(currentDraft?.maskGroups.count ?? 0)
+            ),
+            isExpanded: $isManualMaskExpanded
+        ) {
+            VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text(localization.format(
-                    "photo.maskCount",
-                    Int64(currentDraft?.maskGroups.count ?? 0)
-                ))
-                .font(.headline)
                 Spacer()
                 Button {
                     addManualMask(shape: .ellipse)
@@ -361,16 +370,18 @@ struct PhotoBatchEditorView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            }
         }
-        .padding()
-        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
     }
 
     private var subjectOptions: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        PhotoCollapsibleOptionSection(
+            title: localization.t("editor.subjects"),
+            systemImage: "person.2",
+            isExpanded: $isSubjectsExpanded
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(localization.t("editor.subjects"))
-                    .font(.headline)
                 Spacer()
                 Button(localization.t("photo.redetect")) {
                     analyzeAll()
@@ -399,16 +410,17 @@ struct PhotoBatchEditorView: View {
                     .buttonStyle(.plain)
                 }
             }
+            }
         }
-        .padding()
-        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
     }
 
     private var scopeOptions: some View {
         let bundle = localization.bundle
-        return VStack(alignment: .leading, spacing: 12) {
-            Text(localization.t("editor.scope"))
-                .font(.headline)
+        return PhotoCollapsibleOptionSection(
+            title: localization.t("editor.scope"),
+            systemImage: "viewfinder",
+            isExpanded: $isScopeExpanded
+        ) {
             Picker(localization.t("editor.scope"), selection: $options.scope) {
                 ForEach(MaskScope.allCases) {
                     Text($0.title(bundle))
@@ -419,15 +431,15 @@ struct PhotoBatchEditorView: View {
             }
             .pickerStyle(.segmented)
         }
-        .padding()
-        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
     }
 
     private var qualityOptions: some View {
         let bundle = localization.bundle
-        return VStack(alignment: .leading, spacing: 12) {
-            Text(localization.t("editor.quality"))
-                .font(.headline)
+        return PhotoCollapsibleOptionSection(
+            title: localization.t("editor.quality"),
+            systemImage: "speedometer",
+            isExpanded: $isQualityExpanded
+        ) {
             Picker(localization.t("editor.quality"), selection: $options.quality) {
                 ForEach(QualityMode.allCases) {
                     Text($0.title(bundle))
@@ -442,15 +454,15 @@ struct PhotoBatchEditorView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding()
-        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
     }
 
     private var effectOptions: some View {
         let bundle = localization.bundle
-        return VStack(alignment: .leading, spacing: 12) {
-            Text(localization.t("editor.style"))
-                .font(.headline)
+        return PhotoCollapsibleOptionSection(
+            title: localization.t("editor.style"),
+            systemImage: "wand.and.stars",
+            isExpanded: $isEffectExpanded
+        ) {
             HStack(spacing: 8) {
                 ForEach(availableEffectStyles) { style in
                     Button {
@@ -490,8 +502,6 @@ struct PhotoBatchEditorView: View {
                 stickerControls
             }
         }
-        .padding()
-        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
     }
 
     private var strengthRange: ClosedRange<Double> {
@@ -528,30 +538,10 @@ struct PhotoBatchEditorView: View {
     }
 
     private var stickerControls: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(localization.t("sticker.emoji"))
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 8) {
-                ForEach(StickerEmoji.allCases) { emoji in
-                    Button {
-                        options.stickerEmoji = emoji
-                    } label: {
-                        Text(emoji.rawValue)
-                            .font(.system(size: 28))
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                            .background(
-                                options.stickerEmoji == emoji
-                                    ? Color.mint.opacity(0.9)
-                                    : Color.white.opacity(0.08),
-                                in: RoundedRectangle(cornerRadius: 10)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(options.stickerEmoji == emoji ? .isSelected : [])
-                }
-            }
-        }
+        StickerEmojiPicker(
+            title: localization.t("sticker.emoji"),
+            selection: $options.stickerEmoji
+        )
     }
 
     private var currentASCIIColorPair: ASCIIColorPair {
@@ -895,5 +885,49 @@ struct PhotoBatchEditorView: View {
                 savedCount = 0
             }
         }
+    }
+}
+
+private struct PhotoCollapsibleOptionSection<Content: View>: View {
+    let title: String
+    let systemImage: String
+    var meta: String? = nil
+    @Binding var isExpanded: Bool
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: isExpanded ? 13 : 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack {
+                    Label(title, systemImage: systemImage)
+                        .font(.headline)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.85)
+                    Spacer(minLength: 8)
+                    if let meta {
+                        Text(meta)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Image(systemName: "chevron.down")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                content
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding()
+        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 18))
     }
 }

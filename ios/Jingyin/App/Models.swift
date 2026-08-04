@@ -210,6 +210,14 @@ enum StickerEmoji: String, CaseIterable, Identifiable, Sendable {
     case robot = "🤖"
     case monkey = "🙈"
     case cat = "😺"
+    case heartEyes = "😍"
+    case starStruck = "🤩"
+    case cowboy = "🤠"
+    case party = "🥳"
+    case smilingDevil = "😈"
+    case pumpkin = "🎃"
+    case panda = "🐼"
+    case frog = "🐸"
 
     var id: String { rawValue }
 }
