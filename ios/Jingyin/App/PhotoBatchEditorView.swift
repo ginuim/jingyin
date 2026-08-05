@@ -1,6 +1,51 @@
 import SwiftUI
 import UIKit
 
+private enum PhotoEditorTool: String, CaseIterable, Identifiable {
+    case subjects
+    case scope
+    case effect
+    case masks
+    case quality
+
+    var id: String { rawValue }
+
+    var systemImage: String {
+        switch self {
+        case .subjects: "person.2"
+        case .scope: "viewfinder"
+        case .effect: "wand.and.stars"
+        case .masks: "square.dashed"
+        case .quality: "speedometer"
+        }
+    }
+
+    /// The tool panel is intentionally content-sized rather than a single
+    /// fixed-height drawer. This keeps short controls from leaving a large
+    /// empty block above the toolbar while still giving complex tools room to
+    /// scroll internally.
+    var panelHeight: CGFloat {
+        switch self {
+        case .subjects: 154
+        case .scope: 126
+        case .effect: 210
+        case .masks: 210
+        case .quality: 166
+        }
+    }
+
+    @MainActor
+    func title(_ localization: LocalizationManager) -> String {
+        switch self {
+        case .subjects: localization.t("editor.subjects")
+        case .scope: localization.t("editor.scope")
+        case .effect: localization.t("editor.style")
+        case .masks: localization.t("editor.manualMasks")
+        case .quality: localization.t("editor.quality")
+        }
+    }
+}
+
 struct PhotoBatchEditorView: View {
     let inputURLs: [URL]
 
@@ -24,11 +69,7 @@ struct PhotoBatchEditorView: View {
     @State private var exportTask: Task<Void, Never>?
     @State private var asciiRecentPairs = ASCIIColorRecentStore.load()
     @State private var showASCIIColorCustom = false
-    @State private var isManualMaskExpanded = false
-    @State private var isSubjectsExpanded = true
-    @State private var isScopeExpanded = true
-    @State private var isQualityExpanded = true
-    @State private var isEffectExpanded = true
+    @State private var selectedTool: PhotoEditorTool? = .effect
 
     init(inputURLs: [URL]) {
         self.inputURLs = inputURLs
@@ -37,23 +78,79 @@ struct PhotoBatchEditorView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 18) {
-                batchHeader
-                photoStrip
-                preview
-                maskActions
-                subjectOptions
-                scopeOptions
-                qualityOptions
-                effectOptions
-                exportSection
+        VStack(spacing: 0) {
+            photoStrip
+            Divider()
+                .overlay(.white.opacity(0.12))
+
+            preview
+                .padding(12)
+                .frame(maxHeight: .infinity)
+                .layoutPriority(1)
+
+            if let selectedTool {
+                parameterPanel(for: selectedTool)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            .padding()
+
+            toolBar
         }
         .background(Color(red: 0.035, green: 0.065, blue: 0.07))
         .navigationTitle(localization.t("photo.title"))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if !entitlements.isUnlocked && drafts.count > 1 {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showPaywall = true
+                    } label: {
+                        Image(systemName: "crown")
+                    }
+                    .accessibilityLabel(localization.t("purchase.unlock"))
+                }
+            }
+            if !outputURLs.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        saveOutputs()
+                    } label: {
+                        Image(systemName: savedCount > 0 ? "checkmark.circle.fill" : "square.and.arrow.down")
+                    }
+                    .disabled(isSaving)
+                    .accessibilityLabel(
+                        savedCount > 0
+                            ? localization.format("photo.savedCount", Int64(savedCount))
+                            : localization.t("photo.save")
+                    )
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showShare = true
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                    .accessibilityLabel(localization.t("processing.share"))
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    exportPhotos()
+                } label: {
+                    if isExporting {
+                        ProgressView()
+                    } else {
+                        Text(localization.t("photo.exportAction"))
+                        .font(.subheadline.weight(.semibold))
+                    }
+                }
+                .disabled(isAnalyzing || isExporting || currentDraft?.status == .failed)
+                .accessibilityLabel(
+                    entitlements.isUnlocked
+                        ? localization.t("photo.exportBatch")
+                        : localization.t("photo.exportCurrent")
+                )
+            }
+        }
         .task {
             guard drafts.allSatisfy({ $0.status == .pending }) else { return }
             analyzeAll()
@@ -162,40 +259,6 @@ struct PhotoBatchEditorView: View {
         drafts.compactMap(\.outputURL)
     }
 
-    private var batchHeader: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(localization.format("photo.batchCount", Int64(drafts.count)))
-                    .font(.headline)
-                Text(statusText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            if isAnalyzing || isExporting {
-                ProgressView()
-                    .tint(.mint)
-            }
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var statusText: String {
-        if isAnalyzing {
-            let ready = drafts.filter { $0.status == .ready }.count
-            return localization.format(
-                "photo.analyzingProgress",
-                Int64(ready),
-                Int64(drafts.count)
-            )
-        }
-        let failed = drafts.filter { $0.status == .failed }.count
-        if failed > 0 {
-            return localization.format("photo.failedCount", Int64(failed))
-        }
-        return localization.t("photo.reviewHint")
-    }
-
     private var photoStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
@@ -215,21 +278,23 @@ struct PhotoBatchEditorView: View {
                                         .overlay { ProgressView() }
                                 }
                             }
-                            .frame(width: 66, height: 66)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .frame(width: 58, height: 58)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
 
                             statusBadge(draft.status)
                         }
                         .overlay {
-                            RoundedRectangle(cornerRadius: 11)
-                                .stroke(index == currentIndex ? .mint : .clear, lineWidth: 3)
+                            RoundedRectangle(cornerRadius: 7)
+                                .stroke(index == currentIndex ? .mint : .white.opacity(0.18), lineWidth: index == currentIndex ? 3 : 1)
                         }
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.vertical, 3)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
         }
+        .background(.black.opacity(0.18))
     }
 
     private func statusBadge(_ status: PhotoWorkStatus) -> some View {
@@ -294,22 +359,118 @@ struct PhotoBatchEditorView: View {
                     .background(.ultraThinMaterial, in: Circle())
             }
         }
-        .frame(height: 390)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(minHeight: 210)
         .clipShape(RoundedRectangle(cornerRadius: 18))
     }
 
-    private var maskActions: some View {
-        PhotoCollapsibleOptionSection(
-            title: localization.t("editor.manualMasks"),
-            systemImage: "square.dashed",
-            meta: localization.format(
-                "photo.maskCount",
-                Int64(currentDraft?.maskGroups.count ?? 0)
-            ),
-            isExpanded: $isManualMaskExpanded
-        ) {
-            VStack(alignment: .leading, spacing: 10) {
+    @ViewBuilder
+    private func parameterPanel(for tool: PhotoEditorTool) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
+                Label(tool.title(localization), systemImage: tool.systemImage)
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        selectedTool = nil
+                    }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(localization.t("editor.done"))
+            }
+
+            ScrollView(.vertical, showsIndicators: true) {
+                Group {
+                    switch tool {
+                    case .subjects:
+                        subjectOptions
+                    case .scope:
+                        scopeOptions
+                    case .effect:
+                        effectOptions
+                    case .masks:
+                        maskActions
+                    case .quality:
+                        qualityOptions
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 4)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+        // Keep the viewport proportional to the selected tool. Long option
+        // lists scroll inside it, while compact tools do not create dead space.
+        .frame(
+            height: tool == .effect && options.style == .sticker
+                ? 190
+                : tool.panelHeight
+        )
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .top) {
+            Divider()
+        }
+    }
+
+    private var toolBar: some View {
+        HStack(spacing: 0) {
+            ForEach(PhotoEditorTool.allCases) { tool in
+                let isSelected = selectedTool == tool
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        selectedTool = isSelected ? nil : tool
+                    }
+                } label: {
+                    VStack(spacing: 5) {
+                        Image(systemName: tool.systemImage)
+                            .font(.system(size: 18, weight: isSelected ? .semibold : .regular))
+                            .frame(width: 32, height: 28)
+                            .background(
+                                isSelected ? Color.mint.opacity(0.18) : .clear,
+                                in: RoundedRectangle(cornerRadius: 7)
+                            )
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 7)
+                                    .stroke(isSelected ? Color.mint : .clear, lineWidth: 1.5)
+                            }
+
+                        Text(tool.title(localization))
+                            .font(.caption2.weight(isSelected ? .semibold : .regular))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    .foregroundStyle(isSelected ? Color.mint : Color.secondary)
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+            }
+        }
+        .padding(.horizontal, 4)
+        .padding(.top, 9)
+        .padding(.bottom, 8)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .top) {
+            Divider()
+        }
+    }
+
+    private var maskActions: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(localization.format(
+                    "photo.maskCount",
+                    Int64(currentDraft?.maskGroups.count ?? 0)
+                ))
+                .font(.caption)
+                .foregroundStyle(.secondary)
                 Spacer()
                 Button {
                     addManualMask(shape: .ellipse)
@@ -372,16 +533,10 @@ struct PhotoBatchEditorView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             }
-        }
     }
 
     private var subjectOptions: some View {
-        PhotoCollapsibleOptionSection(
-            title: localization.t("editor.subjects"),
-            systemImage: "person.2",
-            isExpanded: $isSubjectsExpanded
-        ) {
-            VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Spacer()
                 Button(localization.t("photo.redetect")) {
@@ -411,17 +566,12 @@ struct PhotoBatchEditorView: View {
                     .buttonStyle(.plain)
                 }
             }
-            }
         }
     }
 
     private var scopeOptions: some View {
         let bundle = localization.bundle
-        return PhotoCollapsibleOptionSection(
-            title: localization.t("editor.scope"),
-            systemImage: "viewfinder",
-            isExpanded: $isScopeExpanded
-        ) {
+        return VStack(alignment: .leading, spacing: 10) {
             Picker(localization.t("editor.scope"), selection: $options.scope) {
                 ForEach(MaskScope.allCases) {
                     Text($0.title(bundle))
@@ -436,11 +586,7 @@ struct PhotoBatchEditorView: View {
 
     private var qualityOptions: some View {
         let bundle = localization.bundle
-        return PhotoCollapsibleOptionSection(
-            title: localization.t("editor.quality"),
-            systemImage: "speedometer",
-            isExpanded: $isQualityExpanded
-        ) {
+        return VStack(alignment: .leading, spacing: 10) {
             Picker(localization.t("editor.quality"), selection: $options.quality) {
                 ForEach(QualityMode.allCases) {
                     Text($0.title(bundle))
@@ -459,11 +605,7 @@ struct PhotoBatchEditorView: View {
 
     private var effectOptions: some View {
         let bundle = localization.bundle
-        return PhotoCollapsibleOptionSection(
-            title: localization.t("editor.style"),
-            systemImage: "wand.and.stars",
-            isExpanded: $isEffectExpanded
-        ) {
+        return VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 ForEach(availableEffectStyles) { style in
                     Button {
@@ -484,17 +626,15 @@ struct PhotoBatchEditorView: View {
                     .buttonStyle(.plain)
                 }
             }
-            Slider(value: $options.strength, in: strengthRange) {
-                Text(localization.t("editor.strength"))
-            } minimumValueLabel: {
-                Text(localization.t("editor.weak"))
-            } maximumValueLabel: {
-                Text(localization.t("editor.strong"))
+            if options.style != .sticker {
+                Slider(value: $options.strength, in: strengthRange) {
+                    Text(localization.t("editor.strength"))
+                } minimumValueLabel: {
+                    Text(localization.t("editor.weak"))
+                } maximumValueLabel: {
+                    Text(localization.t("editor.strong"))
+                }
             }
-            Text(strengthDescription)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
 
             if options.style == .ascii {
                 asciiColorControls(bundle: bundle)
@@ -524,20 +664,6 @@ struct PhotoBatchEditorView: View {
         options.strength = 24
     }
 
-    private var strengthDescription: String {
-        let value = Int64(options.strength)
-        switch options.style {
-        case .blur:
-            return localization.format("strength.blur", value)
-        case .pixel:
-            return localization.format("strength.pixel", value)
-        case .ascii:
-            return localization.format("strength.ascii", value)
-        case .sticker:
-            return localization.format("strength.sticker", value)
-        }
-    }
-
     private var stickerControls: some View {
         StickerEmojiPicker(
             title: localization.t("sticker.emoji"),
@@ -555,10 +681,6 @@ struct PhotoBatchEditorView: View {
     @ViewBuilder
     private func asciiColorControls(bundle: Bundle) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(localization.t("ascii.color"))
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
                     ForEach(ASCIIColorTheme.all) { theme in
@@ -663,56 +785,6 @@ struct PhotoBatchEditorView: View {
             return .asciiDefaultForeground
         }
         return EffectRGBA(r: Double(r), g: Double(g), b: Double(b), a: Double(a))
-    }
-
-    private var exportSection: some View {
-        VStack(spacing: 12) {
-            if !entitlements.isUnlocked && drafts.count > 1 {
-                PurchaseStatusCard {
-                    showPaywall = true
-                }
-            }
-
-            Button {
-                exportPhotos()
-            } label: {
-                Label(
-                    entitlements.isUnlocked
-                        ? localization.t("photo.exportBatch")
-                        : localization.t("photo.exportCurrent"),
-                    systemImage: "square.and.arrow.up"
-                )
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.mint)
-            .foregroundStyle(.black)
-            .disabled(isAnalyzing || isExporting || currentDraft?.status == .failed)
-
-            if !outputURLs.isEmpty {
-                HStack {
-                    Button {
-                        saveOutputs()
-                    } label: {
-                        Label(
-                            savedCount > 0
-                                ? localization.format("photo.savedCount", Int64(savedCount))
-                                : localization.t("photo.save"),
-                            systemImage: "square.and.arrow.down"
-                        )
-                    }
-                    .disabled(isSaving)
-
-                    Button {
-                        showShare = true
-                    } label: {
-                        Label(localization.t("processing.share"), systemImage: "square.and.arrow.up")
-                    }
-                }
-                .buttonStyle(.bordered)
-            }
-        }
     }
 
     private func analyzeAll() {
@@ -886,49 +958,5 @@ struct PhotoBatchEditorView: View {
                 savedCount = 0
             }
         }
-    }
-}
-
-private struct PhotoCollapsibleOptionSection<Content: View>: View {
-    let title: String
-    let systemImage: String
-    var meta: String? = nil
-    @Binding var isExpanded: Bool
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: isExpanded ? 13 : 0) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isExpanded.toggle()
-                }
-            } label: {
-                HStack {
-                    Label(title, systemImage: systemImage)
-                        .font(.headline)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.85)
-                    Spacer(minLength: 8)
-                    if let meta {
-                        Text(meta)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Image(systemName: "chevron.down")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if isExpanded {
-                content
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-        .padding()
-        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 18))
     }
 }

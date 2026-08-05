@@ -221,6 +221,14 @@
         "ja": {"stringUnit": {"state": "translated", "value": "写真の一括マスク"}}
       }
     },
+    "photo.exportAction": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "导出"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "匯出"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Export"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "書き出す"}}
+      }
+    },
     "photo.batchCount": {
       "localizations": {
         "zh-Hans": {"stringUnit": {"state": "translated", "value": "已选择 %lld 张照片"}},
