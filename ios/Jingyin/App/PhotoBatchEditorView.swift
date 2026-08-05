@@ -9,7 +9,7 @@ struct PhotoBatchEditorView: View {
     @State private var drafts: [PhotoDraft]
     @State private var currentIndex = 0
     @State private var selectedTrackID: MaskTrack.ID?
-    @State private var options = ProcessingOptions()
+    @State private var options: ProcessingOptions
     @State private var renderedPreview: UIImage?
     @State private var isAnalyzing = false
     @State private var isRenderingPreview = false
@@ -33,9 +33,7 @@ struct PhotoBatchEditorView: View {
     init(inputURLs: [URL]) {
         self.inputURLs = inputURLs
         _drafts = State(initialValue: inputURLs.map { PhotoDraft(inputURL: $0) })
-        var initialOptions = ProcessingOptions()
-        initialOptions.subjects = [.face]
-        _options = State(initialValue: initialOptions)
+        _options = State(initialValue: ProcessingOptionsPreferenceStore.loadPhoto())
     }
 
     var body: some View {
@@ -103,6 +101,9 @@ struct PhotoBatchEditorView: View {
         .onChange(of: options.stickerEmoji) { _, _ in
             invalidateOutputs(at: Array(drafts.indices))
             refreshPreview()
+        }
+        .onChange(of: options) { _, options in
+            ProcessingOptionsPreferenceStore.savePhoto(options)
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView()

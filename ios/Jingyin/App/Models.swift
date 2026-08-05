@@ -497,6 +497,173 @@ struct ProcessingOptions: Equatable {
     }
 }
 
+enum ProcessingOptionsPreferenceStore {
+    private static let videoKey = "jingyin.processingOptions.video"
+    private static let photoKey = "jingyin.processingOptions.photo"
+
+    static func loadVideo(defaults: UserDefaults = .standard) -> ProcessingOptions {
+        var options = ProcessingOptions()
+        guard let preferences = load(forKey: videoKey, defaults: defaults) else {
+            return options
+        }
+        preferences.applyCommon(to: &options)
+        if let rawValue = preferences.audio,
+           let audio = AudioMode(rawValue: rawValue) {
+            options.audio = audio
+        }
+        if let voicePitch = preferences.voicePitch {
+            options.voicePitch = VoicePitchStore.clamp(voicePitch)
+        }
+        if let rawValue = preferences.exportResolution,
+           let resolution = ExportResolution(rawValue: rawValue) {
+            options.exportResolution = resolution
+        }
+        if let frameRate = preferences.exportFrameRate,
+           (1...240).contains(frameRate) {
+            options.exportFrameRate = frameRate
+        }
+        return options
+    }
+
+    static func loadPhoto(defaults: UserDefaults = .standard) -> ProcessingOptions {
+        var options = ProcessingOptions()
+        options.subjects = [.face]
+        guard let preferences = load(forKey: photoKey, defaults: defaults) else {
+            return options
+        }
+        preferences.applyCommon(to: &options)
+        return options
+    }
+
+    static func saveVideo(
+        _ options: ProcessingOptions,
+        defaults: UserDefaults = .standard
+    ) {
+        save(
+            StoredPreferences(
+                options: options,
+                audio: options.audio.rawValue,
+                voicePitch: options.voicePitch,
+                exportResolution: options.exportResolution.rawValue,
+                exportFrameRate: options.exportFrameRate
+            ),
+            forKey: videoKey,
+            defaults: defaults
+        )
+    }
+
+    static func savePhoto(
+        _ options: ProcessingOptions,
+        defaults: UserDefaults = .standard
+    ) {
+        save(StoredPreferences(options: options), forKey: photoKey, defaults: defaults)
+    }
+
+    private static func load(
+        forKey key: String,
+        defaults: UserDefaults
+    ) -> StoredPreferences? {
+        guard let data = defaults.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode(StoredPreferences.self, from: data)
+    }
+
+    private static func save(
+        _ preferences: StoredPreferences,
+        forKey key: String,
+        defaults: UserDefaults
+    ) {
+        guard let data = try? JSONEncoder().encode(preferences) else { return }
+        defaults.set(data, forKey: key)
+    }
+
+    private struct StoredPreferences: Codable {
+        var quality: String
+        var scope: String
+        var style: String
+        var strength: Double
+        var asciiForeground: EffectRGBA
+        var asciiBackground: EffectRGBA
+        var stickerEmoji: String
+        var subjects: [String]
+        var audio: String?
+        var voicePitch: Int?
+        var exportResolution: Int?
+        var exportFrameRate: Int?
+
+        init(
+            options: ProcessingOptions,
+            audio: String? = nil,
+            voicePitch: Int? = nil,
+            exportResolution: Int? = nil,
+            exportFrameRate: Int? = nil
+        ) {
+            quality = options.quality.rawValue
+            scope = options.scope.rawValue
+            style = options.style.rawValue
+            strength = options.strength
+            asciiForeground = options.asciiForeground
+            asciiBackground = options.asciiBackground
+            stickerEmoji = options.stickerEmoji.rawValue
+            subjects = options.subjects.map(\.rawValue).sorted()
+            self.audio = audio
+            self.voicePitch = voicePitch
+            self.exportResolution = exportResolution
+            self.exportFrameRate = exportFrameRate
+        }
+
+        func applyCommon(to options: inout ProcessingOptions) {
+            if let quality = QualityMode(rawValue: quality) {
+                options.quality = quality
+            }
+            if let scope = MaskScope(rawValue: scope) {
+                options.scope = scope
+            }
+            if let style = EffectStyle(rawValue: style) {
+                options.style = style
+            }
+            if strength.isFinite {
+                options.strength = min(max(strength, strengthRange.lowerBound), strengthRange.upperBound)
+            }
+            options.asciiForeground = asciiForeground.sanitized(
+                fallback: .asciiDefaultForeground
+            )
+            options.asciiBackground = asciiBackground.sanitized(
+                fallback: .asciiDefaultBackground
+            )
+            if let stickerEmoji = StickerEmoji(rawValue: stickerEmoji) {
+                options.stickerEmoji = stickerEmoji
+            }
+            options.subjects = Set(subjects.compactMap(SubjectKind.init(rawValue:)))
+            if options.style == .sticker, !options.supportsFaceSticker {
+                options.style = .pixel
+                options.strength = 24
+            }
+        }
+
+        private var strengthRange: ClosedRange<Double> {
+            switch EffectStyle(rawValue: style) ?? .pixel {
+            case .blur: 4...64
+            case .pixel: 6...48
+            case .ascii: 8...30
+            case .sticker: 40...120
+            }
+        }
+    }
+}
+
+private extension EffectRGBA {
+    func sanitized(fallback: EffectRGBA) -> EffectRGBA {
+        let components = [r, g, b, a]
+        guard components.allSatisfy(\.isFinite) else { return fallback }
+        return EffectRGBA(
+            r: min(max(r, 0), 1),
+            g: min(max(g, 0), 1),
+            b: min(max(b, 0), 1),
+            a: min(max(a, 0), 1)
+        )
+    }
+}
+
 enum ProcessingStage: Equatable {
     case idle
     case reading

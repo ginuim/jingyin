@@ -9,7 +9,7 @@ struct EditorView: View {
     @EnvironmentObject private var localization: LocalizationManager
     @EnvironmentObject private var entitlements: EntitlementStore
     @State private var player: AVPlayer
-    @State private var options = ProcessingOptions()
+    @State private var options: ProcessingOptions
     @State private var showProcessing = false
     @State private var showExportSettings = false
     @State private var showPaywall = false
@@ -41,6 +41,7 @@ struct EditorView: View {
     init(videoURL: URL) {
         self.videoURL = videoURL
         _player = State(initialValue: AVPlayer(url: videoURL))
+        _options = State(initialValue: ProcessingOptionsPreferenceStore.loadVideo())
     }
 
     var body: some View {
@@ -208,6 +209,9 @@ struct EditorView: View {
         .onChange(of: options.voicePitch) { _, pitch in
             VoicePitchStore.save(pitch)
             voicePreview.setPitch(pitch)
+        }
+        .onChange(of: options) { _, options in
+            ProcessingOptionsPreferenceStore.saveVideo(options)
         }
         .onChange(of: showManualMaskEditor) { _, isExpanded in
             if !isExpanded {
@@ -1180,8 +1184,12 @@ struct EditorView: View {
             return
         }
         sourceMetadata = metadata
-        options.exportResolution = .defaultValue(for: metadata.shortEdge)
-        options.exportFrameRate = metadata.defaultFrameRate
+        if !metadata.availableResolutions.contains(options.exportResolution) {
+            options.exportResolution = .defaultValue(for: metadata.shortEdge)
+        }
+        if !metadata.availableFrameRates.contains(options.exportFrameRate) {
+            options.exportFrameRate = metadata.defaultFrameRate
+        }
     }
 
     private var strengthRange: ClosedRange<Double> {
