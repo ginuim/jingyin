@@ -218,6 +218,22 @@ enum StickerEmoji: String, CaseIterable, Identifiable, Sendable {
     case pumpkin = "🎃"
     case panda = "🐼"
     case frog = "🐸"
+    case smile = "😊"
+    case wink = "😉"
+    case laughing = "😂"
+    case thinking = "🤔"
+    case shushing = "🤫"
+    case zipperMouth = "🤐"
+    case mindBlown = "🤯"
+    case scream = "😱"
+    case angry = "😡"
+    case skull = "💀"
+    case poop = "💩"
+    case dog = "🐶"
+    case fox = "🦊"
+    case tiger = "🐯"
+    case lion = "🦁"
+    case bear = "🐻"
 
     var id: String { rawValue }
 }
