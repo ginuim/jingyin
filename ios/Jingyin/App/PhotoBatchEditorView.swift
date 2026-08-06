@@ -352,41 +352,23 @@ struct PhotoBatchEditorView: View {
 
     @ViewBuilder
     private func parameterPanel(for tool: PhotoEditorTool) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label(tool.title(localization), systemImage: tool.systemImage)
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        selectedTool = nil
-                    }
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
+        ScrollView(.vertical, showsIndicators: true) {
+            Group {
+                switch tool {
+                case .subjects:
+                    subjectOptions
+                case .scope:
+                    scopeOptions
+                case .effect:
+                    effectOptions
+                case .masks:
+                    maskActions
+                case .quality:
+                    qualityOptions
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(localization.t("editor.done"))
             }
-
-            ScrollView(.vertical, showsIndicators: true) {
-                Group {
-                    switch tool {
-                    case .subjects:
-                        subjectOptions
-                    case .scope:
-                        scopeOptions
-                    case .effect:
-                        effectOptions
-                    case .masks:
-                        maskActions
-                    case .quality:
-                        qualityOptions
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, 4)
-            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.bottom, 4)
         }
         .padding(.horizontal, 16)
         .padding(.top, 12)
