@@ -351,18 +351,42 @@
     },
     "photo.exportSuccess": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "导出成功"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "匯出成功"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Export Complete"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "書き出し完了"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "处理成功"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "處理成功"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Processing Complete"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "処理完了"}}
       }
     },
     "photo.exportSuccessDetail": {
       "localizations": {
         "zh-Hans": {"stringUnit": {"state": "translated", "value": "已处理 %lld 张，可保存到相册或分享"}},
         "zh-Hant": {"stringUnit": {"state": "translated", "value": "已處理 %lld 張，可儲存到相簿或分享"}},
-        "en": {"stringUnit": {"state": "translated", "value": "%lld photo(s) ready. Save to Photos or share."}},
+        "en": {"stringUnit": {"state": "translated", "value": "%lld image(s) ready. Save to Photos or share."}},
         "ja": {"stringUnit": {"state": "translated", "value": "%lld枚の処理が完了しました。写真に保存するか共有できます。"}}
+      }
+    },
+    "photo.saveFailed": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "保存失败"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "儲存失敗"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Couldn’t Save"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "保存できませんでした"}}
+      }
+    },
+    "photo.saveFailedDetail": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "无法写入相册，请稍后重试。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "無法寫入相簿，請稍後再試。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Couldn’t write to Photos. Please try again."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "写真アプリに書き込めませんでした。もう一度お試しください。"}}
+      }
+    },
+    "photo.saveAccessDenied": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "未获得相册写入权限，请在设置中开启。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "未取得相簿寫入權限，請在設定中開啟。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Photos access was denied. Enable it in Settings."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "写真への書き込み許可がありません。設定でオンにしてください。"}}
       }
     },
     "photo.savedCount": {
@@ -379,6 +403,38 @@
         "zh-Hant": {"stringUnit": {"state": "translated", "value": "儲存到相簿"}},
         "en": {"stringUnit": {"state": "translated", "value": "Save to Photos"}},
         "ja": {"stringUnit": {"state": "translated", "value": "写真に保存"}}
+      }
+    },
+    "common.ok": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "好的"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "好的"}},
+        "en": {"stringUnit": {"state": "translated", "value": "OK"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "OK"}}
+      }
+    },
+    "photo.continueReview": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "继续复核"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "繼續覆核"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Continue Review"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "確認を続ける"}}
+      }
+    },
+    "photo.returnHome": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "返回首页"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "返回首頁"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Back to Home"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "ホームに戻る"}}
+      }
+    },
+    "photo.unlockBatchExport": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "解锁照片批量导出"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "解鎖照片批次匯出"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Unlock Batch Photo Export"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "写真の一括書き出しを解除"}}
       }
     },
     "settings.title": {

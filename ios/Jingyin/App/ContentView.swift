@@ -50,7 +50,9 @@ struct ContentView: View {
                 EditorView(videoURL: url)
             }
             .navigationDestination(item: $importedPhotos) { selection in
-                PhotoBatchEditorView(inputURLs: selection.urls)
+                PhotoBatchEditorView(inputURLs: selection.urls) {
+                    importedPhotos = nil
+                }
             }
     }
 

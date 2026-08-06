@@ -362,6 +362,14 @@ enum PhotoProcessor {
         guard status == .authorized || status == .limited else {
             throw ProcessingError.photoAccessDenied
         }
+        let existing = urls.filter { FileManager.default.fileExists(atPath: $0.path) }
+        guard !existing.isEmpty else { return }
+        // Photos runs the changes block off the main queue. Keep this helper
+        // nonisolated so Swift 6 MainActor isolation does not trap inside it.
+        try await addImagesToPhotos(existing)
+    }
+
+    nonisolated private static func addImagesToPhotos(_ urls: [URL]) async throws {
         try await PHPhotoLibrary.shared().performChanges {
             for url in urls {
                 PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: url)

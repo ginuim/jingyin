@@ -34,6 +34,7 @@ private enum PhotoEditorTool: String, CaseIterable, Identifiable {
 
 struct PhotoBatchEditorView: View {
     let inputURLs: [URL]
+    let onReturnHome: () -> Void
 
     @EnvironmentObject private var localization: LocalizationManager
     @EnvironmentObject private var entitlements: EntitlementStore
@@ -45,11 +46,8 @@ struct PhotoBatchEditorView: View {
     @State private var isAnalyzing = false
     @State private var isRenderingPreview = false
     @State private var isExporting = false
-    @State private var isSaving = false
-    @State private var savedCount = 0
-    @State private var exportSuccessCount: Int?
+    @State private var exportResult: PhotoExportResult?
     @State private var showPaywall = false
-    @State private var showShare = false
     @State private var analysisTask: Task<Void, Never>?
     @State private var previewTask: Task<Void, Never>?
     @State private var exportTask: Task<Void, Never>?
@@ -57,8 +55,9 @@ struct PhotoBatchEditorView: View {
     @State private var showASCIIColorCustom = false
     @State private var selectedTool: PhotoEditorTool? = .effect
 
-    init(inputURLs: [URL]) {
+    init(inputURLs: [URL], onReturnHome: @escaping () -> Void = {}) {
         self.inputURLs = inputURLs
+        self.onReturnHome = onReturnHome
         _drafts = State(initialValue: inputURLs.map { PhotoDraft(inputURL: $0) })
         _options = State(initialValue: ProcessingOptionsPreferenceStore.loadPhoto())
     }
@@ -93,29 +92,6 @@ struct PhotoBatchEditorView: View {
                         Image(systemName: "crown")
                     }
                     .accessibilityLabel(localization.t("purchase.unlock"))
-                }
-            }
-            if !outputURLs.isEmpty {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        saveOutputs()
-                    } label: {
-                        Image(systemName: savedCount > 0 ? "checkmark.circle.fill" : "square.and.arrow.down")
-                    }
-                    .disabled(isSaving)
-                    .accessibilityLabel(
-                        savedCount > 0
-                            ? localization.format("photo.savedCount", Int64(savedCount))
-                            : localization.t("photo.save")
-                    )
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showShare = true
-                    } label: {
-                        Image(systemName: "square.and.arrow.up")
-                    }
-                    .accessibilityLabel(localization.t("processing.share"))
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -193,21 +169,10 @@ struct PhotoBatchEditorView: View {
                 .environmentObject(localization)
                 .environmentObject(entitlements)
         }
-        .sheet(isPresented: $showShare) {
-            ShareSheet(items: outputURLs)
-        }
-        .alert(
-            localization.t("photo.exportSuccess"),
-            isPresented: Binding(
-                get: { exportSuccessCount != nil },
-                set: { if !$0 { exportSuccessCount = nil } }
-            )
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            if let exportSuccessCount {
-                Text(localization.format("photo.exportSuccessDetail", Int64(exportSuccessCount)))
-            }
+        .navigationDestination(item: $exportResult) { result in
+            PhotoExportSuccessView(result: result, onReturnHome: onReturnHome)
+                .environmentObject(localization)
+                .environmentObject(entitlements)
         }
         .onDisappear {
             analysisTask?.cancel()
@@ -239,10 +204,6 @@ struct PhotoBatchEditorView: View {
                 }
             }
         )
-    }
-
-    private var outputURLs: [URL] {
-        drafts.compactMap(\.outputURL)
     }
 
     private var photoStrip: some View {
@@ -871,12 +832,10 @@ struct PhotoBatchEditorView: View {
                 drafts[index].status = .ready
             }
         }
-        savedCount = 0
     }
 
     private func exportPhotos() {
         exportTask?.cancel()
-        savedCount = 0
         let targets: [PhotoDraft]
         if entitlements.isUnlocked {
             targets = drafts.filter { $0.status != .failed }
@@ -918,22 +877,8 @@ struct PhotoBatchEditorView: View {
             }
             isExporting = false
             if successCount > 0 {
-                exportSuccessCount = successCount
-            }
-        }
-    }
-
-    private func saveOutputs() {
-        let urls = outputURLs
-        guard !urls.isEmpty else { return }
-        isSaving = true
-        Task {
-            defer { isSaving = false }
-            do {
-                try await PhotoProcessor.saveToPhotos(urls)
-                savedCount = urls.count
-            } catch {
-                savedCount = 0
+                let urls = drafts.compactMap(\.outputURL)
+                exportResult = PhotoExportResult(outputURLs: urls)
             }
         }
     }
