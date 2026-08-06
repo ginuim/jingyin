@@ -20,20 +20,6 @@ private enum PhotoEditorTool: String, CaseIterable, Identifiable {
         }
     }
 
-    /// The tool panel is intentionally content-sized rather than a single
-    /// fixed-height drawer. This keeps short controls from leaving a large
-    /// empty block above the toolbar while still giving complex tools room to
-    /// scroll internally.
-    var panelHeight: CGFloat {
-        switch self {
-        case .subjects: 154
-        case .scope: 126
-        case .effect: 210
-        case .masks: 210
-        case .quality: 166
-        }
-    }
-
     @MainActor
     func title(_ localization: LocalizationManager) -> String {
         switch self {
@@ -88,12 +74,12 @@ struct PhotoBatchEditorView: View {
                 .frame(maxHeight: .infinity)
                 .layoutPriority(1)
 
+            toolBar
+
             if let selectedTool {
                 parameterPanel(for: selectedTool)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-
-            toolBar
         }
         .background(Color(red: 0.035, green: 0.065, blue: 0.07))
         .navigationTitle(localization.t("photo.title"))
@@ -405,13 +391,9 @@ struct PhotoBatchEditorView: View {
         .padding(.horizontal, 16)
         .padding(.top, 12)
         .padding(.bottom, 8)
-        // Keep the viewport proportional to the selected tool. Long option
-        // lists scroll inside it, while compact tools do not create dead space.
-        .frame(
-            height: tool == .effect && options.style == .sticker
-                ? 190
-                : tool.panelHeight
-        )
+        // Fixed drawer height so switching tools does not jump the preview.
+        // Overflow scrolls inside; keep it tall enough for effect / mask controls.
+        .frame(height: 220)
         .background(.ultraThinMaterial)
         .overlay(alignment: .top) {
             Divider()
