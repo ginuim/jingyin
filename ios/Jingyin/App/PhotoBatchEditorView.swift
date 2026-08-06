@@ -98,11 +98,14 @@ struct PhotoBatchEditorView: View {
                 Button {
                     exportPhotos()
                 } label: {
-                    if isExporting {
-                        ProgressView()
-                    } else {
+                    ZStack {
                         Text(localization.t("photo.exportAction"))
-                        .font(.subheadline.weight(.semibold))
+                            .font(.subheadline.weight(.semibold))
+                            .opacity(isExporting ? 0 : 1)
+                        if isExporting {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
                     }
                 }
                 .disabled(isAnalyzing || isExporting || currentDraft?.status == .failed)
