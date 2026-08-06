@@ -501,13 +501,6 @@ struct PhotoBatchEditorView: View {
 
     private var subjectOptions: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Spacer()
-                Button(localization.t("photo.redetect")) {
-                    analyzeAll()
-                }
-                .disabled(isAnalyzing)
-            }
             HStack(spacing: 8) {
                 ForEach(SubjectKind.allCases) { subject in
                     Button {
@@ -530,6 +523,27 @@ struct PhotoBatchEditorView: View {
                     .buttonStyle(.plain)
                 }
             }
+
+            Button {
+                analyzeAll()
+            } label: {
+                Label(localization.t("photo.redetect"), systemImage: "arrow.clockwise")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(
+                        Color.mint.opacity(0.14),
+                        in: RoundedRectangle(cornerRadius: 11)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 11)
+                            .stroke(Color.mint.opacity(0.55), lineWidth: 1)
+                    }
+                    .foregroundStyle(Color.mint)
+            }
+            .buttonStyle(.plain)
+            .disabled(isAnalyzing)
+            .opacity(isAnalyzing ? 0.45 : 1)
         }
     }
 

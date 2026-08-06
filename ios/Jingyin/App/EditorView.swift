@@ -31,7 +31,7 @@ struct EditorView: View {
     @State private var jumpObserver: NSObjectProtocol?
     @State private var asciiRecentPairs = ASCIIColorRecentStore.load()
     @State private var showASCIIColorCustom = false
-    @State private var isVideoPinned = false
+    @State private var isVideoPinned = true
     @State private var isScopeExpanded = true
     @State private var isSubjectsExpanded = true
     @State private var isQualityExpanded = true
@@ -49,7 +49,7 @@ struct EditorView: View {
             if isVideoPinned {
                 videoPlayerSection
                     .padding(.horizontal)
-                    .padding(.top)
+                    .padding(.top, 8)
             }
 
             ScrollView {
@@ -256,7 +256,7 @@ struct EditorView: View {
             }
         ) {
             BareVideoPlayer(player: player)
-                .aspectRatio(16 / 10, contentMode: .fit)
+                .aspectRatio(16 / 9, contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: 20))
                 .overlay {
                     if showManualMaskEditor {

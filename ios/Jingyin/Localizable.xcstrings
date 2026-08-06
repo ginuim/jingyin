@@ -199,10 +199,10 @@
     },
     "home.pickImages": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "批量处理照片"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "批次處理照片"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Process Photos"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "写真をまとめて処理"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "批量处理图片"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "批次處理圖片"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Process Images"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "画像をまとめて処理"}}
       }
     },
     "error.invalidPhoto": {
@@ -215,10 +215,10 @@
     },
     "photo.title": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "照片批量遮罩"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "照片批次遮罩"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Batch Photo Masks"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "写真の一括マスク"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "图片遮罩"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "圖片遮罩"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Image Masks"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "画像マスク"}}
       }
     },
     "photo.exportAction": {
@@ -231,10 +231,10 @@
     },
     "photo.batchCount": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "已选择 %lld 张照片"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "已選擇 %lld 張照片"}},
-        "en": {"stringUnit": {"state": "translated", "value": "%lld photos selected"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "%lld枚の写真を選択"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "已选择 %lld 张图片"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "已選擇 %lld 張圖片"}},
+        "en": {"stringUnit": {"state": "translated", "value": "%lld images selected"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "%lld枚の画像を選択"}}
       }
     },
     "photo.analyzingProgress": {
@@ -271,10 +271,10 @@
     },
     "photo.analyzing": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "正在识别照片…"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "正在辨識照片…"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Analyzing photo…"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "写真を解析中…"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "正在识别图片…"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "正在辨識圖片…"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Analyzing image…"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "画像を解析中…"}}
       }
     },
     "photo.maskCount": {
@@ -327,26 +327,26 @@
     },
     "photo.redetect": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "重新识别全部"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "重新辨識全部"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Re-analyze All"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "すべて再解析"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "重新识别全部图片"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "重新辨識全部圖片"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Re-analyze All Images"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "すべての画像を再解析"}}
       }
     },
     "photo.exportBatch": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "导出全部照片"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "匯出全部照片"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Export All Photos"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "すべての写真を書き出す"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "导出全部图片"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "匯出全部圖片"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Export All Images"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "すべての画像を書き出す"}}
       }
     },
     "photo.exportCurrent": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "免费导出当前照片"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "免費匯出目前照片"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Export Current Photo Free"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "現在の写真を無料で書き出す"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "免费导出当前图片"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "免費匯出目前圖片"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Export Current Image Free"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "現在の画像を無料で書き出す"}}
       }
     },
     "photo.exportSuccess": {
@@ -1690,25 +1690,25 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "隐私级像素化"
+            "value": "像素化"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "隱私級像素化"
+            "value": "像素化"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Privacy Pixelation"
+            "value": "Pixelate"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "プライバシーモザイク"
+            "value": "モザイク"
           }
         }
       }
@@ -3511,10 +3511,10 @@
     },
     "purchase.unlocked.detail": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "完整视频规格与照片批量导出"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "完整影片規格與照片批次匯出"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Full video quality and batch photo exports"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "動画全編と写真の一括書き出し"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "完整视频规格与图片导出"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "完整影片規格與圖片匯出"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Full video quality and batch image exports"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "動画全編と画像の一括書き出し"}}
       }
     },
     "purchase.freePlan": {
@@ -3615,10 +3615,10 @@
     },
     "paywall.subtitle": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "先免费处理短片或单张照片，满意后解锁完整视频与照片批量。"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "先免費處理短片或單張照片，滿意後解鎖完整影片與照片批次。"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Try a short video or one photo free, then unlock full videos and batch photos."}},
-        "ja": {"stringUnit": {"state": "translated", "value": "短い動画または写真1枚を無料で試し、動画全編と写真一括処理を解放できます。"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "先免费处理短片或单张图片，满意后解锁完整视频与图片。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "先免費處理短片或單張圖片，滿意後解鎖完整影片與圖片。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Try a short video or one image free, then unlock full videos and batch images."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "短い動画または画像1枚を無料で試し、動画全編と画像一括処理を解放できます。"}}
       }
     },
     "paywall.benefit.full": {
@@ -3631,10 +3631,10 @@
     },
     "paywall.benefit.quality": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "一次选择并批量导出多张照片"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "一次選擇並批次匯出多張照片"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Select and export multiple photos as one batch"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "複数の写真を選択してまとめて書き出し"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "一次选择并批量导出多张图片"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "一次選擇並批次匯出多張圖片"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Select and export multiple images as one batch"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "複数の画像を選択してまとめて書き出し"}}
       }
     },
     "paywall.benefit.simple": {
