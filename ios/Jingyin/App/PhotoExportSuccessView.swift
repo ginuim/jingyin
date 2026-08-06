@@ -105,6 +105,7 @@ struct PhotoExportSuccessView: View {
         }
         .onDisappear {
             saveToastTask?.cancel()
+            PhotoProcessor.removeOutputs(at: result.outputURLs)
         }
     }
 
@@ -155,7 +156,7 @@ struct PhotoExportSuccessView: View {
             .buttonStyle(.plain)
             .background(Color.mint, in: Capsule())
             .foregroundStyle(.black)
-            .disabled(isSaving || result.outputURLs.isEmpty)
+            .disabled(saved || isSaving || result.outputURLs.isEmpty)
 
             Button {
                 showShare = true

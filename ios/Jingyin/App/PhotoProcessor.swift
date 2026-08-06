@@ -185,6 +185,7 @@ enum PhotoProcessor {
         case invalidImage
         case renderFailed
         case photoAccessDenied
+        case outputUnavailable
     }
 
     #if DEBUG
@@ -358,15 +359,16 @@ enum PhotoProcessor {
 
     static func saveToPhotos(_ urls: [URL]) async throws {
         guard !urls.isEmpty else { return }
+        guard urls.allSatisfy({ FileManager.default.fileExists(atPath: $0.path) }) else {
+            throw ProcessingError.outputUnavailable
+        }
         let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
         guard status == .authorized || status == .limited else {
             throw ProcessingError.photoAccessDenied
         }
-        let existing = urls.filter { FileManager.default.fileExists(atPath: $0.path) }
-        guard !existing.isEmpty else { return }
         // Photos runs the changes block off the main queue. Keep this helper
         // nonisolated so Swift 6 MainActor isolation does not trap inside it.
-        try await addImagesToPhotos(existing)
+        try await addImagesToPhotos(urls)
     }
 
     nonisolated private static func addImagesToPhotos(_ urls: [URL]) async throws {
@@ -378,9 +380,12 @@ enum PhotoProcessor {
     }
 
     static func removeOutputs(from drafts: [PhotoDraft]) {
-        for draft in drafts {
-            guard let outputURL = draft.outputURL else { continue }
-            try? FileManager.default.removeItem(at: outputURL)
+        removeOutputs(at: drafts.compactMap(\.outputURL))
+    }
+
+    static func removeOutputs(at urls: [URL]) {
+        for url in urls {
+            try? FileManager.default.removeItem(at: url)
         }
     }
 

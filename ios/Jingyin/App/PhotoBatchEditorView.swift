@@ -177,16 +177,22 @@ struct PhotoBatchEditorView: View {
                 .environmentObject(localization)
                 .environmentObject(entitlements)
         }
-        .onDisappear {
-            analysisTask?.cancel()
-            previewTask?.cancel()
-            exportTask?.cancel()
-            PhotoProcessor.removeOutputs(from: drafts)
-        }
+        .onDisappear(perform: handleDisappear)
     }
 
     private var currentDraft: PhotoDraft? {
         drafts.indices.contains(currentIndex) ? drafts[currentIndex] : nil
+    }
+
+    private func handleDisappear() {
+        analysisTask?.cancel()
+        previewTask?.cancel()
+        exportTask?.cancel()
+        // Pushing the export result also makes this editor disappear. The
+        // result screen still needs these temporary files for save/share.
+        if exportResult == nil {
+            PhotoProcessor.removeOutputs(from: drafts)
+        }
     }
 
     private var currentTracks: Binding<[MaskTrack]> {
