@@ -116,11 +116,12 @@ struct ContentView: View {
 
             VStack(spacing: 22) {
                 Spacer()
-                Image(systemName: "eye.slash.fill")
-                    .font(.system(size: 58, weight: .semibold))
-                    .foregroundStyle(.mint)
-                    .padding(24)
-                    .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 28))
+                Image("WelcomeLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 112, height: 112)
+                    .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                    .accessibilityLabel(localization.t("brand.name"))
 
                 VStack(spacing: 8) {
                     Text(localization.t("brand.name"))
