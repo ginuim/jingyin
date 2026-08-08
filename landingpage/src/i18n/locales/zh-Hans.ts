@@ -54,6 +54,7 @@ export const landingZhHans: LandingCopy = {
   ],
   proTitle: '永久版',
   proBody: '一次买断，永久解锁。',
+  proBadge: '推荐',
   proPoints: [
     '完整视频时长与更高导出清晰度',
     '照片批量导出',

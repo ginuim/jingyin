@@ -39,6 +39,7 @@ export type LandingCopy = {
   freePoints: string[]
   proTitle: string
   proBody: string
+  proBadge: string
   proPoints: string[]
   footerTagline: string
   footerPrivacy: string

@@ -62,6 +62,10 @@ const copy = computed(() => getDictionary(locale.value).landing)
   margin-left: auto;
 }
 
+.links a {
+  transition: color 0.15s ease;
+}
+
 .links a:hover {
   color: var(--accent-outline);
 }

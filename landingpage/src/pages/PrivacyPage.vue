@@ -85,15 +85,17 @@ const privacy = computed(() => getDictionary(locale.value).privacy)
 
 .updated {
   margin: 14px 0 0;
+  color: var(--muted);
   font: 600 12px/1.5 var(--mono);
 }
 
 .summary {
   margin: 34px 0;
-  padding: 20px 22px;
+  padding: 22px 24px;
   border-radius: 18px;
   background: var(--accent-soft);
-  border: 1px solid rgba(226, 138, 96, 0.35);
+  border: 1px solid rgba(226, 138, 96, 0.32);
+  box-shadow: inset 0 1px 0 rgba(255, 244, 238, 0.06);
 }
 
 .summary strong {

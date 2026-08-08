@@ -54,6 +54,7 @@ export const landingEn: LandingCopy = {
   ],
   proTitle: 'Lifetime Access',
   proBody: 'One purchase. Permanent unlock.',
+  proBadge: 'Recommended',
   proPoints: [
     'Full video length and higher export resolution',
     'Batch photo export',

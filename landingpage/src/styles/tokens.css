@@ -11,6 +11,9 @@
   --accent-soft: rgba(208, 100, 50, 0.16);
   --accent-outline: #e28a60;
   --accent-fg: #fff7f2;
+  --accent-glow: rgba(208, 100, 50, 0.32);
+  --card: rgba(42, 33, 30, 0.72);
+  --card-border: rgba(255, 244, 238, 0.09);
   --warn: #d59a3a;
   --success: #78a985;
   --danger: #cf6863;

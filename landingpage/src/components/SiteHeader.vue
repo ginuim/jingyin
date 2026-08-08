@@ -24,41 +24,53 @@ function switchLocale(next: Locale) {
 </script>
 
 <template>
-  <header class="header shell">
-    <RouterLink class="brand" :to="homePath(locale)">
-      <img class="brand-mark" src="/app-icon.png" alt="" width="36" height="36" />
-      <span>{{ copy.brand }}</span>
-    </RouterLink>
+  <div class="header-wrap">
+    <header class="header shell">
+      <RouterLink class="brand" :to="homePath(locale)">
+        <img class="brand-mark" src="/app-icon.png" alt="" width="36" height="36" />
+        <span>{{ copy.brand }}</span>
+      </RouterLink>
 
-    <div class="actions">
-      <label class="lang">
-        <span class="visually-hidden">{{ copy.langLabel }}</span>
-        <select
-          :value="locale"
-          :aria-label="copy.langLabel"
-          @change="switchLocale(($event.target as HTMLSelectElement).value as Locale)"
+      <div class="actions">
+        <label class="lang">
+          <span class="visually-hidden">{{ copy.langLabel }}</span>
+          <select
+            :value="locale"
+            :aria-label="copy.langLabel"
+            @change="switchLocale(($event.target as HTMLSelectElement).value as Locale)"
+          >
+            <option v-for="code in LOCALES" :key="code" :value="code">
+              {{ copy.langNames[code] }}
+            </option>
+          </select>
+        </label>
+
+        <a
+          class="btn btn-primary header-cta"
+          :href="storeReady ? APP_STORE_URL : '#download'"
+          :aria-disabled="!storeReady"
+          :class="{ 'is-disabled': !storeReady }"
         >
-          <option v-for="code in LOCALES" :key="code" :value="code">
-            {{ copy.langNames[code] }}
-          </option>
-        </select>
-      </label>
-
-      <a
-        class="btn btn-primary header-cta"
-        :href="storeReady ? APP_STORE_URL : '#download'"
-        :aria-disabled="!storeReady"
-        :class="{ 'is-disabled': !storeReady }"
-      >
-        {{ storeReady ? copy.navDownload : copy.comingSoon }}
-      </a>
-    </div>
-  </header>
+          {{ storeReady ? copy.navDownload : copy.comingSoon }}
+        </a>
+      </div>
+    </header>
+  </div>
 </template>
 
 <style scoped>
+.header-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(28, 22, 20, 0.78);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border-bottom: 1px solid rgba(255, 244, 238, 0.07);
+}
+
 .header {
-  height: 76px;
+  height: 68px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -72,6 +84,11 @@ function switchLocale(next: Locale) {
   font-weight: 750;
   font-size: 20px;
   letter-spacing: -0.03em;
+  transition: opacity 0.15s ease;
+}
+
+.brand:hover {
+  opacity: 0.85;
 }
 
 .brand-mark {
@@ -91,11 +108,17 @@ function switchLocale(next: Locale) {
   padding: 0 34px 0 12px;
   border-radius: 999px;
   border: 1px solid var(--divider);
+  cursor: pointer;
+  transition: border-color 0.15s ease;
   background:
     linear-gradient(45deg, transparent 50%, var(--secondary) 50%) calc(100% - 14px) calc(50% - 2px) / 6px 6px no-repeat,
     linear-gradient(135deg, var(--secondary) 50%, transparent 50%) calc(100% - 10px) calc(50% - 2px) / 6px 6px no-repeat,
     var(--surface);
   color: var(--text);
+}
+
+.lang select:hover {
+  border-color: var(--accent-outline);
 }
 
 .header-cta {

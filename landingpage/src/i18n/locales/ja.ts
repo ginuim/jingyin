@@ -54,6 +54,7 @@ export const landingJa: LandingCopy = {
   ],
   proTitle: '永久版',
   proBody: '一度の購入で永久に解除。',
+  proBadge: 'おすすめ',
   proPoints: [
     '動画の長さと書き出し解像度の制限解除',
     '写真の一括書き出し',
