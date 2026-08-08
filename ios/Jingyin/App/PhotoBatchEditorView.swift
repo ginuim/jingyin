@@ -6,7 +6,6 @@ private enum PhotoEditorTool: String, CaseIterable, Identifiable {
     case scope
     case effect
     case masks
-    case quality
 
     var id: String { rawValue }
 
@@ -16,7 +15,6 @@ private enum PhotoEditorTool: String, CaseIterable, Identifiable {
         case .scope: "viewfinder"
         case .effect: "wand.and.stars"
         case .masks: "square.dashed"
-        case .quality: "speedometer"
         }
     }
 
@@ -27,7 +25,6 @@ private enum PhotoEditorTool: String, CaseIterable, Identifiable {
         case .scope: localization.t("editor.scope")
         case .effect: localization.t("editor.style")
         case .masks: localization.t("editor.manualMasks")
-        case .quality: localization.t("editor.quality")
         }
     }
 }
@@ -149,12 +146,7 @@ struct PhotoBatchEditorView: View {
         }
         .onChange(of: options.subjects) { _, _ in
             resetStickerIfUnavailable()
-            invalidateOutputs(at: Array(drafts.indices))
-            refreshPreview()
-        }
-        .onChange(of: options.quality) { _, _ in
-            invalidateOutputs(at: Array(drafts.indices))
-            refreshPreview()
+            analyzeAll()
         }
         .onChange(of: options.strength) { _, _ in
             invalidateOutputs(at: Array(drafts.indices))
@@ -348,8 +340,6 @@ struct PhotoBatchEditorView: View {
                     effectOptions
                 case .masks:
                     maskActions
-                case .quality:
-                    qualityOptions
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -566,43 +556,11 @@ struct PhotoBatchEditorView: View {
         .frame(height: 112)
     }
 
-    private var qualityOptions: some View {
-        let bundle = localization.bundle
-        return VStack(alignment: .leading, spacing: 9) {
-            selectionCardRow(
-                QualityMode.allCases,
-                selected: options.quality,
-                title: { $0.title(bundle) },
-                systemImage: qualityIcon
-            ) {
-                options.quality = $0
-            }
-            .frame(height: 74)
-
-            Text(options.quality.detail(bundle))
-                .font(.caption)
-                .foregroundStyle(AppPalette.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 11)
-                .padding(.vertical, 8)
-                .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: 10))
-        }
-    }
-
     private func scopeIcon(_ scope: MaskScope) -> String {
         switch scope {
         case .subjects: "person.crop.rectangle"
         case .background: "photo.fill"
         case .full: "rectangle.inset.filled"
-        }
-    }
-
-    private func qualityIcon(_ quality: QualityMode) -> String {
-        switch quality {
-        case .fast: "hare.fill"
-        case .balanced: "dial.medium.fill"
-        case .precise: "sparkles"
         }
     }
 
@@ -870,12 +828,18 @@ struct PhotoBatchEditorView: View {
         analysisTask?.cancel()
         previewTask?.cancel()
         invalidateOutputs(at: Array(drafts.indices))
+        for index in drafts.indices {
+            drafts[index].maskGroups.removeAll {
+                $0.track.source != .manual
+            }
+            drafts[index].maskPlanes = []
+        }
         renderedPreview = nil
         isAnalyzing = true
         let subjects = options.subjects
         analysisTask = Task {
             for index in drafts.indices {
-                if Task.isCancelled { break }
+                guard !Task.isCancelled else { return }
                 let manualGroups = drafts[index].maskGroups.filter {
                     $0.track.source == .manual
                 }
@@ -885,6 +849,7 @@ struct PhotoBatchEditorView: View {
                         url: drafts[index].inputURL,
                         subjects: subjects
                     )
+                    guard !Task.isCancelled else { return }
                     drafts[index].previewImage = analysis.previewImage
                     drafts[index].displaySize = analysis.displaySize
                     drafts[index].maskGroups = analysis.maskGroups + manualGroups
@@ -895,9 +860,11 @@ struct PhotoBatchEditorView: View {
                         refreshPreview()
                     }
                 } catch {
+                    guard !Task.isCancelled else { return }
                     drafts[index].status = .failed
                 }
             }
+            guard !Task.isCancelled else { return }
             isAnalyzing = false
             refreshPreview()
         }

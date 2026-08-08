@@ -579,15 +579,14 @@ enum PhotoProcessor {
             }
         }
 
-        // Privacy-safe geometric fallback for devices or images where instance
-        // segmentation is unavailable.
+        // Geometric fallback for devices or images where instance segmentation
+        // is unavailable. Keep this strictly whole-person detection: a face-only
+        // fallback would make the "person" subject behave like "face".
         let humans = VNDetectHumanRectanglesRequest()
         humans.upperBodyOnly = false
-        let faces = VNDetectFaceRectanglesRequest()
         configureCPU(humans)
-        configureCPU(faces)
         try? VNImageRequestHandler(ciImage: image, orientation: .up)
-            .perform([humans, faces])
+            .perform([humans])
         let humanRects = (humans.results ?? [])
             .filter { $0.confidence >= 0.35 }
             .map {
@@ -597,38 +596,16 @@ enum PhotoProcessor {
                     vertical: 0.025
                 )
             }
-        if !humanRects.isEmpty {
-            return (
-                deduplicatedRects(humanRects).map {
-                    geometricGroup(
-                        rect: $0,
-                        shape: .rectangle,
-                        source: .detectedPerson
-                    )
-                },
-                nil
-            )
-        }
-
-        // Do not infer a full-body rectangle from a face alone. On portrait
-        // media that estimate can cover nearly the entire frame. A tight face
-        // fallback still protects identity and remains editable by the user.
-        let faceFallbackRects = (faces.results ?? [])
-            .filter { $0.confidence >= 0.35 }
-            .map {
-                NormalizedVideoRect(
-                    visionBoundingBox: $0.boundingBox
-                ).expandedForFaceCoverage()
-            }
-        let groups = deduplicatedRects(faceFallbackRects)
-            .map {
+        return (
+            deduplicatedRects(humanRects).map {
                 geometricGroup(
                     rect: $0,
-                    shape: .ellipse,
+                    shape: .rectangle,
                     source: .detectedPerson
                 )
-            }
-        return (groups, nil)
+            },
+            nil
+        )
     }
 
     private static func faceGroups(
