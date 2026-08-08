@@ -1,10 +1,10 @@
 import SwiftUI
 
 struct StickerEmojiPicker: View {
-    let title: String
     @Binding var selection: StickerEmoji
+    var accentColor: Color = .mint
 
-    private let pageSize = 16
+    private let pageSize = 12
 
     private var pages: [[StickerEmoji]] {
         let emojis = StickerEmoji.allCases
@@ -15,10 +15,6 @@ struct StickerEmojiPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-
             TabView {
                 ForEach(Array(pages.enumerated()), id: \.offset) { _, emojis in
                     LazyVGrid(
@@ -34,7 +30,7 @@ struct StickerEmojiPicker: View {
                                     .frame(maxWidth: .infinity, minHeight: 44)
                                     .background(
                                         selection == emoji
-                                            ? Color.mint.opacity(0.9)
+                                            ? accentColor.opacity(0.9)
                                             : Color.white.opacity(0.08),
                                         in: RoundedRectangle(cornerRadius: 10)
                                     )
@@ -46,11 +42,11 @@ struct StickerEmojiPicker: View {
                             )
                         }
                     }
-                    .padding(.bottom, 24)
+                    .padding(.bottom, 44)
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .always))
-            .frame(height: 224)
+            .frame(height: 192)
         }
     }
 }

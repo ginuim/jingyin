@@ -104,31 +104,8 @@ struct ContentView: View {
 
     private var homeLanding: some View {
         ZStack {
-            Color(white: 0.08)
+            AppPalette.background
                 .ignoresSafeArea()
-
-            // Soft light wash — one continuous field, no panel split.
-            LinearGradient(
-                colors: [
-                    Color(white: 0.22).opacity(0.55),
-                    Color(white: 0.10).opacity(0.2),
-                    Color.clear
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-
-            RadialGradient(
-                colors: [
-                    Color.white.opacity(0.10),
-                    Color.clear
-                ],
-                center: .top,
-                startRadius: 20,
-                endRadius: 380
-            )
-            .ignoresSafeArea()
 
             VStack(spacing: 22) {
                 Spacer()
@@ -144,7 +121,7 @@ struct ContentView: View {
                         .font(.system(size: 38, weight: .bold, design: .rounded))
                     Text(localization.t("home.tagline"))
                         .font(.subheadline)
-                        .foregroundStyle(Color(white: 0.72))
+                        .foregroundStyle(AppPalette.secondaryText)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 28)
@@ -156,13 +133,13 @@ struct ContentView: View {
 
                 Label(localization.t("home.privacy"), systemImage: "lock.shield.fill")
                     .font(.footnote)
-                    .foregroundStyle(Color(white: 0.48))
+                    .foregroundStyle(AppPalette.disabledText)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 28)
                 Spacer()
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(AppPalette.primaryText)
 
             if loadingImport {
                 importProgressOverlay
@@ -173,15 +150,18 @@ struct ContentView: View {
     private var coverageDisclaimer: some View {
         Label(localization.t("home.coverageDisclaimer"), systemImage: "exclamationmark.triangle.fill")
             .font(.footnote.weight(.medium))
-            .foregroundStyle(Color(white: 0.78))
+            .foregroundStyle(AppPalette.secondaryText)
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
-            .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
+            .background(
+                AppPalette.surface,
+                in: RoundedRectangle(cornerRadius: 14)
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
-                    .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+                    .strokeBorder(AppPalette.divider, lineWidth: 1)
             )
             .padding(.horizontal, 28)
             .accessibilityLabel(localization.t("home.coverageDisclaimer"))
@@ -249,7 +229,8 @@ struct ContentView: View {
             }
         }
         .padding(22)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .foregroundStyle(AppPalette.primaryText)
+        .background(AppPalette.elevatedSurface, in: RoundedRectangle(cornerRadius: 18))
     }
 
     private var importErrorMessage: String {
@@ -567,18 +548,17 @@ private struct PrimaryButtonStyle: ButtonStyle {
             .font(.headline)
             .padding()
             .background(
-                LinearGradient(
-                    colors: configuration.isPressed
-                        ? [Color(white: 0.28), Color(white: 0.20)]
-                        : [Color(white: 0.34), Color(white: 0.24)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+                configuration.isPressed
+                    ? AppPalette.accent.pressed
+                    : AppPalette.accent.primary
             )
-            .foregroundStyle(Color(white: 0.96))
+            .foregroundStyle(AppPalette.accent.foreground)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .strokeBorder(Color.white.opacity(configuration.isPressed ? 0.10 : 0.18), lineWidth: 1)
+                    .strokeBorder(
+                        AppPalette.accent.outline.opacity(configuration.isPressed ? 0.55 : 0.8),
+                        lineWidth: 1
+                    )
             )
             .clipShape(RoundedRectangle(cornerRadius: 16))
     }
@@ -590,18 +570,12 @@ private struct SecondaryButtonStyle: ButtonStyle {
             .font(.headline)
             .padding()
             .background(
-                LinearGradient(
-                    colors: configuration.isPressed
-                        ? [Color(white: 0.16), Color(white: 0.12)]
-                        : [Color(white: 0.18), Color(white: 0.13)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+                configuration.isPressed ? AppPalette.elevatedSurface : AppPalette.surface
             )
-            .foregroundStyle(Color(white: 0.82))
+            .foregroundStyle(AppPalette.primaryText)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                    .strokeBorder(AppPalette.divider, lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: 16))
     }

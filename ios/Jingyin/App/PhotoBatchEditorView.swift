@@ -66,7 +66,7 @@ struct PhotoBatchEditorView: View {
         VStack(spacing: 0) {
             photoStrip
             Divider()
-                .overlay(.white.opacity(0.12))
+                .overlay(AppPalette.divider)
 
             preview
                 .padding(12)
@@ -80,7 +80,8 @@ struct PhotoBatchEditorView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .background(Color(red: 0.035, green: 0.065, blue: 0.07))
+        .foregroundStyle(AppPalette.primaryText)
+        .background(AppPalette.background)
         .navigationTitle(localization.t("photo.title"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -230,7 +231,7 @@ struct PhotoBatchEditorView: View {
                                         .scaledToFill()
                                 } else {
                                     RoundedRectangle(cornerRadius: 10)
-                                        .fill(.white.opacity(0.08))
+                                        .fill(AppPalette.elevatedSurface)
                                         .overlay { ProgressView() }
                                 }
                             }
@@ -241,7 +242,12 @@ struct PhotoBatchEditorView: View {
                         }
                         .overlay {
                             RoundedRectangle(cornerRadius: 7)
-                                .stroke(index == currentIndex ? .mint : .white.opacity(0.18), lineWidth: index == currentIndex ? 3 : 1)
+                                .stroke(
+                                    index == currentIndex
+                                        ? AppPalette.accent.primary
+                                        : AppPalette.divider,
+                                    lineWidth: index == currentIndex ? 3 : 1
+                                )
                         }
                     }
                     .buttonStyle(.plain)
@@ -250,7 +256,7 @@ struct PhotoBatchEditorView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
         }
-        .background(.black.opacity(0.18))
+        .background(AppPalette.surface)
     }
 
     private func statusBadge(_ status: PhotoWorkStatus) -> some View {
@@ -259,31 +265,31 @@ struct PhotoBatchEditorView: View {
         switch status {
         case .pending, .analyzing:
             symbol = "clock.fill"
-            color = .gray
+            color = AppPalette.secondaryText
         case .ready:
             symbol = "checkmark.circle.fill"
-            color = .mint
+            color = AppPalette.accent.primary
         case .exporting:
             symbol = "arrow.up.circle.fill"
-            color = .blue
+            color = AppPalette.accent.outline
         case .completed:
             symbol = "checkmark.seal.fill"
-            color = .green
+            color = AppPalette.success
         case .failed:
             symbol = "exclamationmark.triangle.fill"
-            color = .red
+            color = AppPalette.destructive
         }
         return Image(systemName: symbol)
             .font(.caption)
             .foregroundStyle(color)
             .padding(4)
-            .background(.black.opacity(0.65), in: Circle())
+            .background(AppPalette.mediaScrim, in: Circle())
     }
 
     private var preview: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 18)
-                .fill(.black.opacity(0.35))
+                .fill(AppPalette.mediaCanvas)
 
             if let image = renderedPreview ?? currentDraft?.previewImage {
                 Image(uiImage: image)
@@ -298,7 +304,8 @@ struct PhotoBatchEditorView: View {
                     videoDisplaySize: currentDraft?.displaySize,
                     onEditingBegan: {},
                     onEditingEnded: refreshPreview,
-                    onDeleteTrack: deleteTrack
+                    onDeleteTrack: deleteTrack,
+                    accentColor: AppPalette.accent.primary
                 )
             } else if currentDraft?.status == .failed {
                 ContentUnavailableView(
@@ -311,8 +318,9 @@ struct PhotoBatchEditorView: View {
 
             if isRenderingPreview {
                 ProgressView()
+                    .tint(AppPalette.accent.primary)
                     .padding(12)
-                    .background(.ultraThinMaterial, in: Circle())
+                    .background(AppPalette.elevatedSurface, in: Circle())
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -346,9 +354,9 @@ struct PhotoBatchEditorView: View {
         // Fixed drawer height so switching tools does not jump the preview.
         // Overflow scrolls inside; keep it tall enough for effect / mask controls.
         .frame(height: 220)
-        .background(.ultraThinMaterial)
+        .background(AppPalette.elevatedSurface)
         .overlay(alignment: .top) {
-            Divider()
+            Divider().overlay(AppPalette.divider)
         }
     }
 
@@ -366,12 +374,15 @@ struct PhotoBatchEditorView: View {
                             .font(.system(size: 18, weight: isSelected ? .semibold : .regular))
                             .frame(width: 32, height: 28)
                             .background(
-                                isSelected ? Color.mint.opacity(0.18) : .clear,
+                                isSelected ? AppPalette.accent.softFill : .clear,
                                 in: RoundedRectangle(cornerRadius: 7)
                             )
                             .overlay {
                                 RoundedRectangle(cornerRadius: 7)
-                                    .stroke(isSelected ? Color.mint : .clear, lineWidth: 1.5)
+                                    .stroke(
+                                        isSelected ? AppPalette.accent.primary : .clear,
+                                        lineWidth: 1.5
+                                    )
                             }
 
                         Text(tool.title(localization))
@@ -379,7 +390,9 @@ struct PhotoBatchEditorView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
                     }
-                    .foregroundStyle(isSelected ? Color.mint : Color.secondary)
+                    .foregroundStyle(
+                        isSelected ? AppPalette.accent.primary : AppPalette.secondaryText
+                    )
                     .frame(maxWidth: .infinity)
                     .contentShape(Rectangle())
                 }
@@ -390,9 +403,9 @@ struct PhotoBatchEditorView: View {
         .padding(.horizontal, 4)
         .padding(.top, 9)
         .padding(.bottom, 8)
-        .background(.ultraThinMaterial)
+        .background(AppPalette.surface)
         .overlay(alignment: .top) {
-            Divider()
+            Divider().overlay(AppPalette.divider)
         }
     }
 
@@ -404,7 +417,7 @@ struct PhotoBatchEditorView: View {
                     Int64(currentDraft?.maskGroups.count ?? 0)
                 ))
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppPalette.secondaryText)
                 Spacer()
                 Button {
                     addManualMask(shape: .ellipse)
@@ -443,12 +456,14 @@ struct PhotoBatchEditorView: View {
                                 .padding(.vertical, 8)
                                 .background(
                                     selectedTrackID == group.id
-                                        ? Color.mint
-                                        : Color.white.opacity(0.08),
+                                        ? AppPalette.accent.primary
+                                        : AppPalette.elevatedSurface,
                                     in: Capsule()
                                 )
                                 .foregroundStyle(
-                                    selectedTrackID == group.id ? .black : .primary
+                                    selectedTrackID == group.id
+                                        ? AppPalette.accent.foreground
+                                        : AppPalette.primaryText
                                 )
                             }
                             .buttonStyle(.plain)
@@ -464,7 +479,7 @@ struct PhotoBatchEditorView: View {
 
             Text(localization.t("photo.maskHint"))
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppPalette.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
             }
     }
@@ -482,12 +497,14 @@ struct PhotoBatchEditorView: View {
                             .padding(.vertical, 10)
                             .background(
                                 options.subjects.contains(subject)
-                                    ? Color.mint
-                                    : Color.white.opacity(0.08),
+                                    ? AppPalette.accent.primary
+                                    : AppPalette.elevatedSurface,
                                 in: RoundedRectangle(cornerRadius: 11)
                             )
                             .foregroundStyle(
-                                options.subjects.contains(subject) ? .black : .primary
+                                options.subjects.contains(subject)
+                                    ? AppPalette.accent.foreground
+                                    : AppPalette.primaryText
                             )
                     }
                     .buttonStyle(.plain)
@@ -502,14 +519,14 @@ struct PhotoBatchEditorView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 11)
                     .background(
-                        Color.mint.opacity(0.14),
+                        AppPalette.accent.softFill,
                         in: RoundedRectangle(cornerRadius: 11)
                     )
                     .overlay {
                         RoundedRectangle(cornerRadius: 11)
-                            .stroke(Color.mint.opacity(0.55), lineWidth: 1)
+                            .stroke(AppPalette.accent.outline.opacity(0.7), lineWidth: 1)
                     }
-                    .foregroundStyle(Color.mint)
+                    .foregroundStyle(AppPalette.accent.primary)
             }
             .buttonStyle(.plain)
             .disabled(isAnalyzing)
@@ -529,6 +546,7 @@ struct PhotoBatchEditorView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .tint(AppPalette.accent.primary)
         }
     }
 
@@ -544,9 +562,10 @@ struct PhotoBatchEditorView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .tint(AppPalette.accent.primary)
             Text(options.quality.detail(bundle))
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppPalette.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -565,11 +584,15 @@ struct PhotoBatchEditorView: View {
                             .padding(.vertical, 10)
                             .background(
                                 options.style == style
-                                    ? Color.mint
-                                    : Color.white.opacity(0.08),
+                                    ? AppPalette.accent.primary
+                                    : AppPalette.elevatedSurface,
                                 in: RoundedRectangle(cornerRadius: 11)
                             )
-                            .foregroundStyle(options.style == style ? .black : .primary)
+                            .foregroundStyle(
+                                options.style == style
+                                    ? AppPalette.accent.foreground
+                                    : AppPalette.primaryText
+                            )
                     }
                     .buttonStyle(.plain)
                 }
@@ -614,8 +637,8 @@ struct PhotoBatchEditorView: View {
 
     private var stickerControls: some View {
         StickerEmojiPicker(
-            title: localization.t("sticker.emoji"),
-            selection: $options.stickerEmoji
+            selection: $options.stickerEmoji,
+            accentColor: AppPalette.accent.primary
         )
     }
 
@@ -635,7 +658,8 @@ struct PhotoBatchEditorView: View {
                         ASCIIColorSwatch(
                             pair: theme.pair,
                             isSelected: currentASCIIColorPair.matches(theme.pair),
-                            accessibilityLabel: theme.title(bundle)
+                            accessibilityLabel: theme.title(bundle),
+                            selectionColor: AppPalette.accent.primary
                         ) {
                             applyASCIIColorPair(theme.pair, remember: false)
                         }
@@ -648,7 +672,8 @@ struct PhotoBatchEditorView: View {
                             ASCIIColorSwatch(
                                 pair: pair,
                                 isSelected: currentASCIIColorPair.matches(pair),
-                                accessibilityLabel: localization.t("ascii.color.recent")
+                                accessibilityLabel: localization.t("ascii.color.recent"),
+                                selectionColor: AppPalette.accent.primary
                             ) {
                                 applyASCIIColorPair(pair, remember: false)
                             }
@@ -662,7 +687,7 @@ struct PhotoBatchEditorView: View {
                     } label: {
                         Image(systemName: showASCIIColorCustom ? "xmark.circle.fill" : "plus.circle.fill")
                             .font(.title3)
-                            .foregroundStyle(.mint)
+                            .foregroundStyle(AppPalette.accent.primary)
                             .frame(width: 28, height: 28)
                     }
                     .buttonStyle(.plain)

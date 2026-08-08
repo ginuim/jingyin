@@ -12,7 +12,7 @@ struct JingyinApp: App {
                 .environmentObject(entitlements)
                 .environment(\.locale, Locale(identifier: localization.effectiveLanguageCode))
                 .id(localization.effectiveLanguageCode)
-                .tint(.mint)
+                .tint(AppPalette.accent.primary)
                 .task {
                     await entitlements.prepare()
                     #if DEBUG

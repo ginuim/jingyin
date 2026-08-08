@@ -1805,14 +1805,6 @@
         "ja": {"stringUnit": {"state": "translated", "value": "ステッカー"}}
       }
     },
-    "sticker.emoji": {
-      "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "选择贴纸"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "選擇貼圖"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Choose a sticker"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "ステッカーを選択"}}
-      }
-    },
     "ascii.color": {
       "localizations": {
         "zh-Hans": {

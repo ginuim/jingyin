@@ -8,6 +8,7 @@ struct MaskEditorOverlay: View {
     let onEditingBegan: () -> Void
     let onEditingEnded: () -> Void
     let onDeleteTrack: (MaskTrack.ID) -> Void
+    var accentColor: Color = .mint
 
     var body: some View {
         GeometryReader { proxy in
@@ -31,7 +32,8 @@ struct MaskEditorOverlay: View {
                             onEditingEnded: onEditingEnded,
                             onDelete: {
                                 onDeleteTrack(track.id)
-                            }
+                            },
+                            accentColor: accentColor
                         )
                     }
                 }
@@ -51,6 +53,7 @@ private struct MaskTrackLayer: View {
     let onSelect: () -> Void
     let onEditingEnded: () -> Void
     let onDelete: () -> Void
+    let accentColor: Color
 
     @EnvironmentObject private var localization: LocalizationManager
     @State private var moveStartRect: NormalizedVideoRect?
@@ -86,7 +89,7 @@ private struct MaskTrackLayer: View {
                 .accessibilityLabel(localization.t("editor.deleteEntireMask"))
 
                 Circle()
-                    .fill(.mint)
+                    .fill(accentColor)
                     .stroke(.black.opacity(0.8), lineWidth: 2)
                     .frame(width: 26, height: 26)
                     .contentShape(Circle().inset(by: -8))
@@ -102,9 +105,9 @@ private struct MaskTrackLayer: View {
         switch track.shape {
         case .ellipse:
             Ellipse()
-                .fill(.mint.opacity(isSelected ? 0.16 : 0.08))
+                .fill(accentColor.opacity(isSelected ? 0.16 : 0.08))
                 .stroke(
-                    isSelected ? .mint : .white.opacity(0.8),
+                    isSelected ? accentColor : .white.opacity(0.8),
                     style: StrokeStyle(
                         lineWidth: isSelected ? 3 : 2,
                         dash: isSelected ? [] : [6, 5]
@@ -112,9 +115,9 @@ private struct MaskTrackLayer: View {
                 )
         case .rectangle:
             Rectangle()
-                .fill(.mint.opacity(isSelected ? 0.16 : 0.08))
+                .fill(accentColor.opacity(isSelected ? 0.16 : 0.08))
                 .stroke(
-                    isSelected ? .mint : .white.opacity(0.8),
+                    isSelected ? accentColor : .white.opacity(0.8),
                     style: StrokeStyle(
                         lineWidth: isSelected ? 3 : 2,
                         dash: isSelected ? [] : [6, 5]

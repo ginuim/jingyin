@@ -1227,7 +1227,6 @@ struct EditorView: View {
 
     private var stickerControls: some View {
         StickerEmojiPicker(
-            title: localization.t("sticker.emoji"),
             selection: $options.stickerEmoji
         )
     }
@@ -1676,6 +1675,7 @@ struct ASCIIColorSwatch: View {
     let pair: ASCIIColorPair
     let isSelected: Bool
     let accessibilityLabel: String
+    var selectionColor: Color = .mint
     let action: () -> Void
 
     var body: some View {
@@ -1707,7 +1707,7 @@ struct ASCIIColorSwatch: View {
             .overlay {
                 Circle()
                     .strokeBorder(
-                        isSelected ? Color.mint : Color.white.opacity(0.28),
+                        isSelected ? selectionColor : Color.white.opacity(0.28),
                         lineWidth: isSelected ? 2 : 1
                     )
             }
