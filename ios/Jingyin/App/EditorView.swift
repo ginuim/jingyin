@@ -50,6 +50,22 @@ struct EditorView: View {
                 videoPlayerSection
                     .padding(.horizontal)
                     .padding(.top, 8)
+                    .padding(.bottom, 10)
+                    .background(AppPalette.background)
+                    .overlay(alignment: .bottom) {
+                        LinearGradient(
+                            colors: [
+                                AppPalette.background,
+                                AppPalette.background.opacity(0)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 36)
+                        .offset(y: 36)
+                        .allowsHitTesting(false)
+                    }
+                    .zIndex(1)
             }
 
             ScrollView {

@@ -10,7 +10,7 @@ struct PurchaseStatusCard: View {
         HStack(spacing: 14) {
             Image(systemName: entitlements.isUnlocked ? "checkmark.seal.fill" : "gift.fill")
                 .font(.title2)
-                .foregroundStyle(entitlements.isUnlocked ? AppPalette.success : AppPalette.accent.primary)
+                .foregroundStyle(AppPalette.accent.primary)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(
@@ -21,6 +21,7 @@ struct PurchaseStatusCard: View {
                     )
                 )
                 .font(.headline)
+                .foregroundStyle(AppPalette.accent.primary)
 
                 Text(
                     localization.t(

@@ -39,80 +39,7 @@ struct SettingsView: View {
                 }
 
                 settingsSection(localization.t("purchase.title")) {
-                    VStack(alignment: .leading, spacing: 14) {
-                        HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text(localization.t("purchase.status"))
-                                .font(.headline)
-
-                            Spacer(minLength: 12)
-
-                            Label(
-                                localization.t(
-                                    entitlements.isUnlocked
-                                        ? "purchase.unlocked"
-                                        : "purchase.freePlan"
-                                ),
-                                systemImage: entitlements.isUnlocked
-                                    ? "checkmark.seal.fill"
-                                    : "gift.fill"
-                            )
-                            .foregroundStyle(entitlements.isUnlocked ? AppPalette.success : AppPalette.secondaryText)
-                            .multilineTextAlignment(.trailing)
-                        }
-
-                        Divider()
-
-                        Text(localization.t(
-                            entitlements.isUnlocked
-                                ? "purchase.unlocked.detail"
-                                : "purchase.freePlan.detail"
-                        ))
-                        .font(.footnote)
-                        .foregroundStyle(AppPalette.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                        if !entitlements.isUnlocked {
-                            Divider()
-
-                            Button(localization.t("purchase.unlock")) {
-                                showPaywall = true
-                            }
-                            .font(.headline)
-                            .disabled(entitlements.isRestoring)
-
-                            Divider()
-
-                            Button {
-                                Task {
-                                    let restored = await entitlements.restorePurchases()
-                                    restoreMessage = restored
-                                        ? localization.t("purchase.restore.success")
-                                        : entitlements.errorMessage
-                                            ?? localization.t("purchase.restore.none")
-                                }
-                            } label: {
-                                HStack(spacing: 10) {
-                                    if entitlements.isRestoring {
-                                        ProgressView()
-                                            .controlSize(.small)
-                                    }
-                                    Text(localization.t(
-                                        entitlements.isRestoring
-                                            ? "purchase.restore.processing"
-                                            : "purchase.restore"
-                                    ))
-                                }
-                                .font(.headline)
-                            }
-                            .disabled(entitlements.isPurchasing || entitlements.isRestoring)
-                        }
-
-                        Divider()
-
-                        Text(localization.t("purchase.promise"))
-                            .font(.footnote)
-                            .foregroundStyle(AppPalette.secondaryText)
-                    }
+                    purchaseSettings
                 }
 
                 settingsSection(localization.t("settings.information")) {
@@ -180,6 +107,101 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(18)
             .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: 20))
+    }
+
+    private var purchaseSettings: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .center, spacing: 14) {
+                Image(systemName: entitlements.isUnlocked ? "checkmark.seal.fill" : "gift.fill")
+                    .font(.system(size: 21, weight: .semibold))
+                    .foregroundStyle(AppPalette.accent.foreground)
+                    .frame(width: 46, height: 46)
+                    .background(
+                        AppPalette.accent.primary,
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    )
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(localization.t(
+                        entitlements.isUnlocked
+                            ? "purchase.unlocked"
+                            : "purchase.freePlan"
+                    ))
+                    .font(.headline)
+                    .foregroundStyle(AppPalette.accent.primary)
+
+                    Text(localization.t(
+                        entitlements.isUnlocked
+                            ? "purchase.unlocked.detail"
+                            : "purchase.freePlan.detail"
+                    ))
+                    .font(.footnote)
+                    .foregroundStyle(AppPalette.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                AppPalette.accent.softFill,
+                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(AppPalette.accent.outline.opacity(0.35), lineWidth: 1)
+            }
+
+            if !entitlements.isUnlocked {
+                Button(localization.t("purchase.unlock")) {
+                    showPaywall = true
+                }
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+                .buttonStyle(.borderedProminent)
+                .tint(AppPalette.accent.primary)
+                .foregroundStyle(AppPalette.accent.foreground)
+                .controlSize(.large)
+                .disabled(entitlements.isRestoring)
+
+                Button {
+                    Task {
+                        let restored = await entitlements.restorePurchases()
+                        restoreMessage = restored
+                            ? localization.t("purchase.restore.success")
+                            : entitlements.errorMessage
+                                ?? localization.t("purchase.restore.none")
+                    }
+                } label: {
+                    HStack(spacing: 10) {
+                        if entitlements.isRestoring {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        Text(localization.t(
+                            entitlements.isRestoring
+                                ? "purchase.restore.processing"
+                                : "purchase.restore"
+                        ))
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .disabled(entitlements.isPurchasing || entitlements.isRestoring)
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: "lock.shield.fill")
+                    .foregroundStyle(AppPalette.accent.primary)
+                Text(localization.t("purchase.promise"))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(.caption)
+            .foregroundStyle(AppPalette.secondaryText)
+        }
     }
 }
 
