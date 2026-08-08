@@ -277,6 +277,35 @@ enum PhotoProcessor {
         )
         precondition(pixels[(10 * 40 + 5) * 4] > 200)
         precondition(pixels[(10 * 40 + 35) * 4] < 10)
+        let ellipseGroup = PhotoMaskGroup(
+            track: MaskTrack(
+                shape: .ellipse,
+                source: .detectedFace,
+                keyframes: firstTrack.keyframes
+            ),
+            maskPlaneID: plane.id,
+            instanceLabel: 1
+        )
+        guard let ellipseMask = edgeMask(
+            group: ellipseGroup,
+            plane: plane,
+            label: 1,
+            extent: extent
+        ) else {
+            preconditionFailure("Expected an ellipse-clipped raster mask")
+        }
+        pixels = [UInt8](repeating: 0, count: 40 * 20 * 4)
+        CIContext().render(
+            ellipseMask,
+            toBitmap: &pixels,
+            rowBytes: 40 * 4,
+            bounds: extent,
+            format: .RGBA8,
+            colorSpace: CGColorSpace(name: CGColorSpace.sRGB)
+        )
+        // Reuse a point known to be inside label 1 and inside the ellipse.
+        precondition(pixels[(10 * 40 + 5) * 4] > 200)
+        precondition(pixels[(1 * 40 + 1) * 4] < 10)
         precondition(
             combinedEdgeMask(
                 groups: [group, secondGroup],
@@ -958,12 +987,45 @@ enum PhotoProcessor {
             tx: current.minX - original.minX * scaleX,
             ty: current.minY - original.minY * scaleY
         )
-        let transformed = scaled
+        var transformed = scaled
             .cropped(to: original)
             .transformed(by: transform)
             .cropped(to: extent)
+        if group.track.shape == .ellipse {
+            transformed = transformed.applyingFilter(
+                "CIMultiplyCompositing",
+                parameters: [
+                    kCIInputBackgroundImageKey: ellipseMask(
+                        in: current,
+                        extent: extent
+                    )
+                ]
+            ).cropped(to: extent)
+        }
         let black = CIImage(color: .black).cropped(to: extent)
         return transformed.composited(over: black).cropped(to: extent)
+    }
+
+    private static func ellipseMask(in rect: CGRect, extent: CGRect) -> CIImage {
+        CIFilter(
+            name: "CIRadialGradient",
+            parameters: [
+                "inputCenter": CIVector(x: 0.5, y: 0.5),
+                "inputRadius0": 0.48,
+                "inputRadius1": 0.5,
+                "inputColor0": CIColor.white,
+                "inputColor1": CIColor.black
+            ]
+        )!.outputImage!
+            .transformed(by: CGAffineTransform(
+                scaleX: rect.width,
+                y: rect.height
+            ))
+            .transformed(by: CGAffineTransform(
+                translationX: rect.minX,
+                y: rect.minY
+            ))
+            .cropped(to: extent)
     }
 
     private static func binaryMaskImage(
