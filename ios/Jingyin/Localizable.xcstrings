@@ -303,10 +303,10 @@
     },
     "photo.maskHint": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "每个实体都是独立遮罩组，可删除、拖动或缩放。星光表示精细边缘，虚线框表示安全区兜底。"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "每個實體都是獨立遮罩組，可刪除、拖動或縮放。星光表示精細邊緣，虛線框表示安全區備援。"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Each subject is an independent group. A sparkle marks precise edges; a dashed square marks a safety fallback."}},
-        "ja": {"stringUnit": {"state": "translated", "value": "被写体ごとに独立したマスクです。星は高精度な境界、破線は安全領域のフォールバックを示します。"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "每个实体都是独立遮罩组。拖动右下角圆点可调整遮盖范围；人脸范围不会缩放遮盖纹理。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "每個實體都是獨立遮罩組。拖曳右下角圓點可調整遮蓋範圍；人臉範圍不會縮放遮蓋紋理。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Each subject has an independent mask. Drag the lower-right handle to adjust coverage without scaling the face effect."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "被写体ごとに独立したマスクです。右下のハンドルをドラッグすると、顔の効果を拡縮せずに範囲を調整できます。"}}
       }
     },
     "photo.mask.edge": {
@@ -315,6 +315,14 @@
         "zh-Hant": {"stringUnit": {"state": "translated", "value": "精細實體邊緣"}},
         "en": {"stringUnit": {"state": "translated", "value": "Precise subject edge"}},
         "ja": {"stringUnit": {"state": "translated", "value": "高精度な被写体境界"}}
+      }
+    },
+    "photo.mask.faceRange": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "可调整的人脸遮盖范围"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "可調整的人臉遮蓋範圍"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Adjustable face coverage"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "調整可能な顔のマスク範囲"}}
       }
     },
     "photo.mask.fallback": {
@@ -1095,10 +1103,10 @@
     },
     "editor.resizeMask": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "缩放蒙版"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "縮放蒙版"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Resize mask"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "マスクのサイズを変更"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "调整遮盖范围"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "調整遮蓋範圍"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Adjust mask coverage"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "マスク範囲を調整"}}
       }
     },
     "editor.maskCount": {

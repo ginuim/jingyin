@@ -450,9 +450,7 @@ struct PhotoBatchEditorView: View {
                                     ))
                                 } icon: {
                                     Image(
-                                        systemName: group.hasEdgeMask
-                                            ? "wand.and.stars"
-                                            : "square.dashed"
+                                        systemName: maskGroupIcon(group)
                                     )
                                 }
                                 .font(.caption.weight(.semibold))
@@ -472,9 +470,7 @@ struct PhotoBatchEditorView: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityHint(localization.t(
-                                group.hasEdgeMask
-                                    ? "photo.mask.edge"
-                                    : "photo.mask.fallback"
+                                maskGroupAccessibilityKey(group)
                             ))
                         }
                     }
@@ -541,6 +537,22 @@ struct PhotoBatchEditorView: View {
             .disabled(isAnalyzing)
             .opacity(isAnalyzing ? 0.45 : 1)
         }
+    }
+
+    private func maskGroupIcon(_ group: PhotoMaskGroup) -> String {
+        if group.track.source == .detectedFace {
+            return "face.smiling"
+        }
+        return group.hasEdgeMask ? "wand.and.stars" : "square.dashed"
+    }
+
+    private func maskGroupAccessibilityKey(
+        _ group: PhotoMaskGroup
+    ) -> String.LocalizationValue {
+        if group.track.source == .detectedFace {
+            return "photo.mask.faceRange"
+        }
+        return group.hasEdgeMask ? "photo.mask.edge" : "photo.mask.fallback"
     }
 
     private var scopeOptions: some View {

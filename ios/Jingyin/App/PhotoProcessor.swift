@@ -539,20 +539,16 @@ enum PhotoProcessor {
             }
         }
 
-        guard subjects.contains(.face) || subjects.contains(.pet) else {
-            return (groups, planes)
+        if subjects.contains(.face) {
+            groups += faceGroups(in: image)
         }
 
+        guard subjects.contains(.pet) else { return (groups, planes) }
         let foreground = foregroundInstances(in: image)
         if let plane = foreground?.plane {
             planes.append(plane)
         }
-        if subjects.contains(.face) {
-            groups += faceGroups(in: image, foreground: foreground)
-        }
-        if subjects.contains(.pet) {
-            groups += petGroups(in: image, foreground: foreground)
-        }
+        groups += petGroups(in: image, foreground: foreground)
         return (groups, planes)
     }
 
@@ -637,10 +633,7 @@ enum PhotoProcessor {
         )
     }
 
-    private static func faceGroups(
-        in image: CIImage,
-        foreground: ForegroundInstances?
-    ) -> [PhotoMaskGroup] {
+    private static func faceGroups(in image: CIImage) -> [PhotoMaskGroup] {
         let request = VNDetectFaceRectanglesRequest()
         configureCPU(request)
         try? VNImageRequestHandler(ciImage: image, orientation: .up)
@@ -653,27 +646,15 @@ enum PhotoProcessor {
                         .expandedForFaceCoverage()
                 }
         )
-        return candidates.map { rect in
-            let track = MaskTrack(
+        // Vision's foreground-instance mask describes the whole salient person,
+        // not the face. Using it here can pull the neck or body into a face mask.
+        // Keep faces as geometric ellipses so the resize handle changes only the
+        // coverage boundary; the rendered privacy effect itself is never scaled.
+        return candidates.map {
+            geometricGroup(
+                rect: $0,
                 shape: .ellipse,
-                source: .detectedFace,
-                keyframes: [MaskKeyframe(timeSeconds: 0, rect: rect)]
-            )
-            guard let foreground,
-                  let label = bestInstanceLabel(
-                    in: foreground.plane,
-                    overlapping: rect
-                  ) else {
-                return PhotoMaskGroup(track: track)
-            }
-            // The foreground instance contributes head/hair edges, while the
-            // expanded face rect clips away the body and protects forehead,
-            // ears, and chin.
-            return PhotoMaskGroup(
-                track: track,
-                maskPlaneID: foreground.plane.id,
-                instanceLabel: label,
-                originalRect: rect
+                source: .detectedFace
             )
         }
     }
