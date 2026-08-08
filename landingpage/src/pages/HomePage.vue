@@ -15,7 +15,6 @@ const storeReady = computed(() => Boolean(APP_STORE_URL))
 const homeShot = computed(() => `/screenshots/home-${locale.value}.png`)
 const editorShot = computed(() => `/screenshots/editor-${locale.value}.png`)
 const photoShot = computed(() => `/screenshots/photo-${locale.value}.png`)
-const paywallShot = computed(() => `/screenshots/paywall-${locale.value}.png`)
 
 const stepShots = computed(() => [
   { src: homeShot.value, key: 0 },
@@ -99,7 +98,7 @@ const stepShots = computed(() => [
         <h2>{{ copy.pricingTitle }}</h2>
         <p>{{ copy.pricingLead }}</p>
       </div>
-      <div class="price-grid">
+      <div class="price-panel">
         <article class="free">
           <h3>{{ copy.freeTitle }}</h3>
           <p>{{ copy.freeBody }}</p>
@@ -108,17 +107,14 @@ const stepShots = computed(() => [
           </ul>
         </article>
         <article class="pro">
-          <span class="pro-badge">{{ copy.proBadge }}</span>
-          <div class="pro-main">
-            <div class="pro-copy">
-              <h3>{{ copy.proTitle }}</h3>
-              <p>{{ copy.proBody }}</p>
-              <ul>
-                <li v-for="point in copy.proPoints" :key="point">{{ point }}</li>
-              </ul>
-            </div>
-            <img class="paywall-shot" :src="paywallShot" :alt="copy.proTitle" />
+          <div class="pro-head">
+            <h3>{{ copy.proTitle }}</h3>
+            <span class="pro-badge">{{ copy.proBadge }}</span>
           </div>
+          <p>{{ copy.proBody }}</p>
+          <ul>
+            <li v-for="point in copy.proPoints" :key="point">{{ point }}</li>
+          </ul>
         </article>
       </div>
     </section>
@@ -231,8 +227,7 @@ const stepShots = computed(() => [
   gap: 14px;
 }
 
-.feature-grid article,
-.price-grid article {
+.feature-grid article {
   padding: 24px 22px;
   border-radius: var(--radius-lg);
   background: var(--card);
@@ -253,7 +248,7 @@ const stepShots = computed(() => [
 }
 
 .feature-grid h3,
-.price-grid h3,
+.price-panel h3,
 .step-copy h3 {
   margin: 0 0 8px;
   font-size: 18px;
@@ -261,7 +256,7 @@ const stepShots = computed(() => [
 }
 
 .feature-grid p,
-.price-grid p,
+.price-panel p,
 .step-copy p {
   margin: 0;
   color: var(--secondary);
@@ -318,25 +313,26 @@ const stepShots = computed(() => [
   margin-bottom: 6px;
 }
 
-.price-grid {
+.price-panel {
   display: grid;
-  grid-template-columns: 1fr 1.15fr;
-  gap: 16px;
-  align-items: start;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  box-shadow: inset 0 1px 0 rgba(255, 244, 238, 0.05);
+  overflow: hidden;
 }
 
-.price-grid article.free {
-  margin-top: 26px;
+.price-panel article {
+  padding: 26px 28px;
 }
 
-.price-grid article.free li::before {
-  content: '·';
-  color: var(--muted);
-  font-size: 22px;
-  line-height: 0.9;
+.price-panel article.pro {
+  border-left: 1px solid rgba(255, 244, 238, 0.08);
 }
 
-.price-grid ul {
+.price-panel ul {
   list-style: none;
   margin: 16px 0 0;
   padding: 0;
@@ -345,62 +341,55 @@ const stepShots = computed(() => [
   line-height: 1.7;
 }
 
-.price-grid li {
+.price-panel li {
   position: relative;
-  padding-left: 24px;
+  padding-left: 18px;
   margin-bottom: 8px;
 }
 
-.price-grid li::before {
-  content: '✓';
+.price-panel li:last-child {
+  margin-bottom: 0;
+}
+
+.price-panel li::before {
+  content: '·';
   position: absolute;
   left: 0;
   top: 0;
-  color: var(--accent-outline);
-  font-weight: 700;
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 0.9;
 }
 
-.price-grid article.pro {
-  position: relative;
-  padding: 26px 24px;
-  background:
-    radial-gradient(420px 260px at 90% -10%, rgba(208, 100, 50, 0.28), transparent 65%),
-    linear-gradient(160deg, rgba(208, 100, 50, 0.18), rgba(42, 33, 30, 0.95));
-  border-color: rgba(226, 138, 96, 0.5);
-  box-shadow:
-    0 18px 44px rgba(208, 100, 50, 0.16),
-    inset 0 1px 0 rgba(255, 244, 238, 0.08);
+.pro-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  min-height: 28px;
 }
 
-.pro-badge {
-  position: absolute;
-  top: -12px;
-  right: 22px;
-  padding: 5px 13px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #d96f3a, var(--accent));
-  color: var(--accent-fg);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  box-shadow: 0 6px 16px var(--accent-glow);
-}
-
-.pro-main {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 22px;
+.price-panel .free h3 {
+  min-height: 28px;
+  display: flex;
   align-items: center;
 }
 
-.paywall-shot {
-  width: 168px;
-  max-width: none;
-  justify-self: end;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 244, 238, 0.14);
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
-  transform: rotate(2.5deg);
+.pro-head h3 {
+  margin: 0;
+}
+
+.pro-badge {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  border: 1px solid rgba(226, 138, 96, 0.4);
+  color: var(--accent-outline);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 @media (max-width: 900px) {
@@ -449,23 +438,17 @@ const stepShots = computed(() => [
     max-width: none;
   }
 
-  .feature-grid,
-  .price-grid {
+  .feature-grid {
     grid-template-columns: 1fr;
   }
 
-  .price-grid article.free {
-    margin-top: 0;
-  }
-
-  .pro-main {
+  .price-panel {
     grid-template-columns: 1fr;
   }
 
-  .paywall-shot {
-    width: 200px;
-    justify-self: center;
-    transform: none;
+  .price-panel article.pro {
+    border-left: 0;
+    border-top: 1px solid rgba(255, 244, 238, 0.08);
   }
 }
 
