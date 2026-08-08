@@ -73,21 +73,23 @@ const stepShots = computed(() => [
       </div>
     </section>
 
-    <section class="section shell">
+    <section class="section shell steps-section">
       <div class="section-head">
-        <div class="eyebrow">Flow</div>
+        <div class="eyebrow">Paths</div>
         <h2>{{ copy.stepsTitle }}</h2>
         <p>{{ copy.stepsLead }}</p>
       </div>
-      <div class="steps">
-        <article v-for="(step, index) in copy.steps" :key="step.title">
-          <PhoneFrame :src="stepShots[index]!.src" :alt="step.title" />
-          <div class="step-copy">
-            <span>{{ String(index + 1).padStart(2, '0') }}</span>
-            <h3>{{ step.title }}</h3>
-            <p>{{ step.body }}</p>
-          </div>
-        </article>
+      <div class="steps-panel">
+        <div class="steps">
+          <article v-for="(step, index) in copy.steps" :key="step.title">
+            <PhoneFrame :src="stepShots[index]!.src" :alt="step.title" />
+            <div class="step-copy">
+              <span>{{ String(index + 1).padStart(2, '0') }}</span>
+              <h3>{{ step.title }}</h3>
+              <p>{{ step.body }}</p>
+            </div>
+          </article>
+        </div>
       </div>
     </section>
 
@@ -267,32 +269,53 @@ const stepShots = computed(() => [
   line-height: 1.65;
 }
 
+.steps-section .section-head {
+  margin-bottom: 24px;
+}
+
+.steps-panel {
+  padding: 28px 20px 24px;
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  box-shadow: inset 0 1px 0 rgba(255, 244, 238, 0.05);
+}
+
 .steps {
   display: grid;
-  gap: 64px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 0;
+  align-items: stretch;
 }
 
 .steps article {
   display: grid;
-  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
-  gap: 48px;
-  align-items: center;
-}
-
-.steps article:nth-child(even) .phone {
-  order: 2;
+  grid-template-rows: auto 1fr;
+  gap: 14px;
+  justify-items: center;
+  text-align: center;
+  padding: 4px 22px 0;
 }
 
 .steps .phone {
-  width: min(100%, 250px);
+  width: min(100%, 236px);
+  filter: drop-shadow(0 16px 26px rgba(0, 0, 0, 0.42));
+}
+
+.step-copy {
+  max-width: 22em;
 }
 
 .step-copy span {
   display: inline-block;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   color: var(--accent-outline);
-  font: 700 13px/1 var(--mono);
+  font: 700 12px/1 var(--mono);
   letter-spacing: 0.12em;
+}
+
+.step-copy h3 {
+  margin-bottom: 6px;
 }
 
 .price-grid {
@@ -395,21 +418,35 @@ const stepShots = computed(() => [
     inset: 4% 10%;
   }
 
+  .steps-panel {
+    padding: 16px;
+  }
+
   .steps {
-    gap: 48px;
+    grid-template-columns: 1fr;
+    gap: 0;
   }
 
   .steps article {
-    grid-template-columns: 1fr;
-    gap: 22px;
+    grid-template-columns: minmax(0, 140px) minmax(0, 1fr);
+    align-items: center;
+    justify-items: stretch;
+    text-align: left;
+    gap: 16px 18px;
+    padding: 16px 4px;
   }
 
-  .steps article:nth-child(even) .phone {
-    order: 0;
+  .steps article + article {
+    border-top: 1px solid rgba(255, 244, 238, 0.06);
   }
 
   .steps .phone {
-    width: min(100%, 240px);
+    width: 100%;
+    max-width: 140px;
+  }
+
+  .step-copy {
+    max-width: none;
   }
 
   .feature-grid,
