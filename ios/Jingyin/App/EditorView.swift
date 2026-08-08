@@ -445,6 +445,13 @@ struct EditorView: View {
                         }
                     }
 
+                    if options.subjects.contains(.pet) {
+                        Text(localization.t("editor.petHint"))
+                            .font(.caption)
+                            .foregroundStyle(AppPalette.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
                     if !options.maskEntities.isEmpty {
                         entitySelector
                     }

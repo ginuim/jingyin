@@ -1061,6 +1061,14 @@
         "ja": {"stringUnit": {"state": "translated", "value": "自動検出した対象は個別にオフにできます。スクラブ中も可能な範囲で選択を維持します。"}}
       }
     },
+    "editor.petHint": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "宠物识别目前仅支持猫和狗。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "寵物辨識目前僅支援貓和狗。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Pet detection currently supports only cats and dogs."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "ペット認識は現在、猫と犬のみ対応しています。"}}
+      }
+    },
     "editor.shrinkMask": {
       "localizations": {
         "zh-Hans": {"stringUnit": {"state": "translated", "value": "缩小覆盖"}},
