@@ -387,7 +387,7 @@ export default function PrivacyStudio() {
       crop.height = 72;
       const cropCtx = crop.getContext("2d");
       if (cropCtx) {
-        cropCtx.fillStyle = "#e9eeea";
+        cropCtx.fillStyle = "#f3ebe4";
         cropCtx.fillRect(0, 0, 72, 72);
         cropCtx.drawImage(source, Math.max(0, x), Math.max(0, y), Math.max(1, w), Math.max(1, h), 0, 0, 72, 72);
       }
@@ -702,9 +702,9 @@ export default function PrivacyStudio() {
       sampleCtx.drawImage(source, 0, 0, columns, rows);
       const pixels = sampleCtx.getImageData(0, 0, columns, rows).data;
       const glyphs = " .,:;irsXA253hMHGS#9B&@";
-      ctx.fillStyle = "#050706";
+      ctx.fillStyle = "#1c1614";
       ctx.fillRect(0, 0, width, height);
-      ctx.fillStyle = "#f4f7f5";
+      ctx.fillStyle = "#fff7f2";
       for (let row = 0; row < rows; row += 1) {
         let line = "";
         for (let column = 0; column < columns; column += 1) {
@@ -1613,7 +1613,7 @@ export default function PrivacyStudio() {
     <main>
       <header className="site-header">
         <a className="brand" href="#top" aria-label={copy.header.homeAria}>
-          <span className="brand-mark"><EyeOff size={20} strokeWidth={2.4} /></span>
+          <span className="brand-mark" aria-hidden="true"><img src="/app-icon.png" alt="" width={38} height={38} /></span>
           <span>{copy.brand}</span>
         </a>
         <div className="header-actions">
@@ -1939,7 +1939,7 @@ export default function PrivacyStudio() {
       </section>
 
       <footer>
-        <a className="brand" href="#top"><span className="brand-mark"><EyeOff size={18} /></span><span>{copy.brand}</span></a>
+        <a className="brand" href="#top"><span className="brand-mark" aria-hidden="true"><img src="/app-icon.png" alt="" width={31} height={31} /></span><span>{copy.brand}</span></a>
         <p>{copy.footer.tagline}</p>
         <nav className="footer-links" aria-label="Footer">
           <a href="/privacy">{copy.footer.privacy}</a>

@@ -21,6 +21,7 @@ struct ContentView: View {
     @State private var importProgressTask: Task<Void, Never>?
     @State private var photoImportTask: Task<Void, Never>?
     @State private var showSettings = false
+    @State private var showPaywall = false
     @State private var hasCleanedTemporaryFiles = false
     @State private var importErrorKey: String?
 
@@ -68,9 +69,14 @@ struct ContentView: View {
                     releaseImportedPhotos()
                 }
             }
+            .sheet(isPresented: $showPaywall) {
+                PaywallView()
+            }
             .task {
                 cleanupTemporaryFilesOnce()
+                presentDemoPaywallIfRequested()
                 await loadDemoVideoIfRequested()
+                await loadDemoPhotosIfRequested()
             }
             .onChange(of: pickedItem) { _, item in
                 guard let item else { return }
@@ -281,6 +287,44 @@ struct ContentView: View {
         let source = URL(fileURLWithPath: args[index + 1])
         guard FileManager.default.fileExists(atPath: source.path) else { return }
         await importFile(source)
+    }
+
+    /// Debug helper: `simctl launch … -demoPhotos /a.jpg /b.jpg`
+    @MainActor
+    private func loadDemoPhotosIfRequested() async {
+        let args = ProcessInfo.processInfo.arguments
+        guard let index = args.firstIndex(of: "-demoPhotos") else { return }
+        var imported: [URL] = []
+        var cursor = index + 1
+        while args.indices.contains(cursor), !args[cursor].hasPrefix("-") {
+            let source = URL(fileURLWithPath: args[cursor])
+            cursor += 1
+            guard FileManager.default.fileExists(atPath: source.path) else { continue }
+            let ext = source.pathExtension.isEmpty ? "jpg" : source.pathExtension
+            let destination = FileManager.default.temporaryDirectory
+                .appendingPathComponent("jingyin-photo-input-\(UUID().uuidString)")
+                .appendingPathExtension(ext)
+            do {
+                if FileManager.default.fileExists(atPath: destination.path) {
+                    try FileManager.default.removeItem(at: destination)
+                }
+                try FileManager.default.copyItem(at: source, to: destination)
+                imported.append(destination)
+            } catch {
+                continue
+            }
+        }
+        guard !imported.isEmpty else { return }
+        releaseImportedPhotos()
+        ownedPhotoURLs = imported
+        importedPhotos = PhotoBatchSelection(urls: imported)
+    }
+
+    /// Debug helper: `simctl launch … -demoPaywall`
+    @MainActor
+    private func presentDemoPaywallIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("-demoPaywall") else { return }
+        showPaywall = true
     }
 
     @MainActor

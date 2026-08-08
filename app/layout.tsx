@@ -38,7 +38,15 @@ export async function generateMetadata(): Promise<Metadata> {
       images: [`${origin}/og.png`],
     },
     robots: { index: true, follow: true },
-    icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
+    icons: {
+      icon: [
+        { url: "/favicon.ico", sizes: "any" },
+        { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+        { url: "/favicon-16.png", sizes: "16x16", type: "image/png" },
+      ],
+      apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+      shortcut: "/favicon.ico",
+    },
   };
 }
 
@@ -47,8 +55,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#121212" },
-    { media: "(prefers-color-scheme: light)", color: "#f7f7f2" },
+    { media: "(prefers-color-scheme: dark)", color: "#1c1614" },
+    { media: "(prefers-color-scheme: light)", color: "#fff7f2" },
   ],
 };
 

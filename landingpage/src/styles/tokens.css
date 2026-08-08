@@ -1,0 +1,24 @@
+:root {
+  --bg: #1c1614;
+  --surface: #2a211e;
+  --elevated: #3a2c27;
+  --text: #fff4ee;
+  --secondary: #c2a89c;
+  --muted: #8a7368;
+  --divider: #5a433a;
+  --accent: #d06432;
+  --accent-pressed: #c96b41;
+  --accent-soft: rgba(208, 100, 50, 0.16);
+  --accent-outline: #e28a60;
+  --accent-fg: #fff7f2;
+  --warn: #d59a3a;
+  --success: #78a985;
+  --danger: #cf6863;
+  --media: #000000;
+  --radius: 16px;
+  --radius-lg: 24px;
+  --max: 1120px;
+  --font: "SF Pro Text", "PingFang SC", "Hiragino Sans", "Noto Sans JP",
+    "Segoe UI", sans-serif;
+  --mono: "SF Mono", ui-monospace, Menlo, monospace;
+}

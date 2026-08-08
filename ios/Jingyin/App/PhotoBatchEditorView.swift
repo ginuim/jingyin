@@ -557,55 +557,32 @@ struct PhotoBatchEditorView: View {
 
     private var scopeOptions: some View {
         let bundle = localization.bundle
-        return selectionCardRow(
-            MaskScope.allCases,
-            selected: options.scope,
-            title: { $0.title(bundle) },
-            systemImage: scopeIcon
-        ) {
-            options.scope = $0
-        }
-        .frame(height: 112)
-    }
-
-    private func scopeIcon(_ scope: MaskScope) -> String {
-        switch scope {
-        case .subjects: "person.crop.rectangle"
-        case .background: "photo.fill"
-        case .full: "rectangle.inset.filled"
-        }
-    }
-
-    private func selectionCardRow<Item: Identifiable>(
-        _ items: [Item],
-        selected: Item.ID,
-        title: @escaping (Item) -> String,
-        systemImage: @escaping (Item) -> String,
-        onSelect: @escaping (Item) -> Void
-    ) -> some View where Item.ID: Equatable {
-        HStack(spacing: 9) {
-            ForEach(items) { item in
-                let isSelected = item.id == selected
+        return HStack(spacing: 8) {
+            ForEach(MaskScope.allCases) { scope in
+                let isSelected = options.scope == scope
                 Button {
-                    onSelect(item)
+                    options.scope = scope
                 } label: {
-                    VStack(spacing: 8) {
-                        Image(systemName: systemImage(item))
-                            .font(.system(size: 22, weight: .semibold))
-                            .frame(height: 28)
-                        Text(title(item))
-                            .font(.caption.weight(.semibold))
+                    VStack(spacing: 4) {
+                        Image(systemName: scopeIcon(scope))
+                            .font(.system(size: 16, weight: .semibold))
+                            .symbolRenderingMode(.hierarchical)
+                            .frame(height: 20)
+                        Text(scope.title(bundle))
+                            .font(.caption2.weight(.semibold))
                             .lineLimit(2)
                             .multilineTextAlignment(.center)
                             .minimumScaleFactor(0.8)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 9)
+                    .padding(.horizontal, 4)
                     .background(
                         isSelected ? AppPalette.accent.softFill : AppPalette.surface,
-                        in: RoundedRectangle(cornerRadius: 12)
+                        in: RoundedRectangle(cornerRadius: 10)
                     )
                     .overlay {
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: 10)
                             .stroke(
                                 isSelected ? AppPalette.accent.primary : AppPalette.divider,
                                 lineWidth: isSelected ? 1.5 : 1
@@ -618,6 +595,14 @@ struct PhotoBatchEditorView: View {
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
+        }
+    }
+
+    private func scopeIcon(_ scope: MaskScope) -> String {
+        switch scope {
+        case .subjects: "person.fill"
+        case .background: "rectangle.on.rectangle"
+        case .full: "rectangle.fill"
         }
     }
 

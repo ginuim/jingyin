@@ -12,7 +12,7 @@ export default function PrivacyPolicyPage() {
     <div className="policy-shell">
       <header className="policy-header">
         <Link className="brand" href="/">
-          <span className="brand-mark" aria-hidden="true">隐</span>
+          <span className="brand-mark" aria-hidden="true"><img src="/app-icon.png" alt="" width={38} height={38} /></span>
           <span>镜隐 LensHide</span>
         </Link>
         <Link className="policy-back" href="/">返回首页 / Home</Link>
