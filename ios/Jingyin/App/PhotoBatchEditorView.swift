@@ -54,6 +54,7 @@ struct PhotoBatchEditorView: View {
     @State private var asciiRecentPairs = ASCIIColorRecentStore.load()
     @State private var showASCIIColorCustom = false
     @State private var selectedTool: PhotoEditorTool? = .effect
+    @State private var parameterContentHeight: CGFloat = 280
 
     init(inputURLs: [URL], onReturnHome: @escaping () -> Void = {}) {
         self.inputURLs = inputURLs
@@ -63,21 +64,23 @@ struct PhotoBatchEditorView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            photoStrip
-            Divider()
-                .overlay(AppPalette.divider)
+        GeometryReader { proxy in
+            VStack(spacing: 0) {
+                photoStrip
+                Divider()
+                    .overlay(AppPalette.divider)
 
-            preview
-                .padding(12)
-                .frame(maxHeight: .infinity)
-                .layoutPriority(1)
+                preview
+                    .padding(12)
+                    .frame(maxHeight: .infinity)
+                    .layoutPriority(1)
 
-            toolBar
+                toolBar
 
-            if let selectedTool {
-                parameterPanel(for: selectedTool)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                if let selectedTool {
+                    parameterPanel(for: selectedTool, maxHeight: proxy.size.height * 0.55)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
         }
         .foregroundStyle(AppPalette.primaryText)
@@ -329,7 +332,7 @@ struct PhotoBatchEditorView: View {
     }
 
     @ViewBuilder
-    private func parameterPanel(for tool: PhotoEditorTool) -> some View {
+    private func parameterPanel(for tool: PhotoEditorTool, maxHeight: CGFloat) -> some View {
         ScrollView(.vertical, showsIndicators: true) {
             Group {
                 switch tool {
@@ -347,13 +350,19 @@ struct PhotoBatchEditorView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.bottom, 4)
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.height
+            } action: { newHeight in
+                parameterContentHeight = max(parameterContentHeight, newHeight)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.top, 12)
         .padding(.bottom, 8)
-        // Fixed drawer height so switching tools does not jump the preview.
-        // Overflow scrolls inside; keep it tall enough for effect / mask controls.
-        .frame(height: 220)
+        // Height sticks to the tallest content measured so far (the +20 covers
+        // the panel's own vertical padding) so switching tools does not jump;
+        // capped so the preview always keeps room.
+        .frame(height: min(parameterContentHeight + 20, maxHeight))
         .background(AppPalette.elevatedSurface)
         .overlay(alignment: .top) {
             Divider().overlay(AppPalette.divider)
@@ -536,33 +545,19 @@ struct PhotoBatchEditorView: View {
 
     private var scopeOptions: some View {
         let bundle = localization.bundle
-        return VStack(alignment: .leading, spacing: 10) {
-            Picker(localization.t("editor.scope"), selection: $options.scope) {
-                ForEach(MaskScope.allCases) {
-                    Text($0.title(bundle))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .tag($0)
-                }
+        return VStack(alignment: .leading, spacing: 12) {
+            singleSelectRow(MaskScope.allCases, selected: options.scope, title: { $0.title(bundle) }) {
+                options.scope = $0
             }
-            .pickerStyle(.segmented)
-            .tint(AppPalette.accent.primary)
         }
     }
 
     private var qualityOptions: some View {
         let bundle = localization.bundle
-        return VStack(alignment: .leading, spacing: 10) {
-            Picker(localization.t("editor.quality"), selection: $options.quality) {
-                ForEach(QualityMode.allCases) {
-                    Text($0.title(bundle))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .tag($0)
-                }
+        return VStack(alignment: .leading, spacing: 12) {
+            singleSelectRow(QualityMode.allCases, selected: options.quality, title: { $0.title(bundle) }) {
+                options.quality = $0
             }
-            .pickerStyle(.segmented)
-            .tint(AppPalette.accent.primary)
             Text(options.quality.detail(bundle))
                 .font(.caption)
                 .foregroundStyle(AppPalette.secondaryText)
@@ -570,32 +565,45 @@ struct PhotoBatchEditorView: View {
         }
     }
 
+    private func singleSelectRow<Item: Identifiable>(
+        _ items: [Item],
+        selected: Item.ID,
+        title: @escaping (Item) -> String,
+        onSelect: @escaping (Item) -> Void
+    ) -> some View where Item.ID: Equatable {
+        HStack(spacing: 8) {
+            ForEach(items) { item in
+                Button {
+                    onSelect(item)
+                } label: {
+                    Text(title(item))
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            item.id == selected
+                                ? AppPalette.accent.primary
+                                : AppPalette.elevatedSurface,
+                            in: RoundedRectangle(cornerRadius: 11)
+                        )
+                        .foregroundStyle(
+                            item.id == selected
+                                ? AppPalette.accent.foreground
+                                : AppPalette.primaryText
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
     private var effectOptions: some View {
         let bundle = localization.bundle
         return VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                ForEach(availableEffectStyles) { style in
-                    Button {
-                        options.style = style
-                    } label: {
-                        Text(style.title(bundle))
-                            .font(.caption.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(
-                                options.style == style
-                                    ? AppPalette.accent.primary
-                                    : AppPalette.elevatedSurface,
-                                in: RoundedRectangle(cornerRadius: 11)
-                            )
-                            .foregroundStyle(
-                                options.style == style
-                                    ? AppPalette.accent.foreground
-                                    : AppPalette.primaryText
-                            )
-                    }
-                    .buttonStyle(.plain)
-                }
+            singleSelectRow(availableEffectStyles, selected: options.style, title: { $0.title(bundle) }) {
+                options.style = $0
             }
             if options.style != .sticker {
                 Slider(value: $options.strength, in: strengthRange) {
