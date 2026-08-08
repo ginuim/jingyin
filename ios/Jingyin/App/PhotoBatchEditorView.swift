@@ -353,13 +353,20 @@ struct PhotoBatchEditorView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            // Keep every tool panel at the same height, but center compact
+            // tools in that space instead of leaving a large empty footer.
+            // Taller tools can still scroll inside the fixed panel.
+            .frame(
+                minHeight: max(height - 16, 0),
+                alignment: tool == .effect ? .topLeading : .center
+            )
             .padding(.bottom, 4)
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 4)
-        // The sticker picker is the tallest standard tool. Keeping every tool
-        // at that height prevents the editor from jumping during tool changes.
+        // The sticker picker is the tallest standard tool. Every tool keeps
+        // this height so switching tools never moves the preview.
         .frame(height: height)
         .background(AppPalette.elevatedSurface)
         .overlay(alignment: .top) {
@@ -498,10 +505,15 @@ struct PhotoBatchEditorView: View {
                     Button {
                         options.toggleSubject(subject)
                     } label: {
-                        Label(subject.title(localization.bundle), systemImage: subject.icon)
-                            .font(.caption.weight(.semibold))
+                        VStack(spacing: 5) {
+                            Image(systemName: subject.icon)
+                                .font(.system(size: 18, weight: .semibold))
+                            Text(subject.title(localization.bundle))
+                                .font(.caption.weight(.semibold))
+                                .lineLimit(1)
+                        }
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
+                            .frame(height: 48)
                             .background(
                                 options.subjects.contains(subject)
                                     ? AppPalette.accent.primary
@@ -543,23 +555,99 @@ struct PhotoBatchEditorView: View {
 
     private var scopeOptions: some View {
         let bundle = localization.bundle
-        return VStack(alignment: .leading, spacing: 12) {
-            singleSelectRow(MaskScope.allCases, selected: options.scope, title: { $0.title(bundle) }) {
-                options.scope = $0
-            }
+        return selectionCardRow(
+            MaskScope.allCases,
+            selected: options.scope,
+            title: { $0.title(bundle) },
+            systemImage: scopeIcon
+        ) {
+            options.scope = $0
         }
+        .frame(height: 112)
     }
 
     private var qualityOptions: some View {
         let bundle = localization.bundle
-        return VStack(alignment: .leading, spacing: 12) {
-            singleSelectRow(QualityMode.allCases, selected: options.quality, title: { $0.title(bundle) }) {
+        return VStack(alignment: .leading, spacing: 9) {
+            selectionCardRow(
+                QualityMode.allCases,
+                selected: options.quality,
+                title: { $0.title(bundle) },
+                systemImage: qualityIcon
+            ) {
                 options.quality = $0
             }
+            .frame(height: 74)
+
             Text(options.quality.detail(bundle))
                 .font(.caption)
                 .foregroundStyle(AppPalette.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 8)
+                .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: 10))
+        }
+    }
+
+    private func scopeIcon(_ scope: MaskScope) -> String {
+        switch scope {
+        case .subjects: "person.crop.rectangle"
+        case .background: "photo.fill"
+        case .full: "rectangle.inset.filled"
+        }
+    }
+
+    private func qualityIcon(_ quality: QualityMode) -> String {
+        switch quality {
+        case .fast: "hare.fill"
+        case .balanced: "dial.medium.fill"
+        case .precise: "sparkles"
+        }
+    }
+
+    private func selectionCardRow<Item: Identifiable>(
+        _ items: [Item],
+        selected: Item.ID,
+        title: @escaping (Item) -> String,
+        systemImage: @escaping (Item) -> String,
+        onSelect: @escaping (Item) -> Void
+    ) -> some View where Item.ID: Equatable {
+        HStack(spacing: 9) {
+            ForEach(items) { item in
+                let isSelected = item.id == selected
+                Button {
+                    onSelect(item)
+                } label: {
+                    VStack(spacing: 8) {
+                        Image(systemName: systemImage(item))
+                            .font(.system(size: 22, weight: .semibold))
+                            .frame(height: 28)
+                        Text(title(item))
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
+                            .minimumScaleFactor(0.8)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(
+                        isSelected ? AppPalette.accent.softFill : AppPalette.surface,
+                        in: RoundedRectangle(cornerRadius: 12)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(
+                                isSelected ? AppPalette.accent.primary : AppPalette.divider,
+                                lineWidth: isSelected ? 1.5 : 1
+                            )
+                    }
+                    .foregroundStyle(
+                        isSelected ? AppPalette.accent.primary : AppPalette.primaryText
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+            }
         }
     }
 
@@ -599,17 +687,30 @@ struct PhotoBatchEditorView: View {
 
     private var effectOptions: some View {
         let bundle = localization.bundle
-        return VStack(alignment: .leading, spacing: 12) {
+        return VStack(alignment: .leading, spacing: 8) {
             singleSelectRow(availableEffectStyles, selected: options.style, title: { $0.title(bundle) }) {
                 options.style = $0
             }
             if options.style != .sticker {
-                Slider(value: $options.strength, in: strengthRange) {
-                    Text(localization.t("editor.strength"))
-                } minimumValueLabel: {
-                    Text(localization.t("editor.weak"))
-                } maximumValueLabel: {
-                    Text(localization.t("editor.strong"))
+                VStack(spacing: 5) {
+                    HStack {
+                        Text(localization.t("editor.strength"))
+                            .font(.caption.weight(.semibold))
+                        Spacer()
+                        Text(options.strength.formatted(.number.precision(.fractionLength(0))))
+                            .font(.caption.monospacedDigit().weight(.semibold))
+                            .foregroundStyle(AppPalette.accent.primary)
+                    }
+
+                    Slider(value: $options.strength, in: strengthRange) {
+                        Text(localization.t("editor.strength"))
+                    } minimumValueLabel: {
+                        Text(localization.t("editor.weak"))
+                            .font(.caption)
+                    } maximumValueLabel: {
+                        Text(localization.t("editor.strong"))
+                            .font(.caption)
+                    }
                 }
             }
 
@@ -714,7 +815,6 @@ struct PhotoBatchEditorView: View {
                 )
             }
         }
-        .padding(.top, 4)
     }
 
     private var asciiForegroundBinding: Binding<Color> {
