@@ -322,6 +322,16 @@ struct EffectRGBA: Equatable, Sendable, Codable {
     static let asciiDefaultForeground = EffectRGBA(r: 0.957, g: 0.969, b: 0.961)
     static let asciiDefaultBackground = EffectRGBA(r: 0.02, g: 0.027, b: 0.024)
 
+    /// Newsprint ink — mid charcoal; lighter than pure black so face cover isn't a void.
+    static let asciiNewsprintInk = EffectRGBA(r: 0.42, g: 0.41, b: 0.39)
+    /// Newsprint paper — warm light gray for a halftone look.
+    static let asciiNewsprintPaper = EffectRGBA(r: 0.84, g: 0.82, b: 0.78)
+
+    /// Light brand orange for ASCII signal glyphs (`#E28A60` outline family).
+    static let asciiSignalForeground = EffectRGBA(r: 0.941, g: 0.690, b: 0.502)
+    /// Deep brand orange for ASCII signal background (`#D06432`).
+    static let asciiSignalBackground = EffectRGBA(r: 0.816, g: 0.392, b: 0.196)
+
     func matches(_ other: EffectRGBA, tolerance: Double = 0.002) -> Bool {
         abs(r - other.r) <= tolerance
             && abs(g - other.g) <= tolerance
@@ -375,8 +385,13 @@ struct ASCIIColorTheme: Identifiable, Equatable {
     static let all: [ASCIIColorTheme] = [
         .init(
             id: "classic",
-            foreground: .asciiDefaultBackground,
-            background: .asciiDefaultForeground
+            foreground: .asciiNewsprintInk,
+            background: .asciiNewsprintPaper
+        ),
+        .init(
+            id: "signal",
+            foreground: .asciiSignalForeground,
+            background: .asciiSignalBackground
         ),
         .tinted(id: "amber", color: EffectRGBA(r: 0.82, g: 0.52, b: 0.12)),
         .tinted(id: "blue", color: EffectRGBA(r: 0.28, g: 0.48, b: 0.82)),

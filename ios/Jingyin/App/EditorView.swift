@@ -1258,10 +1258,6 @@ struct EditorView: View {
     @ViewBuilder
     private func asciiColorControls(bundle: Bundle) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(localization.t("ascii.color"))
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AppPalette.secondaryText)
-
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
                     ForEach(ASCIIColorTheme.all) { theme in

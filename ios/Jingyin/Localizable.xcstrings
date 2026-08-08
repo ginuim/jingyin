@@ -1958,25 +1958,53 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "经典"
+            "value": "半调"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "經典"
+            "value": "半調"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Classic"
+            "value": "Halftone"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "クラシック"
+            "value": "ハーフトーン"
+          }
+        }
+      }
+    },
+    "ascii.theme.signal": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "信号橙"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "信號橙"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signal"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "シグナル"
           }
         }
       }
