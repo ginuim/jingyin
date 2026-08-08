@@ -10,7 +10,7 @@ struct PurchaseStatusCard: View {
         HStack(spacing: 14) {
             Image(systemName: entitlements.isUnlocked ? "checkmark.seal.fill" : "gift.fill")
                 .font(.title2)
-                .foregroundStyle(.mint)
+                .foregroundStyle(AppPalette.accent.primary)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(
@@ -30,7 +30,7 @@ struct PurchaseStatusCard: View {
                     )
                 )
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppPalette.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -39,12 +39,12 @@ struct PurchaseStatusCard: View {
             if !entitlements.isUnlocked {
                 Button(localization.t("purchase.unlock"), action: onUnlock)
                     .buttonStyle(.borderedProminent)
-                    .tint(.mint)
-                    .foregroundStyle(.black)
+                    .tint(AppPalette.accent.primary)
+                    .foregroundStyle(AppPalette.accent.foreground)
             }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.mint.opacity(0.08), in: RoundedRectangle(cornerRadius: 18))
+        .background(AppPalette.accent.softFill, in: RoundedRectangle(cornerRadius: 18))
     }
 }

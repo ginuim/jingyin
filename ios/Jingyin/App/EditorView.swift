@@ -71,7 +71,7 @@ struct EditorView: View {
                     } else if voicePreview.isPreviewUnsupported, options.audio == .voice {
                         Label(localization.t("error.previewUnsupported"), systemImage: "exclamationmark.triangle.fill")
                             .font(.footnote)
-                            .foregroundStyle(.yellow)
+                            .foregroundStyle(AppPalette.warning)
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -89,8 +89,8 @@ struct EditorView: View {
                             .padding()
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(.mint)
-                    .foregroundStyle(.black)
+                    .tint(AppPalette.accent.primary)
+                    .foregroundStyle(.white)
                     .disabled(hasTrackingInProgress)
 
                     if hasTrackingInProgress {
@@ -99,14 +99,15 @@ struct EditorView: View {
                             systemImage: "hourglass"
                         )
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppPalette.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .padding()
             }
         }
-        .background(Color(red: 0.035, green: 0.065, blue: 0.07))
+        .foregroundStyle(AppPalette.primaryText)
+        .background(AppPalette.background)
         .navigationTitle(localization.t("editor.title"))
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showProcessing) {
@@ -370,7 +371,7 @@ struct EditorView: View {
 
                     Text(localization.t("editor.manualMaskHint"))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppPalette.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Label(
@@ -378,7 +379,7 @@ struct EditorView: View {
                         systemImage: "timeline.selection"
                     )
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppPalette.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -411,17 +412,17 @@ struct EditorView: View {
                                     )
                                     .font(.system(size: 13, weight: .semibold))
                                     .foregroundStyle(
-                                        isSelected ? .black : .white.opacity(0.55)
+                                        isSelected ? AppPalette.accent.foreground : AppPalette.secondaryText
                                     )
                                     .padding(6)
                                 }
                                 .background(
                                     isSelected
-                                        ? Color.mint.opacity(0.9)
-                                        : .white.opacity(0.08),
+                                        ? AppPalette.accent.primary
+                                        : AppPalette.elevatedSurface,
                                     in: RoundedRectangle(cornerRadius: 12)
                                 )
-                                .foregroundStyle(isSelected ? .black : .white)
+                                .foregroundStyle(isSelected ? AppPalette.accent.foreground : AppPalette.primaryText)
                             }
                             .buttonStyle(.plain)
                             .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -434,7 +435,7 @@ struct EditorView: View {
 
                     Text(localization.t("editor.entityHint"))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppPalette.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -454,7 +455,7 @@ struct EditorView: View {
                     .pickerStyle(.segmented)
                     Text(options.quality.detail(bundle))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppPalette.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -490,7 +491,7 @@ struct EditorView: View {
                 }
                 Text(strengthDescription)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppPalette.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if options.style == .ascii {
@@ -521,7 +522,7 @@ struct EditorView: View {
                     HStack {
                         Text(localization.t("editor.pitchLow"))
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(AppPalette.secondaryText)
                         Slider(
                             value: Binding(
                                 get: { Double(options.voicePitch) },
@@ -532,13 +533,13 @@ struct EditorView: View {
                         )
                         Text(localization.t("editor.pitchHigh"))
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(AppPalette.secondaryText)
                     }
                 }
 
                 Text(localization.t("editor.pitchHint"))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppPalette.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -575,14 +576,14 @@ struct EditorView: View {
                             .padding(.vertical, 8)
                             .background(
                                 selectedEntityID == entity.id
-                                    ? Color.mint
-                                    : Color.white.opacity(entity.isEnabled ? 0.12 : 0.05),
+                                    ? AppPalette.accent.primary
+                                    : AppPalette.elevatedSurface,
                                 in: Capsule()
                             )
                             .foregroundStyle(
                                 selectedEntityID == entity.id
-                                    ? .black
-                                    : (entity.isEnabled ? .primary : .secondary)
+                                    ? AppPalette.accent.foreground
+                                    : (entity.isEnabled ? AppPalette.primaryText : AppPalette.secondaryText)
                             )
                             .opacity(entity.isEnabled ? 1 : 0.55)
                         }
@@ -681,11 +682,11 @@ struct EditorView: View {
                         .padding(.vertical, 8)
                         .background(
                             selectedMaskTrackID == track.id
-                                ? Color.mint
-                                : Color.white.opacity(0.08),
+                                ? AppPalette.accent.primary
+                                : AppPalette.elevatedSurface,
                             in: Capsule()
                         )
-                        .foregroundStyle(selectedMaskTrackID == track.id ? .black : .white)
+                        .foregroundStyle(selectedMaskTrackID == track.id ? AppPalette.accent.foreground : AppPalette.primaryText)
                     }
                     .buttonStyle(.plain)
                 }
@@ -732,7 +733,7 @@ struct EditorView: View {
                 .font(.caption.bold())
                 Text(selectedMaskVisibilitySummary)
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppPalette.secondaryText)
             }
             .frame(maxWidth: .infinity)
         }
@@ -991,7 +992,7 @@ struct EditorView: View {
                 systemImage: "checkmark.circle.fill"
             )
             .font(.caption)
-            .foregroundStyle(.mint)
+            .foregroundStyle(AppPalette.accent.primary)
             .frame(maxWidth: .infinity, alignment: .leading)
         case .lost:
             VStack(alignment: .leading, spacing: 8) {
@@ -1003,12 +1004,12 @@ struct EditorView: View {
                     systemImage: "exclamationmark.triangle.fill"
                 )
                 .font(.caption)
-                .foregroundStyle(.yellow)
+                .foregroundStyle(AppPalette.warning)
                 .fixedSize(horizontal: false, vertical: true)
 
                 Text(localization.t("tracking.correctionHint"))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppPalette.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Button(action: retrySelectedFaceTracking) {
@@ -1027,7 +1028,7 @@ struct EditorView: View {
                     systemImage: "diamond.fill"
                 )
                 .font(.caption)
-                .foregroundStyle(.mint)
+                .foregroundStyle(AppPalette.accent.primary)
 
                 Button(action: retrySelectedFaceTracking) {
                     Label(
@@ -1243,7 +1244,7 @@ struct EditorView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(localization.t("ascii.color"))
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppPalette.secondaryText)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
@@ -1278,7 +1279,7 @@ struct EditorView: View {
                     } label: {
                         Image(systemName: showASCIIColorCustom ? "xmark.circle.fill" : "plus.circle.fill")
                             .font(.title3)
-                            .foregroundStyle(.mint)
+                            .foregroundStyle(AppPalette.accent.primary)
                             .frame(width: 28, height: 28)
                     }
                     .buttonStyle(.plain)
@@ -1519,7 +1520,7 @@ private struct ExportSettingsSheet: View {
                                 systemImage: "hare.fill"
                             )
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(AppPalette.secondaryText)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .padding()
@@ -1594,7 +1595,7 @@ private struct ExportSettingsSheet: View {
                 Spacer(minLength: 12)
                 Text(hint)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppPalette.secondaryText)
                     .multilineTextAlignment(.trailing)
             }
             HStack(spacing: 8) {
@@ -1610,12 +1611,12 @@ private struct ExportSettingsSheet: View {
                             .padding(.vertical, 11)
                             .background(
                                 selection.wrappedValue == value
-                                    ? Color.mint
-                                    : Color.white.opacity(0.08),
+                                    ? AppPalette.accent.primary
+                                    : AppPalette.elevatedSurface,
                                 in: RoundedRectangle(cornerRadius: 12)
                             )
                             .foregroundStyle(
-                                selection.wrappedValue == value ? .black : .primary
+                                selection.wrappedValue == value ? AppPalette.accent.foreground : AppPalette.primaryText
                             )
                     }
                     .buttonStyle(.plain)
@@ -1623,7 +1624,7 @@ private struct ExportSettingsSheet: View {
             }
         }
         .padding()
-        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 18))
+        .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: 18))
     }
 }
 
@@ -1650,11 +1651,11 @@ private struct CollapsibleOptionSection<Content: View>: View {
                     if let meta {
                         Text(meta)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(AppPalette.secondaryText)
                     }
                     Image(systemName: "chevron.down")
                         .font(.caption.bold())
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppPalette.secondaryText)
                         .rotationEffect(.degrees(isExpanded ? 180 : 0))
                 }
                 .contentShape(Rectangle())
@@ -1667,7 +1668,7 @@ private struct CollapsibleOptionSection<Content: View>: View {
             }
         }
         .padding()
-        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 18))
+        .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: 18))
     }
 }
 
@@ -1675,7 +1676,7 @@ struct ASCIIColorSwatch: View {
     let pair: ASCIIColorPair
     let isSelected: Bool
     let accessibilityLabel: String
-    var selectionColor: Color = .mint
+    var selectionColor: Color = AppPalette.accent.primary
     let action: () -> Void
 
     var body: some View {
@@ -1707,7 +1708,7 @@ struct ASCIIColorSwatch: View {
             .overlay {
                 Circle()
                     .strokeBorder(
-                        isSelected ? selectionColor : Color.white.opacity(0.28),
+                        isSelected ? selectionColor : AppPalette.divider,
                         lineWidth: isSelected ? 2 : 1
                     )
             }

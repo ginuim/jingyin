@@ -35,7 +35,7 @@ struct FaceSelectionView: View {
                                 )
                                 .toggleStyle(.button)
                                 .buttonStyle(.bordered)
-                                .tint(.mint)
+                                .tint(AppPalette.accent.primary)
                             }
                         }
                     }
@@ -43,11 +43,12 @@ struct FaceSelectionView: View {
 
                 Text(localization.t("faceSelection.hint"))
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppPalette.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding()
-            .background(Color(red: 0.035, green: 0.065, blue: 0.07))
+            .foregroundStyle(AppPalette.primaryText)
+            .background(AppPalette.background)
             .navigationTitle(localization.t("faceSelection.title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -96,11 +97,11 @@ struct FaceSelectionView: View {
                             Ellipse()
                                 .fill(
                                     selectedIDs.contains(candidate.id)
-                                        ? Color.mint.opacity(0.18)
+                                        ? AppPalette.accent.softFill
                                         : Color.clear
                                 )
                                 .stroke(
-                                    selectedIDs.contains(candidate.id) ? .mint : .white,
+                                    selectedIDs.contains(candidate.id) ? AppPalette.accent.primary : AppPalette.maskOutline,
                                     style: StrokeStyle(lineWidth: 3, dash: [7, 5])
                                 )
 
@@ -115,13 +116,13 @@ struct FaceSelectionView: View {
                             }
                             .font(.caption.bold())
                             .foregroundStyle(
-                                selectedIDs.contains(candidate.id) ? .black : .white
+                                selectedIDs.contains(candidate.id) ? AppPalette.accent.foreground : AppPalette.maskOutline
                             )
                             .padding(6)
                             .background(
                                 selectedIDs.contains(candidate.id)
-                                    ? Color.mint
-                                    : Color.black.opacity(0.72),
+                                    ? AppPalette.accent.primary
+                                    : AppPalette.mediaScrim,
                                 in: Capsule()
                             )
                         }

@@ -60,7 +60,7 @@ struct FullScreenMaskEditorView: View {
             }
             .padding(.horizontal)
             .padding(.bottom)
-            .background(Color.black.ignoresSafeArea())
+            .background(AppPalette.mediaCanvas.ignoresSafeArea())
             .navigationTitle(localization.t("editor.fullScreenTitle"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -102,11 +102,11 @@ struct FullScreenMaskEditorView: View {
                         .padding(.vertical, 8)
                         .background(
                             selectedTrackID == track.id
-                                ? Color.mint
-                                : Color.white.opacity(0.1),
+                                ? AppPalette.accent.primary
+                                : AppPalette.elevatedSurface,
                             in: Capsule()
                         )
-                        .foregroundStyle(selectedTrackID == track.id ? .black : .white)
+                        .foregroundStyle(selectedTrackID == track.id ? AppPalette.accent.foreground : AppPalette.primaryText)
                     }
                     .buttonStyle(.plain)
                 }

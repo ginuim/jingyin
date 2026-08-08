@@ -2,7 +2,7 @@ import SwiftUI
 
 struct StickerEmojiPicker: View {
     @Binding var selection: StickerEmoji
-    var accentColor: Color = .mint
+    var accentColor: Color = AppPalette.accent.primary
     @State private var selectedPage = 0
 
     private let pageSize = 8
@@ -32,7 +32,7 @@ struct StickerEmojiPicker: View {
                                     .background(
                                         selection == emoji
                                             ? accentColor.opacity(0.9)
-                                            : Color.white.opacity(0.08),
+                                            : AppPalette.elevatedSurface,
                                         in: RoundedRectangle(cornerRadius: 10)
                                     )
                             }
@@ -54,8 +54,8 @@ struct StickerEmojiPicker: View {
                     Circle()
                         .fill(
                             pageIndex == selectedPage
-                                ? Color.white
-                                : Color.white.opacity(0.35)
+                                ? AppPalette.primaryText
+                                : AppPalette.disabledText
                         )
                         .frame(width: 7, height: 7)
                 }

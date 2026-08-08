@@ -26,14 +26,14 @@ struct SettingsView: View {
                                 }
                             }
                             .labelsHidden()
-                            .tint(.mint)
+                            .tint(AppPalette.accent.primary)
                         }
 
                         Divider()
 
                         Text(localization.t("settings.language.note"))
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(AppPalette.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -56,7 +56,7 @@ struct SettingsView: View {
                                     ? "checkmark.seal.fill"
                                     : "gift.fill"
                             )
-                            .foregroundStyle(entitlements.isUnlocked ? .mint : .secondary)
+                            .foregroundStyle(entitlements.isUnlocked ? AppPalette.accent.primary : AppPalette.secondaryText)
                             .multilineTextAlignment(.trailing)
                         }
 
@@ -68,7 +68,7 @@ struct SettingsView: View {
                                 : "purchase.freePlan.detail"
                         ))
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppPalette.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
                         if !entitlements.isUnlocked {
@@ -111,7 +111,7 @@ struct SettingsView: View {
 
                         Text(localization.t("purchase.promise"))
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(AppPalette.secondaryText)
                     }
                 }
 
@@ -137,8 +137,9 @@ struct SettingsView: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 24)
         }
-        .background(Color(red: 0.035, green: 0.065, blue: 0.07))
-        .tint(.mint)
+        .foregroundStyle(AppPalette.primaryText)
+        .background(AppPalette.background)
+        .tint(AppPalette.accent.primary)
         .navigationTitle(localization.t("settings.title"))
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showPaywall) {
@@ -178,7 +179,7 @@ struct SettingsView: View {
         content()
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(18)
-            .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 20))
+            .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: 20))
     }
 }
 

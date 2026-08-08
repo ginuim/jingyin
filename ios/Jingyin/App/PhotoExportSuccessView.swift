@@ -32,7 +32,7 @@ struct PhotoExportSuccessView: View {
 
     var body: some View {
         ZStack {
-            Color(red: 0.035, green: 0.065, blue: 0.07)
+            AppPalette.background
                 .ignoresSafeArea()
 
             ScrollView {
@@ -68,15 +68,16 @@ struct PhotoExportSuccessView: View {
                     .padding(.vertical, 12)
                     .background(.ultraThinMaterial, in: Capsule())
                     .overlay {
-                        Capsule().stroke(Color.mint.opacity(0.45), lineWidth: 1)
+                        Capsule().stroke(AppPalette.accent.outline, lineWidth: 1)
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppPalette.primaryText)
                     .padding(.bottom, 28)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
                 .allowsHitTesting(false)
             }
         }
+        .foregroundStyle(AppPalette.primaryText)
         .animation(.spring(response: 0.35, dampingFraction: 0.86), value: showSaveToast)
         .navigationTitle(localization.t("photo.exportSuccess"))
         .navigationBarTitleDisplayMode(.inline)
@@ -113,17 +114,10 @@ struct PhotoExportSuccessView: View {
         VStack(spacing: 12) {
             Image(systemName: "checkmark")
                 .font(.system(size: 34, weight: .bold))
-                .foregroundStyle(.mint)
+                .foregroundStyle(AppPalette.accent.primary)
                 .frame(width: 72, height: 72)
                 .background(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.10),
-                            Color.white.opacity(0.04),
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
+                    AppPalette.elevatedSurface,
                     in: RoundedRectangle(cornerRadius: 20)
                 )
 
@@ -133,7 +127,7 @@ struct PhotoExportSuccessView: View {
 
             Text(localization.format("photo.exportSuccessDetail", Int64(result.successCount)))
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppPalette.secondaryText)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 28)
         }
@@ -154,8 +148,8 @@ struct PhotoExportSuccessView: View {
                 .padding(.vertical, 13)
             }
             .buttonStyle(.plain)
-            .background(Color.mint, in: Capsule())
-            .foregroundStyle(.black)
+            .background(AppPalette.accent.primary, in: Capsule())
+            .foregroundStyle(AppPalette.accent.foreground)
             .disabled(saved || isSaving || result.outputURLs.isEmpty)
 
             Button {
@@ -167,9 +161,9 @@ struct PhotoExportSuccessView: View {
                     .padding(.vertical, 13)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.white)
+            .foregroundStyle(AppPalette.primaryText)
             .overlay {
-                Capsule().stroke(Color.white.opacity(0.85), lineWidth: 1)
+                Capsule().stroke(AppPalette.primaryText, lineWidth: 1)
             }
             .disabled(result.outputURLs.isEmpty)
         }
@@ -202,9 +196,9 @@ struct PhotoExportSuccessView: View {
                 .padding(.vertical, 13)
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.white)
+        .foregroundStyle(AppPalette.primaryText)
         .overlay {
-            Capsule().stroke(Color.white.opacity(0.85), lineWidth: 1)
+            Capsule().stroke(AppPalette.primaryText, lineWidth: 1)
         }
     }
 
@@ -249,16 +243,7 @@ private struct StackedExportPreview: View {
             let cardSize = min(geo.size.width * 0.72, geo.size.height * 0.92)
             ZStack {
                 RoundedRectangle(cornerRadius: 22)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(0.08),
-                                Color.white.opacity(0.03),
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
+                    .fill(AppPalette.elevatedSurface)
 
                 ForEach(Array(previewURLs.enumerated().reversed()), id: \.offset) { index, url in
                     let depth = previewURLs.count - 1 - index
@@ -287,11 +272,11 @@ private struct StackedExportPreview: View {
                 .shadow(color: .black.opacity(0.35), radius: 10, y: 6)
         } else {
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(0.08))
+                .fill(AppPalette.elevatedSurface)
                 .frame(width: side, height: side)
                 .overlay {
                     Image(systemName: "photo")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppPalette.secondaryText)
                 }
         }
     }
@@ -342,7 +327,7 @@ private struct ConfettiBurstView: View {
                 spin: Double.random(in: -720...720, using: &rng),
                 width: CGFloat.random(in: 8...14, using: &rng),
                 height: CGFloat.random(in: 12...22, using: &rng),
-                color: colors.randomElement(using: &rng) ?? .mint,
+                color: colors.randomElement(using: &rng) ?? AppPalette.accent.primary,
                 delayJitter: Double.random(in: 0...0.08, using: &rng)
             )
         }

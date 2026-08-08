@@ -104,12 +104,12 @@ struct ControlledVideoPlayer<Content: View>: View {
                         Button(action: onPinToggle) {
                             Image(systemName: isPinned ? "pin.fill" : "pin")
                                 .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(isPinned ? .black : .white)
+                                .foregroundStyle(isPinned ? AppPalette.accent.foreground : AppPalette.maskOutline)
                                 .frame(width: 36, height: 36)
                                 .background(
                                     isPinned
-                                        ? Color.mint.opacity(0.94)
-                                        : Color.black.opacity(0.65),
+                                        ? AppPalette.accent.primary
+                                        : AppPalette.mediaScrim,
                                     in: Circle()
                                 )
                         }
@@ -129,9 +129,9 @@ struct ControlledVideoPlayer<Content: View>: View {
                                 systemName: "arrow.up.left.and.arrow.down.right"
                             )
                             .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(AppPalette.maskOutline)
                             .frame(width: 36, height: 36)
-                            .background(.black.opacity(0.65), in: Circle())
+                            .background(AppPalette.mediaScrim, in: Circle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(localization.t("player.fullScreen"))
@@ -143,9 +143,9 @@ struct ControlledVideoPlayer<Content: View>: View {
                         Button(action: togglePlayback) {
                             Image(systemName: "play.fill")
                                 .font(.system(size: 24, weight: .bold))
-                                .foregroundStyle(.black)
+                                .foregroundStyle(AppPalette.accent.foreground)
                                 .frame(width: 58, height: 58)
-                                .background(.mint.opacity(0.94), in: Circle())
+                                .background(AppPalette.accent.primary, in: Circle())
                                 .shadow(color: .black.opacity(0.35), radius: 12, y: 5)
                         }
                         .buttonStyle(.plain)
@@ -161,7 +161,7 @@ struct ControlledVideoPlayer<Content: View>: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.mint)
+                .foregroundStyle(AppPalette.accent.primary)
                 .accessibilityLabel(
                     localization.t(playerIsPaused ? "player.play" : "player.pause")
                 )
@@ -179,7 +179,7 @@ struct ControlledVideoPlayer<Content: View>: View {
                     .frame(width: timeLabelWidth, alignment: .leading)
             }
             .font(.caption.monospacedDigit())
-            .foregroundStyle(.secondary)
+            .foregroundStyle(AppPalette.secondaryText)
             .padding(.horizontal, 4)
         }
         .fixedSize(horizontal: false, vertical: true)
@@ -206,7 +206,7 @@ struct ControlledVideoPlayer<Content: View>: View {
             in: 0...max(durationSeconds, 0.01),
             onEditingChanged: scrubStateChanged
         )
-        .tint(.mint)
+        .tint(AppPalette.accent.primary)
         .disabled(durationSeconds <= 0)
         .overlay {
             GeometryReader { proxy in
@@ -223,8 +223,8 @@ struct ControlledVideoPlayer<Content: View>: View {
                         Capsule()
                             .fill(
                                 range.isSelected
-                                    ? Color.yellow.opacity(0.55)
-                                    : Color.white.opacity(0.3)
+                                    ? AppPalette.warning
+                                    : AppPalette.secondaryText
                             )
                             .frame(width: max(endX - startX, 3), height: 6)
                             .position(
@@ -235,13 +235,13 @@ struct ControlledVideoPlayer<Content: View>: View {
 
                     ForEach(visibleTimelineMarkers) { marker in
                         Capsule()
-                            .fill(marker.isSelected ? Color.yellow : Color.white)
+                            .fill(marker.isSelected ? AppPalette.warning : AppPalette.maskOutline)
                             .frame(
                                 width: marker.isSelected ? 4 : 3,
                                 height: marker.isSelected ? 18 : 12
                             )
                             .shadow(
-                                color: .black.opacity(0.7),
+                                color: AppPalette.maskOutlineShadow,
                                 radius: 1
                             )
                             .position(

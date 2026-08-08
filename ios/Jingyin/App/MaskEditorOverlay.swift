@@ -8,7 +8,7 @@ struct MaskEditorOverlay: View {
     let onEditingBegan: () -> Void
     let onEditingEnded: () -> Void
     let onDeleteTrack: (MaskTrack.ID) -> Void
-    var accentColor: Color = .mint
+    var accentColor: Color = AppPalette.accent.primary
 
     var body: some View {
         GeometryReader { proxy in
@@ -73,11 +73,11 @@ private struct MaskTrackLayer: View {
                 Button(action: onDelete) {
                     Image(systemName: "xmark")
                         .font(.system(size: 12, weight: .black))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppPalette.maskOutline)
                         .frame(width: 28, height: 28)
-                        .background(.red, in: Circle())
+                        .background(AppPalette.destructive, in: Circle())
                         .overlay {
-                            Circle().stroke(.white.opacity(0.85), lineWidth: 2)
+                            Circle().stroke(AppPalette.maskOutline, lineWidth: 2)
                         }
                 }
                 .buttonStyle(.plain)
@@ -90,7 +90,7 @@ private struct MaskTrackLayer: View {
 
                 Circle()
                     .fill(accentColor)
-                    .stroke(.black.opacity(0.8), lineWidth: 2)
+                    .stroke(AppPalette.maskOutlineShadow, lineWidth: 2)
                     .frame(width: 26, height: 26)
                     .contentShape(Circle().inset(by: -8))
                     .position(x: previewRect.maxX, y: previewRect.maxY)
@@ -107,7 +107,7 @@ private struct MaskTrackLayer: View {
             Ellipse()
                 .fill(accentColor.opacity(isSelected ? 0.16 : 0.08))
                 .stroke(
-                    isSelected ? accentColor : .white.opacity(0.8),
+                    isSelected ? accentColor : AppPalette.maskOutline,
                     style: StrokeStyle(
                         lineWidth: isSelected ? 3 : 2,
                         dash: isSelected ? [] : [6, 5]
@@ -117,7 +117,7 @@ private struct MaskTrackLayer: View {
             Rectangle()
                 .fill(accentColor.opacity(isSelected ? 0.16 : 0.08))
                 .stroke(
-                    isSelected ? accentColor : .white.opacity(0.8),
+                    isSelected ? accentColor : AppPalette.maskOutline,
                     style: StrokeStyle(
                         lineWidth: isSelected ? 3 : 2,
                         dash: isSelected ? [] : [6, 5]

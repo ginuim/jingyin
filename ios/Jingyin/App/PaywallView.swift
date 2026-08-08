@@ -11,16 +11,16 @@ struct PaywallView: View {
                 VStack(spacing: 24) {
                     Image(systemName: "checkmark.shield.fill")
                         .font(.system(size: 58))
-                        .foregroundStyle(.mint)
+                        .foregroundStyle(AppPalette.accent.primary)
                         .padding(22)
-                        .background(.mint.opacity(0.12), in: RoundedRectangle(cornerRadius: 24))
+                        .background(AppPalette.accent.softFill, in: RoundedRectangle(cornerRadius: 24))
 
                     VStack(spacing: 8) {
                         Text(localization.t("paywall.title"))
                             .font(.largeTitle.bold())
                             .multilineTextAlignment(.center)
                         Text(localization.t("paywall.subtitle"))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(AppPalette.secondaryText)
                             .multilineTextAlignment(.center)
                     }
 
@@ -32,12 +32,12 @@ struct PaywallView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
-                    .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 18))
+                    .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: 18))
 
                     if let errorMessage = entitlements.errorMessage {
                         Text(errorMessage)
                             .font(.footnote)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(AppPalette.destructive)
                             .multilineTextAlignment(.center)
                     }
 
@@ -59,8 +59,8 @@ struct PaywallView: View {
                         .padding(.vertical, 13)
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(.mint)
-                    .foregroundStyle(.black)
+                    .tint(AppPalette.accent.primary)
+                    .foregroundStyle(AppPalette.accent.foreground)
                     .disabled(
                         entitlements.isPurchasing
                             || entitlements.isRestoring
@@ -91,12 +91,13 @@ struct PaywallView: View {
 
                     Text(localization.t("paywall.footnote"))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppPalette.secondaryText)
                         .multilineTextAlignment(.center)
                 }
                 .padding()
             }
-            .background(Color(red: 0.035, green: 0.065, blue: 0.07))
+            .foregroundStyle(AppPalette.primaryText)
+            .background(AppPalette.background)
             .navigationTitle(localization.t("purchase.title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

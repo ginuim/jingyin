@@ -28,17 +28,17 @@ struct ProcessingView: View {
                     .font(.system(size: 42, weight: .bold, design: .rounded))
                     .monospacedDigit()
                 ProgressView(value: processor.progress)
-                    .tint(.mint)
+                    .tint(AppPalette.accent.primary)
                 if processor.isRunning {
                     Text(remainingTimeText)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppPalette.secondaryText)
                         .monospacedDigit()
                 }
                 if let advisory = processor.advisory {
                     Label(advisory, systemImage: "exclamationmark.triangle.fill")
                         .font(.footnote)
-                        .foregroundStyle(.yellow)
+                        .foregroundStyle(AppPalette.warning)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -48,7 +48,7 @@ struct ProcessingView: View {
             if case let .failed(message) = processor.stage {
                 Text(message)
                     .font(.callout)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(AppPalette.destructive)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal)
@@ -97,7 +97,8 @@ struct ProcessingView: View {
             }
         }
         .padding()
-        .background(Color(red: 0.035, green: 0.065, blue: 0.07))
+        .foregroundStyle(AppPalette.primaryText)
+        .background(AppPalette.background)
         .navigationTitle(localization.t("processing.title"))
         .navigationBarBackButtonHidden(processor.isRunning)
         .task { start() }
@@ -122,7 +123,7 @@ struct ProcessingView: View {
     private var stageIcon: some View {
         Image(systemName: processor.outputURL == nil ? "gearshape.2.fill" : "checkmark.shield.fill")
             .font(.system(size: 56))
-            .foregroundStyle(.mint)
+            .foregroundStyle(AppPalette.accent.primary)
             .symbolEffect(.pulse, options: .repeating, isActive: processor.isRunning)
     }
 
