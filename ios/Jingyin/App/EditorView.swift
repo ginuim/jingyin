@@ -1538,10 +1538,22 @@ private struct ExportSettingsSheet: View {
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(exportButtonTitle) {
+                    Button {
                         onExport()
+                    } label: {
+                        Text(exportButtonTitle)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppPalette.accent.foreground)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(
+                                AppPalette.accent.primary,
+                                in: Capsule()
+                            )
                     }
+                    .buttonStyle(.plain)
                     .disabled(metadata == nil || !entitlements.isReady)
+                    .opacity(metadata == nil || !entitlements.isReady ? 0.45 : 1)
                 }
             }
         }

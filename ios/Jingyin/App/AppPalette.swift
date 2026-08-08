@@ -6,21 +6,21 @@ import SwiftUI
 /// future accent experiment does not also change canvas, status, or mask colors.
 enum AppPalette {
     /// The only switch needed when trying another brand accent family.
-    static let accent = AccentPalette.apricotRose
+    static let accent = AccentPalette.signalOrange
 
     // MARK: - Backgrounds
 
-    static let background = color(0x20201F)
-    static let surface = color(0x2B2A29)
-    static let elevatedSurface = color(0x373432)
+    static let background = color(0x1C1614)
+    static let surface = color(0x2A211E)
+    static let elevatedSurface = color(0x3A2C27)
     static let mediaCanvas = Color.black
 
     // MARK: - Content
 
-    static let primaryText = color(0xF4F1EC)
-    static let secondaryText = color(0xAAA6A1)
-    static let disabledText = color(0x77736F)
-    static let divider = color(0x4A4643)
+    static let primaryText = color(0xFFF4EE)
+    static let secondaryText = color(0xC2A89C)
+    static let disabledText = color(0x8A7368)
+    static let divider = color(0x5A433A)
 
     // MARK: - Feedback
 
@@ -53,12 +53,22 @@ struct AccentPalette {
     let outline: Color
     let foreground: Color
 
+    /// Soft peach leftover from earlier brand trials; kept for A/B switching.
     static let apricotRose = AccentPalette(
         primary: color(0xD58B7B),
         pressed: color(0xB96F61),
         softFill: color(0xD58B7B, opacity: 0.18),
         outline: color(0xE2A89B),
         foreground: color(0x20201F)
+    )
+
+    /// Brand orange sampled from the 2026-08-08 privacy character icon.
+    static let signalOrange = AccentPalette(
+        primary: color(0xE83810),
+        pressed: color(0xC0280C),
+        softFill: color(0xE83810, opacity: 0.20),
+        outline: color(0xF77937),
+        foreground: color(0xFFF7F2)
     )
 
     private static func color(_ hex: UInt32, opacity: Double = 1) -> Color {

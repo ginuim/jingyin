@@ -112,8 +112,9 @@ struct ContentView: View {
                 Image("WelcomeLogo")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 112, height: 112)
-                    .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                    .frame(width: 128, height: 128)
+                    .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
+                    .shadow(color: AppPalette.accent.primary.opacity(0.45), radius: 28, y: 8)
                     .accessibilityLabel(localization.t("brand.name"))
 
                 VStack(spacing: 8) {
