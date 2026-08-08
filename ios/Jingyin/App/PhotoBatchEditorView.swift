@@ -54,7 +54,8 @@ struct PhotoBatchEditorView: View {
     @State private var asciiRecentPairs = ASCIIColorRecentStore.load()
     @State private var showASCIIColorCustom = false
     @State private var selectedTool: PhotoEditorTool? = .effect
-    @State private var parameterContentHeight: CGFloat = 280
+
+    private static let parameterPanelHeight: CGFloat = 264
 
     init(inputURLs: [URL], onReturnHome: @escaping () -> Void = {}) {
         self.inputURLs = inputURLs
@@ -78,7 +79,10 @@ struct PhotoBatchEditorView: View {
                 toolBar
 
                 if let selectedTool {
-                    parameterPanel(for: selectedTool, maxHeight: proxy.size.height * 0.55)
+                    parameterPanel(
+                        for: selectedTool,
+                        height: min(Self.parameterPanelHeight, proxy.size.height * 0.48)
+                    )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
@@ -327,12 +331,12 @@ struct PhotoBatchEditorView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .frame(minHeight: 210)
+        .frame(minHeight: 160)
         .clipShape(RoundedRectangle(cornerRadius: 18))
     }
 
     @ViewBuilder
-    private func parameterPanel(for tool: PhotoEditorTool, maxHeight: CGFloat) -> some View {
+    private func parameterPanel(for tool: PhotoEditorTool, height: CGFloat) -> some View {
         ScrollView(.vertical, showsIndicators: true) {
             Group {
                 switch tool {
@@ -350,19 +354,13 @@ struct PhotoBatchEditorView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.bottom, 4)
-            .onGeometryChange(for: CGFloat.self) { proxy in
-                proxy.size.height
-            } action: { newHeight in
-                parameterContentHeight = max(parameterContentHeight, newHeight)
-            }
         }
         .padding(.horizontal, 16)
         .padding(.top, 12)
         .padding(.bottom, 8)
-        // Height sticks to the tallest content measured so far (the +20 covers
-        // the panel's own vertical padding) so switching tools does not jump;
-        // capped so the preview always keeps room.
-        .frame(height: min(parameterContentHeight + 20, maxHeight))
+        // The sticker picker is the tallest standard tool. Keeping every tool
+        // at that height prevents the editor from jumping during tool changes.
+        .frame(height: height)
         .background(AppPalette.elevatedSurface)
         .overlay(alignment: .top) {
             Divider().overlay(AppPalette.divider)
