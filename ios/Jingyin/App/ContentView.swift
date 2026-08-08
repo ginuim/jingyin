@@ -114,7 +114,7 @@ struct ContentView: View {
                     .scaledToFit()
                     .frame(width: 128, height: 128)
                     .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
-                    .shadow(color: AppPalette.accent.primary.opacity(0.45), radius: 28, y: 8)
+                    .shadow(color: AppPalette.accent.primary.opacity(0.20), radius: 20, y: 6)
                     .accessibilityLabel(localization.t("brand.name"))
 
                 VStack(spacing: 8) {

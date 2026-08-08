@@ -25,7 +25,7 @@ enum AppPalette {
     // MARK: - Feedback
 
     static let warning = color(0xD59A3A)
-    static let destructive = color(0xC95D58)
+    static let destructive = color(0xCF6863)
     static let success = color(0x78A985)
 
     // MARK: - Media overlays
@@ -64,10 +64,10 @@ struct AccentPalette {
 
     /// Brand orange sampled from the 2026-08-08 privacy character icon.
     static let signalOrange = AccentPalette(
-        primary: color(0xE83810),
-        pressed: color(0xC0280C),
-        softFill: color(0xE83810, opacity: 0.20),
-        outline: color(0xF77937),
+        primary: color(0xD06432),
+        pressed: color(0xC96B41),
+        softFill: color(0xD06432, opacity: 0.16),
+        outline: color(0xE28A60),
         foreground: color(0xFFF7F2)
     )
 

@@ -56,7 +56,7 @@ struct SettingsView: View {
                                     ? "checkmark.seal.fill"
                                     : "gift.fill"
                             )
-                            .foregroundStyle(entitlements.isUnlocked ? AppPalette.accent.primary : AppPalette.secondaryText)
+                            .foregroundStyle(entitlements.isUnlocked ? AppPalette.success : AppPalette.secondaryText)
                             .multilineTextAlignment(.trailing)
                         }
 

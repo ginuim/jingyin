@@ -68,7 +68,7 @@ struct PhotoExportSuccessView: View {
                     .padding(.vertical, 12)
                     .background(.ultraThinMaterial, in: Capsule())
                     .overlay {
-                        Capsule().stroke(AppPalette.accent.outline, lineWidth: 1)
+                        Capsule().stroke(AppPalette.success, lineWidth: 1)
                     }
                     .foregroundStyle(AppPalette.primaryText)
                     .padding(.bottom, 28)
@@ -114,7 +114,7 @@ struct PhotoExportSuccessView: View {
         VStack(spacing: 12) {
             Image(systemName: "checkmark")
                 .font(.system(size: 34, weight: .bold))
-                .foregroundStyle(AppPalette.accent.primary)
+                .foregroundStyle(AppPalette.success)
                 .frame(width: 72, height: 72)
                 .background(
                     AppPalette.elevatedSurface,

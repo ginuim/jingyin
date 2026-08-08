@@ -121,9 +121,18 @@ struct ProcessingView: View {
     }
 
     private var stageIcon: some View {
-        Image(systemName: processor.outputURL == nil ? "gearshape.2.fill" : "checkmark.shield.fill")
+        let appearance: (symbol: String, color: Color) = switch processor.stage {
+        case .completed:
+            ("checkmark.shield.fill", AppPalette.success)
+        case .failed:
+            ("xmark.octagon.fill", AppPalette.destructive)
+        default:
+            ("gearshape.2.fill", AppPalette.accent.primary)
+        }
+
+        return Image(systemName: appearance.symbol)
             .font(.system(size: 56))
-            .foregroundStyle(AppPalette.accent.primary)
+            .foregroundStyle(appearance.color)
             .symbolEffect(.pulse, options: .repeating, isActive: processor.isRunning)
     }
 
