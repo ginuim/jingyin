@@ -55,7 +55,7 @@ struct PhotoBatchEditorView: View {
     @State private var showASCIIColorCustom = false
     @State private var selectedTool: PhotoEditorTool? = .effect
 
-    private static let parameterPanelHeight: CGFloat = 264
+    private static let parameterPanelHeight: CGFloat = 160
 
     init(inputURLs: [URL], onReturnHome: @escaping () -> Void = {}) {
         self.inputURLs = inputURLs
@@ -356,8 +356,8 @@ struct PhotoBatchEditorView: View {
             .padding(.bottom, 4)
         }
         .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 8)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
         // The sticker picker is the tallest standard tool. Keeping every tool
         // at that height prevents the editor from jumping during tool changes.
         .frame(height: height)
