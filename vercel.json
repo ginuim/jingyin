@@ -1,5 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "nitro",
-  "buildCommand": "vite build"
+  "framework": null,
+  "installCommand": "corepack enable && pnpm --dir landingpage install --frozen-lockfile",
+  "buildCommand": "pnpm --dir landingpage build",
+  "outputDirectory": "landingpage/dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }
