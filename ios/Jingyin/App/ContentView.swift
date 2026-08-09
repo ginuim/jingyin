@@ -34,6 +34,8 @@ struct ContentView: View {
 
     private var landingWithNavigation: some View {
         homeLanding
+            .navigationTitle(localization.t("brand.name"))
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -289,7 +291,7 @@ struct ContentView: View {
         await importFile(source)
     }
 
-    /// Debug helper: `simctl launch … -demoPhotos /a.jpg /b.jpg`
+    /// Debug helper: `simctl launch … -demoPhotos /a.jpg /b.jpg [-demoPhotoStyle sticker]`
     @MainActor
     private func loadDemoPhotosIfRequested() async {
         let args = ProcessInfo.processInfo.arguments
@@ -315,9 +317,33 @@ struct ContentView: View {
             }
         }
         guard !imported.isEmpty else { return }
+        applyDemoPhotoStyleIfRequested(from: args)
         releaseImportedPhotos()
         ownedPhotoURLs = imported
         importedPhotos = PhotoBatchSelection(urls: imported)
+    }
+
+    /// Debug helper paired with `-demoPhotos`: `-demoPhotoStyle sticker`
+    @MainActor
+    private func applyDemoPhotoStyleIfRequested(from args: [String]) {
+        guard let index = args.firstIndex(of: "-demoPhotoStyle"),
+              args.indices.contains(index + 1),
+              let style = EffectStyle(rawValue: args[index + 1]) else { return }
+        var options = ProcessingOptionsPreferenceStore.loadPhoto()
+        options.style = style
+        options.subjects = [.face]
+        switch style {
+        case .blur:
+            options.strength = 32
+        case .pixel:
+            options.strength = 24
+        case .ascii:
+            options.strength = 14
+        case .sticker:
+            options.strength = 72
+            options.stickerEmoji = .sunglasses
+        }
+        ProcessingOptionsPreferenceStore.savePhoto(options)
     }
 
     /// Debug helper: `simctl launch … -demoPaywall`

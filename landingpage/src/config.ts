@@ -3,3 +3,4 @@ export const APP_STORE_URL = ''
 
 export const SUPPORT_URL = 'https://reaidea.com'
 export const SITE_NAME = 'lenshide'
+export const SITE_URL = 'https://lenshide.reaidea.com'

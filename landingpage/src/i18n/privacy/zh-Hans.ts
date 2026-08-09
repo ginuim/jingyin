@@ -2,6 +2,7 @@ import type { PrivacyCopy } from '../types'
 
 export const privacyZhHans: PrivacyCopy = {
   title: '隐私政策',
+  metaDescription: '镜隐隐私政策：视频、照片、识别数据和导出结果均在设备本地处理，不上传到镜隐服务器。',
   kicker: 'PRIVACY POLICY',
   lead: '本政策适用于镜隐 iOS App 以及本营销网站。镜隐以设备本地处理为核心：原素材、识别数据和导出结果不上传到镜隐服务器。',
   updated: '生效及更新日期：2026 年 8 月 8 日。',

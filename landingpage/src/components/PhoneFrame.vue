@@ -8,8 +8,9 @@ defineProps<{
 <template>
   <div class="phone">
     <div class="bezel">
-      <img :src="src" :alt="alt" />
-      <div class="island" aria-hidden="true"></div>
+      <div class="screen">
+        <img :src="src" :alt="alt" />
+      </div>
       <div class="glare" aria-hidden="true"></div>
     </div>
   </div>
@@ -32,22 +33,16 @@ defineProps<{
   overflow: hidden;
 }
 
-.bezel img {
-  width: 100%;
+.screen {
+  overflow: hidden;
   border-radius: 31px;
   background: #000;
 }
 
-.island {
-  position: absolute;
-  top: 22px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 82px;
-  height: 24px;
-  border-radius: 999px;
-  background: #000;
-  box-shadow: 0 0 0 1px rgba(255, 244, 238, 0.05);
+.screen img {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 .glare {

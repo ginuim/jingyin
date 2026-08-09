@@ -2,6 +2,7 @@ import type { PrivacyCopy } from '../types'
 
 export const privacyJa: PrivacyCopy = {
   title: 'プライバシーポリシー',
+  metaDescription: 'lenshide のプライバシーポリシー。動画、写真、認識データ、書き出し結果は端末内で処理され、lenshide のサーバーへアップロードされません。',
   kicker: 'PRIVACY POLICY',
   lead: '本ポリシーは lenshide iOS アプリおよび本マーケティングサイトに適用されます。lenshide は端末内処理を中核とし、元のメディア、認識データ、書き出し結果を lenshide のサーバーへアップロードしません。',
   updated: '施行および最終更新日：2026年8月8日。',

@@ -3,19 +3,24 @@ import type { LandingCopy } from '../types'
 export const landingEn: LandingCopy = {
   metaTitle: 'lenshide｜On-device video & photo privacy',
   metaDescription:
-    'On-device video and photo privacy: pixelate, blur, manual masks, batch photos, mute or pitch-shift. Originals never leave your phone. Free to try; one-time unlock for full export.',
+    'On-device video and photo privacy: pixelate, blur, add manual masks, batch-edit photos, mute, or pitch-shift. Edit and preview free; one purchase removes free export limits.',
   brand: 'lenshide',
   navDownload: 'App Store',
   navPrivacy: 'Privacy',
   comingSoon: 'Coming soon',
   heroEyebrow: 'iOS · On-device',
   heroTitle: 'Hide what should stay private',
-  heroHighlight: 'before you share',
+  heroHighlight: 'Your originals stay on your phone',
   heroBody:
-    'lenshide processes videos and photos on your device—pixelation, blur, manual masks, mute, or pitch shift. No account, no ads, no subscription.',
+    'lenshide processes videos and photos on your device—pixelation, blur, manual masks, mute, or pitch shift. No account or ads. Edit and preview for free, then make one purchase to remove free export limits forever.',
   heroCta: 'Coming soon on the App Store',
   heroSecondary: 'Read the privacy policy',
   trust: ['Fully on-device', 'Nothing uploaded', 'No ads · No subscription', 'One-time unlock'],
+  sectionLabels: {
+    features: 'Features',
+    paths: 'Workflows',
+    access: 'Access',
+  },
   featuresTitle: 'Built for short video and photo batches',
   featuresLead: 'Launch focus: reliable import, cover, and export—not feature sprawl.',
   features: [
@@ -37,14 +42,19 @@ export const landingEn: LandingCopy = {
     },
   ],
   stepsTitle: 'Video and photos',
-  stepsLead: 'Import first, then open video editing or photo batch masking.',
+  stepsLead: 'Open the editor for your media type. Every operation stays on this device.',
   steps: [
-    { title: 'Import', body: 'Pick a video from Photos or Files; multi-select photos.' },
-    { title: 'Video', body: 'Subjects, cover range, and manual masks—preview matches export.' },
-    { title: 'Photos', body: 'Batch select, apply shared settings, review each, then export.' },
+    {
+      title: 'Video',
+      body: 'Import from Photos or Files, detect subjects, adjust covers, and inspect the full preview.',
+    },
+    {
+      title: 'Photos',
+      body: 'Apply shared settings and review each photo. Free exports one at a time; Lifetime supports batches.',
+    },
   ],
   pricingTitle: 'Edit free. Unlock exports once.',
-  pricingLead: 'Full editing and preview are free. Export limits are enforced in the processor.',
+  pricingLead: 'Editing and preview are completely free. Purchase once when you need full video or batch photo export.',
   freeTitle: 'Free',
   freeBody: 'Complete editing and preview, with export limits.',
   freePoints: [
@@ -56,13 +66,14 @@ export const landingEn: LandingCopy = {
   proBody: 'One purchase. Permanent unlock.',
   proBadge: 'Recommended',
   proPoints: [
-    'Full video length and higher export resolution',
+    'Export the full duration of an imported video at higher resolution',
     'Batch photo export',
     'Price shown by the App Store in your region',
   ],
   footerTagline: 'From reaidea · on-device privacy',
   footerPrivacy: 'Privacy Policy',
   footerHome: 'Home',
+  footerNavLabel: 'Footer navigation',
   langLabel: 'Language',
   langNames: {
     'zh-Hans': '简体中文',

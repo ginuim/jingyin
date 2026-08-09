@@ -16,7 +16,7 @@ const copy = computed(() => getDictionary(locale.value).landing)
       <span>{{ copy.brand }}</span>
     </RouterLink>
     <p>{{ copy.footerTagline }}</p>
-    <nav class="links" :aria-label="copy.footerHome">
+    <nav class="links" :aria-label="copy.footerNavLabel">
       <RouterLink :to="homePath(locale)">{{ copy.footerHome }}</RouterLink>
       <RouterLink :to="privacyPath(locale)">{{ copy.footerPrivacy }}</RouterLink>
       <a :href="SUPPORT_URL" rel="noopener noreferrer">reaidea.com</a>

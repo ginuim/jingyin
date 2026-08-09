@@ -2,6 +2,7 @@ import type { PrivacyCopy } from '../types'
 
 export const privacyEn: PrivacyCopy = {
   title: 'Privacy Policy',
+  metaDescription: 'lenshide Privacy Policy: videos, photos, recognition data, and exports are processed on your device and are not uploaded to lenshide servers.',
   kicker: 'PRIVACY POLICY',
   lead: 'This policy applies to the lenshide iOS app and this marketing website. lenshide is built around on-device processing: original media, recognition data, and exports are not uploaded to lenshide servers.',
   updated: 'Effective and last updated: August 8, 2026.',

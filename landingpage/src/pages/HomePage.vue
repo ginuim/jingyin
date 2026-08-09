@@ -16,10 +16,9 @@ const homeShot = computed(() => `/screenshots/home-${locale.value}.png`)
 const editorShot = computed(() => `/screenshots/editor-${locale.value}.png`)
 const photoShot = computed(() => `/screenshots/photo-${locale.value}.png`)
 
-const stepShots = computed(() => [
-  { src: homeShot.value, key: 0 },
-  { src: editorShot.value, key: 1 },
-  { src: photoShot.value, key: 2 },
+const paths = computed(() => [
+  { ...copy.value.steps[0], src: editorShot.value },
+  { ...copy.value.steps[1], src: photoShot.value },
 ])
 </script>
 
@@ -27,6 +26,7 @@ const stepShots = computed(() => [
   <div class="page">
     <SiteHeader />
 
+    <main>
     <section class="hero shell">
       <div class="hero-copy">
         <div class="eyebrow">{{ copy.heroEyebrow }}</div>
@@ -37,14 +37,16 @@ const stepShots = computed(() => [
         <p>{{ copy.heroBody }}</p>
         <div class="hero-actions">
           <a
+            v-if="storeReady"
             id="download"
             class="btn btn-primary"
-            :href="storeReady ? APP_STORE_URL : '#download'"
-            :aria-disabled="!storeReady"
-            :class="{ 'is-disabled': !storeReady }"
+            :href="APP_STORE_URL"
           >
-            {{ storeReady ? copy.navDownload : copy.heroCta }}
+            {{ copy.navDownload }}
           </a>
+          <span v-else id="download" class="btn btn-primary is-disabled" aria-disabled="true">
+            {{ copy.heroCta }}
+          </span>
           <RouterLink class="btn btn-ghost" :to="privacyPath(locale)">
             {{ copy.heroSecondary }}
           </RouterLink>
@@ -54,13 +56,13 @@ const stepShots = computed(() => [
         </ul>
       </div>
       <div class="hero-media">
-        <PhoneFrame :src="homeShot" :alt="copy.brand" />
+        <PhoneFrame :src="homeShot" :alt="`${copy.brand} ${copy.heroTitle}`" />
       </div>
     </section>
 
     <section class="section shell">
       <div class="section-head">
-        <div class="eyebrow">Features</div>
+        <div class="eyebrow">{{ copy.sectionLabels.features }}</div>
         <h2>{{ copy.featuresTitle }}</h2>
         <p>{{ copy.featuresLead }}</p>
       </div>
@@ -74,18 +76,17 @@ const stepShots = computed(() => [
 
     <section class="section shell steps-section">
       <div class="section-head">
-        <div class="eyebrow">Paths</div>
+        <div class="eyebrow">{{ copy.sectionLabels.paths }}</div>
         <h2>{{ copy.stepsTitle }}</h2>
         <p>{{ copy.stepsLead }}</p>
       </div>
       <div class="steps-panel">
         <div class="steps">
-          <article v-for="(step, index) in copy.steps" :key="step.title">
-            <PhoneFrame :src="stepShots[index]!.src" :alt="step.title" />
+          <article v-for="path in paths" :key="path.title">
+            <PhoneFrame :src="path.src" :alt="path.title" />
             <div class="step-copy">
-              <span>{{ String(index + 1).padStart(2, '0') }}</span>
-              <h3>{{ step.title }}</h3>
-              <p>{{ step.body }}</p>
+              <h3>{{ path.title }}</h3>
+              <p>{{ path.body }}</p>
             </div>
           </article>
         </div>
@@ -94,7 +95,7 @@ const stepShots = computed(() => [
 
     <section class="section shell pricing">
       <div class="section-head">
-        <div class="eyebrow">Access</div>
+        <div class="eyebrow">{{ copy.sectionLabels.access }}</div>
         <h2>{{ copy.pricingTitle }}</h2>
         <p>{{ copy.pricingLead }}</p>
       </div>
@@ -118,6 +119,7 @@ const stepShots = computed(() => [
         </article>
       </div>
     </section>
+    </main>
 
     <SiteFooter />
   </div>
@@ -126,7 +128,7 @@ const stepShots = computed(() => [
 <style scoped>
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(260px, 0.85fr);
+  grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.7fr);
   gap: 48px;
   align-items: center;
   padding: 48px 0 88px;
@@ -134,10 +136,14 @@ const stepShots = computed(() => [
 
 .hero-copy h1 {
   margin: 20px 0 18px;
-  font-size: clamp(40px, 6vw, 64px);
+  font-size: clamp(40px, 5vw, 56px);
   line-height: 1.05;
   letter-spacing: -0.05em;
   font-weight: 730;
+}
+
+.hero-copy .eyebrow {
+  text-transform: none;
 }
 
 .hero-copy h1 span {
@@ -278,7 +284,7 @@ const stepShots = computed(() => [
 
 .steps {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px 0;
   align-items: stretch;
 }
@@ -299,14 +305,6 @@ const stepShots = computed(() => [
 
 .step-copy {
   max-width: 22em;
-}
-
-.step-copy span {
-  display: inline-block;
-  margin-bottom: 8px;
-  color: var(--accent-outline);
-  font: 700 12px/1 var(--mono);
-  letter-spacing: 0.12em;
 }
 
 .step-copy h3 {
@@ -399,10 +397,6 @@ const stepShots = computed(() => [
     padding: 28px 0 64px;
   }
 
-  .hero-media {
-    order: -1;
-  }
-
   .hero-media::before {
     inset: 4% 10%;
   }
@@ -418,6 +412,7 @@ const stepShots = computed(() => [
 
   .steps article {
     grid-template-columns: minmax(0, 140px) minmax(0, 1fr);
+    grid-template-rows: auto;
     align-items: center;
     justify-items: stretch;
     text-align: left;

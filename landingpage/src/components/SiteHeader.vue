@@ -46,13 +46,15 @@ function switchLocale(next: Locale) {
         </label>
 
         <a
+          v-if="storeReady"
           class="btn btn-primary header-cta"
-          :href="storeReady ? APP_STORE_URL : '#download'"
-          :aria-disabled="!storeReady"
-          :class="{ 'is-disabled': !storeReady }"
+          :href="APP_STORE_URL"
         >
-          {{ storeReady ? copy.navDownload : copy.comingSoon }}
+          {{ copy.navDownload }}
         </a>
+        <span v-else class="btn btn-primary header-cta is-disabled" aria-disabled="true">
+          {{ copy.comingSoon }}
+        </span>
       </div>
     </header>
   </div>

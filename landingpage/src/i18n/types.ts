@@ -3,6 +3,7 @@ export type Locale = (typeof LOCALES)[number]
 
 export type PrivacyCopy = {
   title: string
+  metaDescription: string
   kicker: string
   lead: string
   updated: string
@@ -26,6 +27,11 @@ export type LandingCopy = {
   heroCta: string
   heroSecondary: string
   trust: string[]
+  sectionLabels: {
+    features: string
+    paths: string
+    access: string
+  }
   featuresTitle: string
   featuresLead: string
   features: { title: string; body: string }[]
@@ -44,6 +50,7 @@ export type LandingCopy = {
   footerTagline: string
   footerPrivacy: string
   footerHome: string
+  footerNavLabel: string
   langLabel: string
   langNames: Record<Locale, string>
 }

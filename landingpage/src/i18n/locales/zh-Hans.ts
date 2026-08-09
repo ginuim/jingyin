@@ -3,7 +3,7 @@ import type { LandingCopy } from '../types'
 export const landingZhHans: LandingCopy = {
   metaTitle: '镜隐｜本地视频与照片隐私打码',
   metaDescription:
-    '端侧视频与照片隐私工具：像素化、模糊、手动遮盖、照片批量与变音，原素材不上传。免费下载，一次买断解锁完整导出。',
+    '端侧视频与照片隐私工具：像素化、模糊、手动遮盖、照片批量编辑与变音，原素材不上传。免费编辑与预览，一次买断解除免费版导出限制。',
   brand: '镜隐',
   navDownload: 'App Store',
   navPrivacy: '隐私政策',
@@ -12,10 +12,15 @@ export const landingZhHans: LandingCopy = {
   heroTitle: '分享前先遮住该藏的部分',
   heroHighlight: '原片不离开你的手机',
   heroBody:
-    '镜隐在设备本地处理视频与照片：像素化、模糊、手动遮盖、变音或静音。没有账号，没有广告，也没有订阅。',
+    '镜隐在设备本地处理视频与照片：像素化、模糊、手动遮盖、变音或静音。无需账号，没有广告；免费编辑与预览，一次买断即可永久解除免费版导出限制。',
   heroCta: '即将上架 App Store',
   heroSecondary: '阅读隐私政策',
   trust: ['全程本地处理', '原素材不上传', '无订阅 · 无广告', '一次买断解锁'],
+  sectionLabels: {
+    features: '功能',
+    paths: '处理路径',
+    access: '使用权限',
+  },
   featuresTitle: '为短视频与照片批量准备',
   featuresLead: '首发专注可靠完成：导入、遮盖、导出，而不是堆功能。',
   features: [
@@ -37,14 +42,19 @@ export const landingZhHans: LandingCopy = {
     },
   ],
   stepsTitle: '视频与照片',
-  stepsLead: '先选素材，再分别进入视频编辑或照片批量打码。',
+  stepsLead: '按素材类型进入对应编辑界面，所有处理都在当前设备完成。',
   steps: [
-    { title: '导入', body: '从相册或“文件”选择视频；照片支持多选。' },
-    { title: '视频', body: '识别主体、遮盖范围与手动蒙版，预览与导出一致。' },
-    { title: '照片', body: '多选批量处理，统一设置后逐张复核再导出。' },
+    {
+      title: '视频处理',
+      body: '从相册或“文件”导入，识别主体、调整遮盖并检查完整预览。',
+    },
+    {
+      title: '照片处理',
+      body: '多选照片统一设置并逐张复核；免费每次导出 1 张，永久版支持批量导出。',
+    },
   ],
   pricingTitle: '免费编辑，买断解除限制',
-  pricingLead: '可以完整试用编辑与预览；导出边界在处理链路内强制执行。',
+  pricingLead: '编辑和预览完全免费；需要完整视频或照片批量导出时，再一次买断。',
   freeTitle: '免费版',
   freeBody: '完整编辑与预览，导出有边界。',
   freePoints: [
@@ -56,13 +66,14 @@ export const landingZhHans: LandingCopy = {
   proBody: '一次买断，永久解锁。',
   proBadge: '推荐',
   proPoints: [
-    '完整视频时长与更高导出清晰度',
+    '导出已导入视频的完整时长与更高清晰度',
     '照片批量导出',
     '由 App Store 显示本地化价格',
   ],
   footerTagline: 'reaidea 出品 · 端侧隐私工具',
   footerPrivacy: '隐私政策',
   footerHome: '首页',
+  footerNavLabel: '页脚导航',
   langLabel: '语言',
   langNames: {
     'zh-Hans': '简体中文',
