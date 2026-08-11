@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import PhoneFrame from '../components/PhoneFrame.vue'
 import SiteFooter from '../components/SiteFooter.vue'
 import SiteHeader from '../components/SiteHeader.vue'
 import { APP_STORE_URL } from '../config'
@@ -12,9 +11,9 @@ const locale = computed(() => (route.meta.locale as Locale) ?? 'zh-Hans')
 const copy = computed(() => getDictionary(locale.value).landing)
 const storeReady = computed(() => Boolean(APP_STORE_URL))
 
-const homeShot = computed(() => `/screenshots/home-${locale.value}.png`)
-const editorShot = computed(() => `/screenshots/editor-${locale.value}.png`)
-const photoShot = computed(() => `/screenshots/photo-${locale.value}.png`)
+const homeShot = computed(() => `/screenshots/home-device-${locale.value}.png`)
+const editorShot = computed(() => `/screenshots/editor-device-${locale.value}.png`)
+const photoShot = computed(() => `/screenshots/photo-device-${locale.value}.png`)
 
 const paths = computed(() => [
   { ...copy.value.steps[0], src: editorShot.value },
@@ -56,7 +55,13 @@ const paths = computed(() => [
         </ul>
       </div>
       <div class="hero-media">
-        <PhoneFrame :src="homeShot" :alt="`${copy.brand} ${copy.heroTitle}`" />
+        <img
+          class="hero-device"
+          :src="homeShot"
+          :alt="`${copy.brand} ${copy.heroTitle}`"
+          width="759"
+          height="1600"
+        />
       </div>
     </section>
 
@@ -83,7 +88,7 @@ const paths = computed(() => [
       <div class="steps-panel">
         <div class="steps">
           <article v-for="path in paths" :key="path.title">
-            <PhoneFrame :src="path.src" :alt="path.title" />
+            <img class="path-device" :src="path.src" :alt="path.title" width="569" height="1200" />
             <div class="step-copy">
               <h3>{{ path.title }}</h3>
               <p>{{ path.body }}</p>
@@ -128,8 +133,8 @@ const paths = computed(() => [
 <style scoped>
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.7fr);
-  gap: 48px;
+  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.85fr);
+  gap: 40px;
   align-items: center;
   padding: 48px 0 88px;
 }
@@ -171,15 +176,24 @@ const paths = computed(() => [
 
 .hero-media {
   position: relative;
+  display: flex;
+  justify-content: center;
 }
 
 .hero-media::before {
   content: '';
   position: absolute;
-  inset: 6% -8%;
+  inset: 8% 12%;
   background: radial-gradient(closest-side, var(--accent-glow), transparent 72%);
   filter: blur(12px);
   z-index: -1;
+}
+
+.hero-device {
+  display: block;
+  width: min(100%, 352px);
+  height: auto;
+  filter: drop-shadow(0 36px 64px rgba(0, 0, 0, 0.55));
 }
 
 .trust {
@@ -298,8 +312,10 @@ const paths = computed(() => [
   padding: 4px 22px 0;
 }
 
-.steps .phone {
-  width: min(100%, 236px);
+.steps .path-device {
+  display: block;
+  width: min(100%, 220px);
+  height: auto;
   filter: drop-shadow(0 16px 26px rgba(0, 0, 0, 0.42));
 }
 
@@ -424,7 +440,7 @@ const paths = computed(() => [
     border-top: 1px solid rgba(255, 244, 238, 0.06);
   }
 
-  .steps .phone {
+  .steps .path-device {
     width: 100%;
     max-width: 140px;
   }
