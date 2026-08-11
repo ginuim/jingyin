@@ -285,6 +285,14 @@
         "ja": {"stringUnit": {"state": "translated", "value": "%lld個のマスク"}}
       }
     },
+    "photo.addMask": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "添加蒙版"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "新增蒙版"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Add Mask"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "マスクを追加"}}
+      }
+    },
     "photo.addEllipse": {
       "localizations": {
         "zh-Hans": {"stringUnit": {"state": "translated", "value": "椭圆"}},
@@ -301,12 +309,44 @@
         "ja": {"stringUnit": {"state": "translated", "value": "長方形"}}
       }
     },
+    "photo.addFreehand": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "手绘区域"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "手繪區域"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Freehand Area"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "手描き範囲"}}
+      }
+    },
+    "photo.drawMaskHint": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "在照片上涂抹要遮盖的位置"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "在照片上塗抹要遮蓋的位置"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Paint over the area to cover"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "隠す場所を写真上で塗ってください"}}
+      }
+    },
+    "photo.brushSize": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "画笔粗细"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "畫筆粗細"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Brush Size"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "ブラシサイズ"}}
+      }
+    },
     "photo.maskHint": {
       "localizations": {
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "每个实体都是独立遮罩组。拖动右下角圆点可调整遮盖范围；人脸范围不会缩放遮盖纹理。"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "每個實體都是獨立遮罩組。拖曳右下角圓點可調整遮蓋範圍；人臉範圍不會縮放遮蓋紋理。"}},
-        "en": {"stringUnit": {"state": "translated", "value": "Each subject has an independent mask. Drag the lower-right handle to adjust coverage without scaling the face effect."}},
-        "ja": {"stringUnit": {"state": "translated", "value": "被写体ごとに独立したマスクです。右下のハンドルをドラッグすると、顔の効果を拡縮せずに範囲を調整できます。"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "每个区域都是独立蒙版。椭圆和矩形可拖动、缩放；手绘使用圆头画笔涂抹并可调粗细。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "每個區域都是獨立蒙版。橢圓和矩形可拖曳、縮放；手繪使用圓頭畫筆塗抹並可調粗細。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Each area is an independent mask. Move or resize shapes, or paint with an adjustable round brush."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "各範囲は独立したマスクです。図形は移動・サイズ変更でき、手描きは太さを調整できる丸筆で塗れます。"}}
+      }
+    },
+    "photo.mask.freehand": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "手绘区域蒙版"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "手繪區域蒙版"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Freehand area mask"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "手描き範囲マスク"}}
       }
     },
     "photo.mask.edge": {

@@ -38,6 +38,8 @@ struct PhotoBatchEditorView: View {
     @State private var drafts: [PhotoDraft]
     @State private var currentIndex = 0
     @State private var selectedTrackID: MaskTrack.ID?
+    @State private var isDrawingFreehandMask = false
+    @State private var brushWidth = 0.08
     @State private var options: ProcessingOptions
     @State private var renderedPreview: UIImage?
     @State private var isAnalyzing = false
@@ -127,7 +129,14 @@ struct PhotoBatchEditorView: View {
         }
         .onChange(of: currentIndex) { _, _ in
             selectedTrackID = nil
+            isDrawingFreehandMask = false
             refreshPreview()
+        }
+        .onChange(of: selectedTrackID) { _, id in
+            guard let id,
+                  let path = currentDraft?.maskGroups
+                    .first(where: { $0.id == id })?.manualPath else { return }
+            brushWidth = path.strokeWidth
         }
         .onChange(of: options.style) { _, style in
             switch style {
@@ -199,7 +208,9 @@ struct PhotoBatchEditorView: View {
         Binding(
             get: {
                 guard drafts.indices.contains(currentIndex) else { return [] }
-                return drafts[currentIndex].maskGroups.map(\.track)
+                return drafts[currentIndex].maskGroups
+                    .filter { !$0.hasManualPath }
+                    .map(\.track)
             },
             set: { value in
                 guard drafts.indices.contains(currentIndex) else { return }
@@ -296,6 +307,13 @@ struct PhotoBatchEditorView: View {
                     .scaledToFit()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        selectedTrackID = nil
+                    }
+                    .allowsHitTesting(!isDrawingFreehandMask)
+
                 MaskEditorOverlay(
                     tracks: currentTracks,
                     selectedTrackID: $selectedTrackID,
@@ -306,6 +324,37 @@ struct PhotoBatchEditorView: View {
                     onDeleteTrack: deleteTrack,
                     accentColor: AppPalette.accent.primary
                 )
+                .allowsHitTesting(!isDrawingFreehandMask)
+
+                PhotoFreehandMaskOverlay(
+                    groups: currentDraft?.maskGroups ?? [],
+                    selectedTrackID: $selectedTrackID,
+                    isDrawing: $isDrawingFreehandMask,
+                    displaySize: currentDraft?.displaySize,
+                    brushWidth: brushWidth,
+                    onComplete: addManualPath,
+                    onDelete: deleteTrack,
+                    accentColor: AppPalette.accent.primary
+                )
+
+                if isDrawingFreehandMask {
+                    VStack {
+                        HStack(spacing: 10) {
+                            Text(localization.t("photo.drawMaskHint"))
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(AppPalette.primaryText)
+                            Button(localization.t("common.cancel")) {
+                                isDrawingFreehandMask = false
+                            }
+                            .font(.caption.weight(.semibold))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .padding(.top, 10)
+                        Spacer()
+                    }
+                }
             } else if currentDraft?.status == .failed {
                 ContentUnavailableView(
                     localization.t("photo.invalid"),
@@ -423,15 +472,25 @@ struct PhotoBatchEditorView: View {
                 .font(.caption)
                 .foregroundStyle(AppPalette.secondaryText)
                 Spacer()
-                Button {
-                    addManualMask(shape: .ellipse)
+                Menu {
+                    Button {
+                        addManualMask(shape: .ellipse)
+                    } label: {
+                        Label(localization.t("photo.addEllipse"), systemImage: "circle")
+                    }
+                    Button {
+                        addManualMask(shape: .rectangle)
+                    } label: {
+                        Label(localization.t("photo.addRectangle"), systemImage: "rectangle")
+                    }
+                    Button {
+                        selectedTrackID = nil
+                        isDrawingFreehandMask = true
+                    } label: {
+                        Label(localization.t("photo.addFreehand"), systemImage: "scribble.variable")
+                    }
                 } label: {
-                    Label(localization.t("photo.addEllipse"), systemImage: "circle")
-                }
-                Button {
-                    addManualMask(shape: .rectangle)
-                } label: {
-                    Label(localization.t("photo.addRectangle"), systemImage: "rectangle")
+                    Label(localization.t("photo.addMask"), systemImage: "plus")
                 }
             }
             .buttonStyle(.bordered)
@@ -475,6 +534,27 @@ struct PhotoBatchEditorView: View {
                         }
                     }
                 }
+            }
+
+            HStack(spacing: 10) {
+                Image(systemName: "paintbrush.pointed")
+                    .foregroundStyle(AppPalette.secondaryText)
+                Text(localization.t("photo.brushSize"))
+                    .font(.caption.weight(.semibold))
+                Slider(
+                    value: $brushWidth,
+                    in: 0.02...0.20,
+                    onEditingChanged: { editing in
+                        if !editing {
+                            updateSelectedBrushWidth()
+                        }
+                    }
+                )
+                .accessibilityLabel(localization.t("photo.brushSize"))
+                Text("\(Int((brushWidth * 100).rounded()))")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(AppPalette.secondaryText)
+                    .frame(width: 22, alignment: .trailing)
             }
 
             Text(localization.t("photo.maskHint"))
@@ -547,6 +627,9 @@ struct PhotoBatchEditorView: View {
     }
 
     private func maskGroupIcon(_ group: PhotoMaskGroup) -> String {
+        if group.hasManualPath {
+            return "scribble.variable"
+        }
         if group.track.source == .detectedFace {
             return "face.smiling"
         }
@@ -556,6 +639,9 @@ struct PhotoBatchEditorView: View {
     private func maskGroupAccessibilityKey(
         _ group: PhotoMaskGroup
     ) -> String.LocalizationValue {
+        if group.hasManualPath {
+            return "photo.mask.freehand"
+        }
         if group.track.source == .detectedFace {
             return "photo.mask.faceRange"
         }
@@ -919,6 +1005,38 @@ struct PhotoBatchEditorView: View {
         )
         drafts[currentIndex].maskGroups.append(PhotoMaskGroup(track: track))
         selectedTrackID = track.id
+        invalidateOutputs(at: [currentIndex])
+        refreshPreview()
+    }
+
+    private func addManualPath(_ path: NormalizedMaskPath) {
+        guard drafts.indices.contains(currentIndex) else { return }
+        let track = MaskTrack(
+            shape: .rectangle,
+            source: .manual,
+            keyframes: [
+                MaskKeyframe(timeSeconds: 0, rect: path.boundingRect)
+            ]
+        )
+        drafts[currentIndex].maskGroups.append(
+            PhotoMaskGroup(track: track, manualPath: path)
+        )
+        selectedTrackID = track.id
+        invalidateOutputs(at: [currentIndex])
+        refreshPreview()
+    }
+
+    private func updateSelectedBrushWidth() {
+        guard drafts.indices.contains(currentIndex),
+              let id = selectedTrackID,
+              let index = drafts[currentIndex].maskGroups
+                .firstIndex(where: { $0.id == id }),
+              let oldPath = drafts[currentIndex].maskGroups[index].manualPath,
+              let updatedPath = NormalizedMaskPath(
+                points: oldPath.points,
+                strokeWidth: brushWidth
+              ) else { return }
+        drafts[currentIndex].maskGroups[index].manualPath = updatedPath
         invalidateOutputs(at: [currentIndex])
         refreshPreview()
     }

@@ -749,15 +749,25 @@ final class FrameEffectProcessor: @unchecked Sendable {
             ? compositionTime.seconds
             : 0
         if options.style == .sticker {
-            guard options.supportsFaceSticker || !options.stickerFaceRects.isEmpty else {
+            guard options.supportsFaceSticker
+                    || !options.stickerFaceRects.isEmpty
+                    || externalMask != nil else {
                 return source
             }
             let faceRects = cachedFaceRects
                 + maskTrackRects(at: timeSeconds)
                 + options.stickerFaceRects
             effected = stickerImage(over: source, faceRects: faceRects, extent: extent)
+            if let externalMask {
+                effected = stickerBrushImage(
+                    over: effected,
+                    mask: externalMask,
+                    extent: extent
+                )
+            }
             // A sticker is positioned by the face rectangle itself. Applying
-            // the segmentation mask again would clip and distort the emoji.
+            // the segmentation mask again would clip and distort it. Freehand
+            // photo masks are handled separately as a tiled sticker layer.
             return effected
         }
         let trackMask = maskTrackMask(at: timeSeconds, extent: extent)
@@ -1536,6 +1546,28 @@ final class FrameEffectProcessor: @unchecked Sendable {
         return result.cropped(to: extent)
     }
 
+    private func stickerBrushImage(
+        over source: CIImage,
+        mask: CIImage,
+        extent: CGRect
+    ) -> CIImage {
+        guard let stickerTile else { return source }
+        let shortEdge = max(1, min(extent.width, extent.height))
+        let targetSide = shortEdge
+            * max(0.04, min(0.14, CGFloat(options.strength / 900)))
+        let scale = targetSide / max(stickerTile.extent.width, 1)
+        let tile = stickerTile
+            .transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+            .applyingFilter("CIAffineTile")
+            .cropped(to: extent)
+        let transparent = CIImage(color: .clear).cropped(to: extent)
+        let clipped = tile.applyingFilter("CIBlendWithMask", parameters: [
+            kCIInputBackgroundImageKey: transparent,
+            kCIInputMaskImageKey: mask.cropped(to: extent)
+        ]).cropped(to: extent)
+        return clipped.composited(over: source).cropped(to: extent)
+    }
+
     private static func makeStickerTile(emoji: String) -> CIImage? {
         // Render once at export-grade resolution, then only downscale for each
         // face. Using the UI size (for example 72 px) here made large faces
@@ -1600,6 +1632,51 @@ extension FrameEffectProcessor {
             && pixels[center + 1] < 10
             && pixels[center + 2] < 10
         precondition(!centerIsSourceRed && pixels[center + 3] == 255)
+
+        var brushOptions = ProcessingOptions()
+        brushOptions.scope = .subjects
+        brushOptions.subjects = []
+        brushOptions.style = .sticker
+        brushOptions.strength = 72
+        brushOptions.stickerEmoji = .alien
+        let leftHalfMask = CIImage(color: .white).cropped(to: CGRect(
+            x: 0,
+            y: 0,
+            width: 64,
+            height: 128
+        ))
+        let brushRendered = FrameEffectProcessor(options: brushOptions).render(
+            source,
+            externalMask: leftHalfMask
+        )
+        pixels = [UInt8](repeating: 0, count: 128 * 128 * 4)
+        CIContext(options: [.cacheIntermediates: false]).render(
+            brushRendered,
+            toBitmap: &pixels,
+            rowBytes: 128 * 4,
+            bounds: extent,
+            format: .RGBA8,
+            colorSpace: CGColorSpace(name: CGColorSpace.sRGB)
+        )
+        var changedInsideBrush = 0
+        var changedOutsideBrush = 0
+        for y in 0..<128 {
+            for x in 0..<128 {
+                let offset = (y * 128 + x) * 4
+                let isSourceRed = pixels[offset] > 240
+                    && pixels[offset + 1] < 10
+                    && pixels[offset + 2] < 10
+                if !isSourceRed {
+                    if x < 64 {
+                        changedInsideBrush += 1
+                    } else {
+                        changedOutsideBrush += 1
+                    }
+                }
+            }
+        }
+        precondition(changedInsideBrush > 100)
+        precondition(changedOutsideBrush == 0)
     }
 }
 #endif

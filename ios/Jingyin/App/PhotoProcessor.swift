@@ -126,17 +126,20 @@ struct PhotoMaskGroup: Identifiable, Hashable, Sendable {
     let maskPlaneID: PhotoMaskPlane.ID?
     let instanceLabel: UInt16?
     let originalRect: NormalizedVideoRect
+    var manualPath: NormalizedMaskPath?
 
     var id: MaskTrack.ID { track.id }
     var hasEdgeMask: Bool {
         maskPlaneID != nil && instanceLabel != nil
     }
+    var hasManualPath: Bool { manualPath != nil }
 
     init(
         track: MaskTrack,
         maskPlaneID: PhotoMaskPlane.ID? = nil,
         instanceLabel: UInt16? = nil,
-        originalRect: NormalizedVideoRect? = nil
+        originalRect: NormalizedVideoRect? = nil,
+        manualPath: NormalizedMaskPath? = nil
     ) {
         self.track = track
         self.maskPlaneID = maskPlaneID
@@ -144,6 +147,45 @@ struct PhotoMaskGroup: Identifiable, Hashable, Sendable {
         self.originalRect = originalRect
             ?? track.keyframedRect(at: 0)
             ?? NormalizedVideoRect(x: 0, y: 0, width: 0, height: 0)
+        self.manualPath = manualPath
+    }
+}
+
+/// A freehand brush stroke in the same top-left, display-oriented coordinate
+/// space used by photo previews and final Core Image exports.
+struct NormalizedMaskPath: Hashable, Sendable {
+    struct Point: Hashable, Sendable {
+        let x: Double
+        let y: Double
+
+        init(x: Double, y: Double) {
+            self.x = min(max(x.isFinite ? x : 0, 0), 1)
+            self.y = min(max(y.isFinite ? y : 0, 0), 1)
+        }
+    }
+
+    let points: [Point]
+    let strokeWidth: Double
+
+    init?(points: [Point], strokeWidth: Double = 0.08) {
+        guard !points.isEmpty else { return nil }
+        self.points = points
+        self.strokeWidth = min(max(strokeWidth.isFinite ? strokeWidth : 0.08, 0.01), 0.30)
+    }
+
+    var boundingRect: NormalizedVideoRect {
+        let xs = points.map(\.x)
+        let ys = points.map(\.y)
+        let minX = xs.min() ?? 0
+        let minY = ys.min() ?? 0
+        let maxX = xs.max() ?? minX
+        let maxY = ys.max() ?? minY
+        return NormalizedVideoRect(
+            x: minX,
+            y: minY,
+            width: max(maxX - minX, 0.002),
+            height: max(maxY - minY, 0.002)
+        )
     }
 }
 
@@ -277,6 +319,46 @@ enum PhotoProcessor {
         )
         precondition(pixels[(10 * 40 + 5) * 4] > 200)
         precondition(pixels[(10 * 40 + 35) * 4] < 10)
+        let manualPath = NormalizedMaskPath(points: [
+            .init(x: 0.1, y: 0.1),
+            .init(x: 0.4, y: 0.1),
+        ], strokeWidth: 0.10)!
+        let manualGroup = PhotoMaskGroup(
+            track: MaskTrack(
+                shape: .rectangle,
+                keyframes: [
+                    MaskKeyframe(timeSeconds: 0, rect: manualPath.boundingRect)
+                ]
+            ),
+            manualPath: manualPath
+        )
+        precondition(
+            optionsForPhoto(
+                ProcessingOptions(),
+                maskGroups: [manualGroup]
+            ).maskTracks.isEmpty
+        )
+        guard let manualMask = combinedEdgeMask(
+            groups: [manualGroup],
+            planes: [],
+            extent: extent
+        ) else {
+            preconditionFailure("Expected a freehand raster mask")
+        }
+        pixels = [UInt8](repeating: 0, count: 40 * 20 * 4)
+        CIContext().render(
+            manualMask,
+            toBitmap: &pixels,
+            rowBytes: 40 * 4,
+            bounds: extent,
+            format: .RGBA8,
+            colorSpace: CGColorSpace(name: CGColorSpace.sRGB)
+        )
+        // The normalized path uses a top-left origin, while Core Image uses a
+        // bottom-left origin. Verify that export keeps the hand-drawn region
+        // in the same visible quarter as the SwiftUI preview.
+        precondition(pixels[(2 * 40 + 10) * 4] > 200)
+        precondition(pixels[(15 * 40 + 10) * 4] < 10)
         let ellipseGroup = PhotoMaskGroup(
             track: MaskTrack(
                 shape: .ellipse,
@@ -424,7 +506,8 @@ enum PhotoProcessor {
     ) -> ProcessingOptions {
         var result = options
         result.stickerFaceRects = maskGroups.compactMap { group in
-            guard group.track.source == .detectedFace || group.track.source == .manual else {
+            guard !group.hasManualPath,
+                  group.track.source == .detectedFace || group.track.source == .manual else {
                 return nil
             }
             return group.track.rect(at: 0) ?? group.originalRect
@@ -433,7 +516,7 @@ enum PhotoProcessor {
         // raster groups. Only manual/fallback geometry stays in MaskTrack.
         result.subjects = []
         result.maskTracks = maskGroups
-            .filter { !$0.hasEdgeMask }
+            .filter { !$0.hasEdgeMask && !$0.hasManualPath }
             .map(\.track)
         return result
     }
@@ -914,6 +997,18 @@ enum PhotoProcessor {
         let planesByID = Dictionary(uniqueKeysWithValues: planes.map { ($0.id, $0) })
         var combined: CIImage?
         for group in groups {
+            if let path = group.manualPath,
+               let mask = manualPathMask(path, extent: extent) {
+                if let existing = combined {
+                    combined = mask.applyingFilter(
+                        "CIMaximumCompositing",
+                        parameters: [kCIInputBackgroundImageKey: existing]
+                    ).cropped(to: extent)
+                } else {
+                    combined = mask.cropped(to: extent)
+                }
+                continue
+            }
             guard let planeID = group.maskPlaneID,
                   let label = group.instanceLabel,
                   let plane = planesByID[planeID],
@@ -935,6 +1030,70 @@ enum PhotoProcessor {
             }
         }
         return combined
+    }
+
+    private static func manualPathMask(
+        _ path: NormalizedMaskPath,
+        extent: CGRect
+    ) -> CIImage? {
+        guard extent.width > 0, extent.height > 0 else { return nil }
+        let longestSide = max(extent.width, extent.height)
+        let scale = min(1, 1536 / longestSide)
+        let width = max(1, Int((extent.width * scale).rounded(.up)))
+        let height = max(1, Int((extent.height * scale).rounded(.up)))
+        let bytesPerRow = width
+        var pixels = [UInt8](repeating: 0, count: bytesPerRow * height)
+        guard let context = CGContext(
+            data: &pixels,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: CGColorSpaceCreateDeviceGray(),
+            bitmapInfo: CGImageAlphaInfo.none.rawValue
+        ) else { return nil }
+
+        let brushPath = CGMutablePath()
+        for (index, point) in path.points.enumerated() {
+            let target = CGPoint(
+                x: point.x * Double(width),
+                y: (1 - point.y) * Double(height)
+            )
+            if index == 0 {
+                brushPath.move(to: target)
+            } else {
+                brushPath.addLine(to: target)
+            }
+        }
+        context.setStrokeColor(gray: 1, alpha: 1)
+        context.setFillColor(gray: 1, alpha: 1)
+        context.setLineWidth(path.strokeWidth * Double(min(width, height)))
+        context.setLineCap(.round)
+        context.setLineJoin(.round)
+        if path.points.count == 1, let point = path.points.first {
+            let diameter = path.strokeWidth * Double(min(width, height))
+            context.fillEllipse(in: CGRect(
+                x: point.x * Double(width) - diameter / 2,
+                y: (1 - point.y) * Double(height) - diameter / 2,
+                width: diameter,
+                height: diameter
+            ))
+        } else {
+            context.addPath(brushPath)
+            context.strokePath()
+        }
+        guard let image = context.makeImage() else { return nil }
+
+        return CIImage(cgImage: image)
+            .transformed(by: CGAffineTransform(
+                scaleX: extent.width / CGFloat(width),
+                y: extent.height / CGFloat(height)
+            ))
+            .transformed(by: CGAffineTransform(
+                translationX: extent.minX,
+                y: extent.minY
+            ))
+            .cropped(to: extent)
     }
 
     private static func edgeMask(
