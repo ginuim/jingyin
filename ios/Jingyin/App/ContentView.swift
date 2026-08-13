@@ -71,12 +71,13 @@ struct ContentView: View {
                     releaseImportedPhotos()
                 }
             }
-            .sheet(isPresented: $showPaywall) {
+            .fullScreenCover(isPresented: $showPaywall) {
                 PaywallView()
             }
             .task {
                 cleanupTemporaryFilesOnce()
                 presentDemoPaywallIfRequested()
+                presentDemoSettingsIfRequested()
                 await loadDemoVideoIfRequested()
                 await loadDemoPhotosIfRequested()
             }
@@ -351,6 +352,13 @@ struct ContentView: View {
     private func presentDemoPaywallIfRequested() {
         guard ProcessInfo.processInfo.arguments.contains("-demoPaywall") else { return }
         showPaywall = true
+    }
+
+    /// Debug helper: `simctl launch … -demoSettings`
+    @MainActor
+    private func presentDemoSettingsIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("-demoSettings") else { return }
+        showSettings = true
     }
 
     @MainActor

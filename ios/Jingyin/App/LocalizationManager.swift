@@ -67,8 +67,21 @@ final class LocalizationManager: ObservableObject {
         defaults: UserDefaults = .standard,
         preferredLanguages: [String] = Locale.preferredLanguages
     ) {
-        let raw = defaults.string(forKey: Self.storageKey) ?? AppLanguage.system.rawValue
-        let initial = AppLanguage(rawValue: raw) ?? .system
+        let demoLanguage: AppLanguage?
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if let index = arguments.firstIndex(of: "-demoLanguage"),
+           arguments.indices.contains(index + 1) {
+            demoLanguage = AppLanguage(rawValue: arguments[index + 1])
+        } else {
+            demoLanguage = nil
+        }
+        #else
+        demoLanguage = nil
+        #endif
+
+        let savedRaw = defaults.string(forKey: Self.storageKey) ?? AppLanguage.system.rawValue
+        let initial = demoLanguage ?? AppLanguage(rawValue: savedRaw) ?? .system
         let code = Self.resolveLanguageCode(
             preference: initial,
             preferredLanguages: preferredLanguages

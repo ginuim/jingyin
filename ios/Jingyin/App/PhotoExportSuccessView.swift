@@ -84,7 +84,7 @@ struct PhotoExportSuccessView: View {
         .sheet(isPresented: $showShare) {
             ShareSheet(items: result.outputURLs)
         }
-        .sheet(isPresented: $showPaywall) {
+        .fullScreenCover(isPresented: $showPaywall) {
             PaywallView()
                 .environmentObject(localization)
                 .environmentObject(entitlements)

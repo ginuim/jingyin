@@ -38,9 +38,7 @@ struct SettingsView: View {
                     }
                 }
 
-                settingsSection(localization.t("purchase.title")) {
-                    purchaseSettings
-                }
+                purchaseSection
 
                 settingsSection(localization.t("settings.information")) {
                     VStack(alignment: .leading, spacing: 14) {
@@ -69,7 +67,7 @@ struct SettingsView: View {
         .tint(AppPalette.accent.primary)
         .navigationTitle(localization.t("settings.title"))
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showPaywall) {
+        .fullScreenCover(isPresented: $showPaywall) {
             PaywallView()
                 .environmentObject(localization)
                 .environmentObject(entitlements)
@@ -110,16 +108,13 @@ struct SettingsView: View {
     }
 
     private var purchaseSettings: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .center, spacing: 14) {
-                Image(systemName: entitlements.isUnlocked ? "checkmark.seal.fill" : "gift.fill")
-                    .font(.system(size: 21, weight: .semibold))
-                    .foregroundStyle(AppPalette.accent.foreground)
-                    .frame(width: 46, height: 46)
-                    .background(
-                        AppPalette.accent.primary,
-                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    )
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 14) {
+                Image(systemName: entitlements.isUnlocked ? "checkmark" : "gift.fill")
+                    .font(.system(size: 19, weight: .bold))
+                    .foregroundStyle(AppPalette.accent.primary)
+                    .frame(width: 42, height: 42)
+                    .background(AppPalette.accent.softFill, in: Circle())
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(localization.t(
@@ -128,7 +123,6 @@ struct SettingsView: View {
                             : "purchase.freePlan"
                     ))
                     .font(.headline)
-                    .foregroundStyle(AppPalette.accent.primary)
 
                     Text(localization.t(
                         entitlements.isUnlocked
@@ -142,27 +136,22 @@ struct SettingsView: View {
 
                 Spacer(minLength: 0)
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                AppPalette.accent.softFill,
-                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(AppPalette.accent.outline.opacity(0.35), lineWidth: 1)
-            }
 
             if !entitlements.isUnlocked {
-                Button(localization.t("purchase.unlock")) {
+                Button {
                     showPaywall = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Text(localization.t("purchase.unlock"))
+                        Image(systemName: "arrow.right")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 13)
                 }
-                .font(.headline)
-                .frame(maxWidth: .infinity)
-                .buttonStyle(.borderedProminent)
-                .tint(AppPalette.accent.primary)
+                .buttonStyle(.plain)
                 .foregroundStyle(AppPalette.accent.foreground)
-                .controlSize(.large)
+                .background(AppPalette.accent.primary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .disabled(entitlements.isRestoring)
 
                 Button {
@@ -174,7 +163,7 @@ struct SettingsView: View {
                                 ?? localization.t("purchase.restore.none")
                     }
                 } label: {
-                    HStack(spacing: 10) {
+                    HStack(spacing: 8) {
                         if entitlements.isRestoring {
                             ProgressView()
                                 .controlSize(.small)
@@ -185,22 +174,32 @@ struct SettingsView: View {
                                 : "purchase.restore"
                         ))
                     }
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(AppPalette.secondaryText)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
+                .frame(maxWidth: .infinity)
                 .disabled(entitlements.isPurchasing || entitlements.isRestoring)
             }
 
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Image(systemName: "lock.shield.fill")
-                    .foregroundStyle(AppPalette.accent.primary)
-                Text(localization.t("purchase.promise"))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .font(.caption)
-            .foregroundStyle(AppPalette.secondaryText)
+            Divider()
+
+            Label(localization.t("purchase.promise"), systemImage: "lock.fill")
+                .font(.caption)
+                .foregroundStyle(AppPalette.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    private var purchaseSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(localization.t("purchase.title"))
+                .font(.title3.bold())
+                .padding(.horizontal, 4)
+
+            purchaseSettings
         }
     }
 }

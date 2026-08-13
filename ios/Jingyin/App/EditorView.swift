@@ -145,7 +145,7 @@ struct EditorView: View {
             .environmentObject(localization)
             .environmentObject(entitlements)
         }
-        .sheet(isPresented: $showPaywall) {
+        .fullScreenCover(isPresented: $showPaywall) {
             PaywallView()
                 .environmentObject(localization)
                 .environmentObject(entitlements)
@@ -1583,7 +1583,7 @@ private struct ExportSettingsSheet: View {
         .onAppear {
             enforceAllowedResolution()
         }
-        .sheet(isPresented: $showPaywall) {
+        .fullScreenCover(isPresented: $showPaywall) {
             PaywallView()
                 .environmentObject(localization)
                 .environmentObject(entitlements)

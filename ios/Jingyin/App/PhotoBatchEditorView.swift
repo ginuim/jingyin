@@ -176,7 +176,7 @@ struct PhotoBatchEditorView: View {
         .onChange(of: options) { _, options in
             ProcessingOptionsPreferenceStore.savePhoto(options)
         }
-        .sheet(isPresented: $showPaywall) {
+        .fullScreenCover(isPresented: $showPaywall) {
             PaywallView()
                 .environmentObject(localization)
                 .environmentObject(entitlements)
