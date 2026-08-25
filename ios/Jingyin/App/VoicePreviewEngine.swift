@@ -1,6 +1,29 @@
 import AVFoundation
 import Combine
 
+/// Keeps AVPlayer and AVAudioEngine previews on the same media playback
+/// session. Without this, original audio follows the iPhone's ringer switch
+/// while the voice preview does not, making the audio picker misleading.
+enum MediaPlaybackSession {
+    static func activate() {
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.playback, mode: .moviePlayback)
+            try session.setActive(true)
+        } catch {
+            // AVPlayer will still attempt playback; the UI has no separate
+            // audio-session error state, so keep this best-effort.
+        }
+    }
+
+    static func deactivate() {
+        try? AVAudioSession.sharedInstance().setActive(
+            false,
+            options: .notifyOthersOnDeactivation
+        )
+    }
+}
+
 @MainActor
 final class VoicePreviewEngine: ObservableObject {
     @Published private(set) var isPreviewUnsupported = false
@@ -121,8 +144,7 @@ final class VoicePreviewEngine: ObservableObject {
             preparationTask = nil
             readableURLForCleanup = readableURL
 
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
-            try AVAudioSession.sharedInstance().setActive(true)
+            MediaPlaybackSession.activate()
 
             let file = try AVAudioFile(forReading: readableURL)
             let format = file.processingFormat

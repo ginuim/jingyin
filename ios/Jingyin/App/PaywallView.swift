@@ -174,16 +174,16 @@ struct PaywallView: View {
 
     @ViewBuilder
     private var priceView: some View {
-        if entitlements.isLoading {
-            ProgressView()
-                .tint(AppPalette.accent.primary)
-                .frame(height: 34)
-        } else if let price = entitlements.displayPrice {
+        if let price = entitlements.displayPrice {
             Text(price)
                 .font(.system(size: 31, weight: .bold, design: .rounded))
                 .foregroundStyle(AppPalette.accent.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
+        } else if entitlements.isLoading {
+            ProgressView()
+                .tint(AppPalette.accent.primary)
+                .frame(height: 34)
         } else {
             Text(localization.t("purchase.unavailable"))
                 .font(.caption.weight(.semibold))
@@ -285,7 +285,7 @@ struct PaywallView: View {
         if entitlements.isPurchasing {
             return localization.t("purchase.processing")
         }
-        if entitlements.lifetimeProduct == nil, !entitlements.isLoading {
+        if !entitlements.canPresentPurchase, !entitlements.isLoading {
             return localization.t("purchase.unavailable")
         }
         return localization.t("paywall.unlockNow")
@@ -297,8 +297,7 @@ struct PaywallView: View {
         }
         return entitlements.isPurchasing
             || entitlements.isRestoring
-            || entitlements.isLoading
-            || entitlements.lifetimeProduct == nil
+            || !entitlements.canPresentPurchase
     }
 }
 

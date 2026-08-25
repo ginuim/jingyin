@@ -26,7 +26,7 @@ export const landingZhHans: LandingCopy = {
   features: [
     {
       title: '视频遮盖',
-      body: '识别人物、人脸与宠物，或手动添加椭圆/矩形遮盖，可拖动缩放并记录关键帧。',
+      body: '识别人物、人脸与猫狗，或手动添加椭圆/矩形遮盖，可拖动缩放并记录关键帧。',
     },
     {
       title: '照片批量',

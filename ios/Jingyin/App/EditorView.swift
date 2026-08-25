@@ -214,6 +214,7 @@ struct EditorView: View {
             }
         }
         .onAppear {
+            MediaPlaybackSession.activate()
             installPlayerObservers()
             applyAudioMode()
             if ProcessInfo.processInfo.arguments.contains("-demoPin") {
@@ -243,6 +244,7 @@ struct EditorView: View {
             removePlayerObservers()
             player.pause()
             voicePreview.stop(unload: true)
+            MediaPlaybackSession.deactivate()
         }
     }
 
@@ -1441,6 +1443,7 @@ struct EditorView: View {
     }
 
     private func applyAudioMode() {
+        MediaPlaybackSession.activate()
         switch options.audio {
         case .original:
             player.isMuted = false

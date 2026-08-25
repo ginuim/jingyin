@@ -102,6 +102,9 @@ struct ProcessingView: View {
         .navigationTitle(localization.t("processing.title"))
         .navigationBarBackButtonHidden(processor.isRunning)
         .task { start() }
+        .onAppear {
+            MediaPlaybackSession.activate()
+        }
         .onChange(of: processor.outputURL) { _, url in
             previewPlayer?.pause()
             previewPlayer = url.map { AVPlayer(url: $0) }
@@ -112,6 +115,7 @@ struct ProcessingView: View {
             processor.discardOutput()
             previewPlayer?.pause()
             previewPlayer = nil
+            MediaPlaybackSession.deactivate()
         }
         .sheet(isPresented: $showShare) {
             if let output = processor.outputURL {

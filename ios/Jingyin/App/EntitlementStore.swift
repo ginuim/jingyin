@@ -13,21 +13,35 @@ final class EntitlementStore: ObservableObject {
     @Published private(set) var errorMessage: String?
 
     private var updatesTask: Task<Void, Never>?
+    private let demoDisplayPrice: String?
 
     var access: ExportAccess {
         isUnlocked ? .lifetime : .free
     }
 
     var displayPrice: String? {
-        lifetimeProduct?.displayPrice
+        lifetimeProduct?.displayPrice ?? demoDisplayPrice
+    }
+
+    var canPresentPurchase: Bool {
+        lifetimeProduct != nil || demoDisplayPrice != nil
     }
 
     init() {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-storekitUnlocked") {
+        let arguments = ProcessInfo.processInfo.arguments
+        if let priceArgument = arguments.firstIndex(of: "-demoPaywallPrice"),
+           arguments.indices.contains(priceArgument + 1) {
+            demoDisplayPrice = arguments[priceArgument + 1]
+        } else {
+            demoDisplayPrice = nil
+        }
+        if arguments.contains("-storekitUnlocked") {
             isUnlocked = true
             isReady = true
         }
+        #else
+        demoDisplayPrice = nil
         #endif
         updatesTask = observeTransactionUpdates()
     }
@@ -44,7 +58,7 @@ final class EntitlementStore: ObservableObject {
     }
 
     func loadProduct() async {
-        guard lifetimeProduct == nil, !isLoading else { return }
+        guard lifetimeProduct == nil, demoDisplayPrice == nil, !isLoading else { return }
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }

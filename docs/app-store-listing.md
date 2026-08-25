@@ -49,7 +49,7 @@ Apple 参考：
 主要功能：
 
 • 从相册或“文件”导入视频；从相册多选照片批量处理  
-• 对人物、人脸、宠物或手动椭圆/矩形区域添加遮盖  
+• 对人物、人脸、猫狗或手动椭圆/矩形区域添加遮盖  
 • 支持隐私级像素化、视觉模糊和 ASCII 效果  
 • 视频可手动拖动、缩放遮盖并调整关键帧；照片可逐张复核蒙版  
 • 保留原声、静音导出或改变音高  
@@ -87,7 +87,7 @@ Apple 参考：
 主要功能：
 
 • 從照片圖庫或「檔案」匯入影片；從圖庫多選照片批次處理  
-• 對人物、人臉、寵物或手動橢圓／矩形區域加入遮蓋  
+• 對人物、人臉、貓狗或手動橢圓／矩形區域加入遮蓋  
 • 支援隱私級像素化、視覺模糊和 ASCII 效果  
 • 影片可手動拖曳、縮放遮蓋並調整關鍵影格；照片可逐張覆核遮罩  
 • 保留原聲、靜音匯出或改變音高  
@@ -125,7 +125,7 @@ exports are processed on your device and are never uploaded to a server.
 Key features:
 
 • Import videos from Photos or Files; multi-select photos for batch processing  
-• Cover people, faces, pets, or manually placed ellipse and rectangle areas  
+• Cover people, faces, cats and dogs, or manually placed ellipse and rectangle areas  
 • Choose privacy-focused pixelation, visual blur, or an ASCII effect  
 • Move and resize video masks with keyframes; review and adjust photo masks one by one  
 • Keep original audio, export silently, or shift voice pitch  
@@ -166,7 +166,7 @@ lenshide は、端末内で動作する動画・写真プライバシー保護�
 主な機能：
 
 • 写真または「ファイル」から動画を読み込み；写真の複数選択で一括処理  
-• 人物、顔、ペット、または手動で置いた楕円／長方形の範囲を隠す  
+• 人物、顔、猫と犬、または手動で置いた楕円／長方形の範囲を隠す  
 • プライバシー向けモザイク、視覚的なぼかし、ASCII エフェクト  
 • 動画マスクの移動・サイズ変更とキーフレーム調整；写真は1枚ずつ確認  
 • 元の音声、消音書き出し、声の高さ変更  

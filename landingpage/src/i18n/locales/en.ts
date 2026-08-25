@@ -26,7 +26,7 @@ export const landingEn: LandingCopy = {
   features: [
     {
       title: 'Video cover',
-      body: 'Detect people, faces, and pets, or place ellipse/rectangle masks with drag, resize, and keyframes.',
+      body: 'Detect people, faces, cats, and dogs, or place ellipse/rectangle masks with drag, resize, and keyframes.',
     },
     {
       title: 'Photo batch',

@@ -2426,25 +2426,25 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "宠物"
+            "value": "猫狗"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "寵物"
+            "value": "貓狗"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pet"
+            "value": "Cats & Dogs"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ペット"
+            "value": "猫と犬"
           }
         }
       }

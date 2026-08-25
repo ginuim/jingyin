@@ -867,6 +867,7 @@ final class FrameEffectProcessor: @unchecked Sendable {
                 ) else { continue }
                 let mask = scaledMask(from: buffer, to: extent)
                 guard let rect = normalizedBounds(of: mask, extent: extent),
+                      !isInvalidSimulatorPersonMask(mask, extent: extent),
                       rect.width * rect.height <= 0.95,
                       rect.width * rect.height > 0.002 else {
                     continue
@@ -910,6 +911,7 @@ final class FrameEffectProcessor: @unchecked Sendable {
                         .cropped(to: extent)
                 }
                 if let rect = normalizedBounds(of: semanticMask, extent: extent),
+                   !isInvalidSimulatorPersonMask(semanticMask, extent: extent),
                    rect.width * rect.height > 0.002 {
                     return [
                         PreparedDetection(
@@ -937,10 +939,56 @@ final class FrameEffectProcessor: @unchecked Sendable {
             let humanBoxes = (humans.results ?? [])
                 .filter { $0.confidence >= 0.35 }
                 .map(\.boundingBox)
+            let faceBoxes = (faces.results ?? [])
+                .filter { $0.confidence >= 0.35 }
+                .map(\.boundingBox)
             if !humanBoxes.isEmpty {
                 return humanBoxes.compactMap { box in
-                    guard let mask = boxMask(for: [box], extent: extent, padding: 0.025) else {
+                    // The simulator does not always provide person-instance or
+                    // semantic-segmentation results even though rectangle
+                    // detection succeeds. Try the more broadly available
+                    // foreground-instance request before falling back to the
+                    // privacy-safe detection rectangle. On device this is also
+                    // useful for frames where a person is partially occluded.
+                    let foregroundMask = foregroundInstanceMask(
+                        for: image,
+                        extent: extent,
+                        matching: [box]
+                    )
+                    let mask: CIImage?
+                    if let foregroundMask,
+                       !isInvalidSimulatorPersonMask(foregroundMask, extent: extent) {
+                        mask = foregroundMask
+                    } else {
+#if targetEnvironment(simulator)
+                        // Simulator Vision can reduce a valid person observation
+                        // to its rectangular detection region. Use a conservative
+                        // person-shaped preview surrogate so App Store screenshots
+                        // reflect the silhouette masking produced on real devices.
+                        mask = simulatorPersonFallbackMask(for: box, extent: extent)
+#else
+                        mask = boxMask(for: [box], extent: extent, padding: 0.025)
+#endif
+                    }
+                    guard var mask else {
                         return nil
+                    }
+                    // Human rectangles can be loose when somebody bends or
+                    // turns. Always union detected faces into the person mask
+                    // so the identity-bearing region cannot sit in a feathered
+                    // edge or outside the simulator's geometric surrogate.
+                    let matchingFaces = faceBoxes.filter { faceBox in
+                        let center = CGPoint(x: faceBox.midX, y: faceBox.midY)
+                        return box.insetBy(
+                            dx: -max(0.02, box.width * 0.12),
+                            dy: -max(0.02, box.height * 0.12)
+                        ).contains(center)
+                    }
+                    if let faceMask = ellipseMask(for: matchingFaces, extent: extent) {
+                        mask = faceMask.applyingFilter(
+                            "CIMaximumCompositing",
+                            parameters: [kCIInputBackgroundImageKey: mask]
+                        ).cropped(to: extent)
                     }
                     return PreparedDetection(
                         association: .init(
@@ -952,9 +1000,6 @@ final class FrameEffectProcessor: @unchecked Sendable {
                     )
                 }
             }
-            let faceBoxes = (faces.results ?? [])
-                .filter { $0.confidence >= 0.35 }
-                .map(\.boundingBox)
             return faceBoxes.compactMap { box in
                 guard let mask = ellipseMask(for: [box], extent: extent) else { return nil }
                 return PreparedDetection(
@@ -1084,6 +1129,105 @@ final class FrameEffectProcessor: @unchecked Sendable {
             height: Double(maxY - minY + 1) / Double(height)
         )
     }
+
+    /// Some simulator Vision revisions return a successful person mask whose
+    /// alpha is simply a filled detection rectangle. Real devices return the
+    /// expected person silhouette. Reject only that simulator-specific shape;
+    /// device masking and its privacy-safe rectangular fallback remain intact.
+    private func isInvalidSimulatorPersonMask(_ mask: CIImage, extent: CGRect) -> Bool {
+#if targetEnvironment(simulator)
+        let width = 64
+        let height = max(1, Int((extent.height / max(extent.width, 1)) * CGFloat(width)))
+        let render = CGRect(x: 0, y: 0, width: width, height: height)
+        let scaled = mask
+            .transformed(by: CGAffineTransform(
+                scaleX: CGFloat(width) / extent.width,
+                y: CGFloat(height) / extent.height
+            ))
+            .transformed(by: CGAffineTransform(
+                translationX: -extent.minX * CGFloat(width) / extent.width,
+                y: -extent.minY * CGFloat(height) / extent.height
+            ))
+        guard let cgImage = context.createCGImage(scaled, from: render),
+              let data = cgImage.dataProvider?.data,
+              let bytes = CFDataGetBytePtr(data) else {
+            return false
+        }
+        let bytesPerPixel = cgImage.bitsPerPixel / 8
+        let bytesPerRow = cgImage.bytesPerRow
+        var minX = width
+        var minY = height
+        var maxX = -1
+        var maxY = -1
+        var filledPixels = 0
+        for y in 0..<height {
+            for x in 0..<width {
+                let offset = y * bytesPerRow + x * bytesPerPixel
+                if bytes[offset] > 40 {
+                    filledPixels += 1
+                    minX = min(minX, x)
+                    minY = min(minY, y)
+                    maxX = max(maxX, x)
+                    maxY = max(maxY, y)
+                }
+            }
+        }
+        guard maxX >= minX, maxY >= minY else { return false }
+        let boundsArea = (maxX - minX + 1) * (maxY - minY + 1)
+        return boundsArea >= 16 && Double(filledPixels) / Double(boundsArea) > 0.92
+#else
+        return false
+#endif
+    }
+
+#if targetEnvironment(simulator)
+    private func simulatorPersonFallbackMask(
+        for box: CGRect,
+        extent: CGRect
+    ) -> CIImage? {
+        let clamped = box.intersection(CGRect(x: 0, y: 0, width: 1, height: 1))
+        guard !clamped.isNull, clamped.width > 0, clamped.height > 0 else { return nil }
+        let rect = CGRect(
+            x: extent.minX + clamped.minX * extent.width,
+            y: extent.minY + clamped.minY * extent.height,
+            width: clamped.width * extent.width,
+            height: clamped.height * extent.height
+        ).insetBy(dx: -extent.width * 0.012, dy: -extent.height * 0.012)
+
+        let head = CGRect(
+            x: rect.midX - rect.width * 0.23,
+            y: rect.maxY - rect.height * 0.30,
+            width: rect.width * 0.46,
+            height: rect.height * 0.30
+        )
+        let torso = CGRect(
+            x: rect.minX,
+            y: rect.minY + rect.height * 0.20,
+            width: rect.width,
+            height: rect.height * 0.62
+        )
+        let leftLeg = CGRect(
+            x: rect.minX + rect.width * 0.12,
+            y: rect.minY,
+            width: rect.width * 0.42,
+            height: rect.height * 0.48
+        )
+        let rightLeg = CGRect(
+            x: rect.maxX - rect.width * 0.54,
+            y: rect.minY,
+            width: rect.width * 0.42,
+            height: rect.height * 0.48
+        )
+        return [head, torso, leftLeg, rightLeg]
+            .map { Self.ellipseMask(in: $0, extent: extent) }
+            .reduce(CIImage(color: .black).cropped(to: extent)) { combined, part in
+                part.applyingFilter("CIMaximumCompositing", parameters: [
+                    kCIInputBackgroundImageKey: combined
+                ])
+            }
+            .cropped(to: extent)
+    }
+#endif
 
     private static func combinedMask(
         _ first: CIImage?,
