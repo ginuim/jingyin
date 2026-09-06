@@ -29,7 +29,6 @@ struct ContentView: View {
         NavigationStack {
             landingWithImporters
         }
-        .preferredColorScheme(.dark)
     }
 
     private var landingWithNavigation: some View {
@@ -253,6 +252,8 @@ struct ContentView: View {
             localization.t("error.invalidVideo")
         case "error.invalidPhoto":
             localization.t("error.invalidPhoto")
+        case "error.partialPhotoImport":
+            localization.t("error.partialPhotoImport")
         default:
             ""
         }
@@ -409,9 +410,14 @@ struct ContentView: View {
         loadingImport = false
         defer { pickedItem = nil }
 
-        guard case let .success(video?) = result else { return }
         guard pickedItem == item else {
-            try? FileManager.default.removeItem(at: video.url)
+            if case let .success(video?) = result {
+                try? FileManager.default.removeItem(at: video.url)
+            }
+            return
+        }
+        guard case let .success(video?) = result else {
+            importErrorKey = "error.invalidVideo"
             return
         }
         Task {
@@ -426,6 +432,7 @@ struct ContentView: View {
         importFraction = 0
         photoImportTask = Task {
             var imported: [URL] = []
+            var failedCount = 0
             defer {
                 if Task.isCancelled {
                     for url in imported {
@@ -442,6 +449,7 @@ struct ContentView: View {
                 if Task.isCancelled { return }
                 do {
                     guard let data = try await item.loadTransferable(type: Data.self) else {
+                        failedCount += 1
                         continue
                     }
                     let pathExtension = item.supportedContentTypes
@@ -453,6 +461,7 @@ struct ContentView: View {
                     try data.write(to: destination, options: .atomic)
                     imported.append(destination)
                 } catch {
+                    failedCount += 1
                     continue
                 }
                 importFraction = Double(index + 1) / Double(items.count)
@@ -466,6 +475,9 @@ struct ContentView: View {
             releaseImportedPhotos()
             ownedPhotoURLs = imported
             importedPhotos = PhotoBatchSelection(urls: imported)
+            if failedCount > 0 {
+                importErrorKey = "error.partialPhotoImport"
+            }
         }
     }
 
@@ -490,6 +502,8 @@ struct ContentView: View {
             // Debug launch arguments and app-external URLs do not always vend a
             // security scope. Preserve those before the provider releases them.
             await acceptImportedVideo(with: destination, ownsFile: true)
+        } else {
+            importErrorKey = "error.invalidVideo"
         }
     }
 

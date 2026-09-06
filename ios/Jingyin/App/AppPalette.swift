@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Semantic colors shared by the whole app.
 ///
@@ -10,17 +11,17 @@ enum AppPalette {
 
     // MARK: - Backgrounds
 
-    static let background = color(0x1C1614)
-    static let surface = color(0x2A211E)
-    static let elevatedSurface = color(0x3A2C27)
+    static let background = adaptive(light: 0xF8F4F1, dark: 0x1C1614)
+    static let surface = adaptive(light: 0xFFFDFC, dark: 0x2A211E)
+    static let elevatedSurface = adaptive(light: 0xF1E8E3, dark: 0x3A2C27)
     static let mediaCanvas = Color.black
 
     // MARK: - Content
 
-    static let primaryText = color(0xFFF4EE)
-    static let secondaryText = color(0xC2A89C)
-    static let disabledText = color(0x8A7368)
-    static let divider = color(0x5A433A)
+    static let primaryText = adaptive(light: 0x261C18, dark: 0xFFF4EE)
+    static let secondaryText = adaptive(light: 0x765E54, dark: 0xC2A89C)
+    static let disabledText = adaptive(light: 0x9A8176, dark: 0x8A7368)
+    static let divider = adaptive(light: 0xDDCEC7, dark: 0x5A433A)
 
     // MARK: - Feedback
 
@@ -42,6 +43,18 @@ enum AppPalette {
             green: Double((hex >> 8) & 0xFF) / 255,
             blue: Double(hex & 0xFF) / 255,
             opacity: opacity
+        )
+    }
+
+    private static func adaptive(light: UInt32, dark: UInt32) -> Color {
+        Color(
+            UIColor { traits in
+                UIColor(
+                    AppPalette.color(
+                        traits.userInterfaceStyle == .dark ? dark : light
+                    )
+                )
+            }
         )
     }
 }

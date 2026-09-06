@@ -213,6 +213,14 @@
         "ja": {"stringUnit": {"state": "translated", "value": "選択した写真を読み込めませんでした。別の写真でお試しください。"}}
       }
     },
+    "error.partialPhotoImport": {
+      "localizations": {
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "部分照片无法读取，已导入其余照片。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "部分照片無法讀取，已匯入其餘照片。"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Some photos couldn’t be read. The remaining photos were imported."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "一部の写真を読み込めませんでした。残りの写真を読み込みました。"}}
+      }
+    },
     "photo.title": {
       "localizations": {
         "zh-Hans": {"stringUnit": {"state": "translated", "value": "图片遮罩"}},

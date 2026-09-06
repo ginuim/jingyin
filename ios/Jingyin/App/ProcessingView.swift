@@ -10,6 +10,7 @@ struct ProcessingView: View {
     @StateObject private var processor = VideoProcessor()
     @State private var showShare = false
     @State private var saved = false
+    @State private var saveErrorMessage: String?
     @State private var processingTask: Task<Void, Never>?
     /// Must outlive body redraws. Creating AVPlayer inside `body` tears the
     /// previous player down on every state change (e.g. tapping Save) and crashes.
@@ -66,7 +67,13 @@ struct ProcessingView: View {
 
                 HStack {
                     Button {
-                        Task { saved = await processor.saveToPhotos() }
+                        Task {
+                            if await processor.saveToPhotos() {
+                                saved = true
+                            } else {
+                                saveErrorMessage = localization.t("photo.saveFailedDetail")
+                            }
+                        }
                     } label: {
                         Label(
                             saved ? localization.t("processing.saved") : localization.t("processing.save"),
@@ -121,6 +128,19 @@ struct ProcessingView: View {
             if let output = processor.outputURL {
                 ShareSheet(items: [output])
             }
+        }
+        .alert(
+            localization.t("photo.saveFailed"),
+            isPresented: Binding(
+                get: { saveErrorMessage != nil },
+                set: { if !$0 { saveErrorMessage = nil } }
+            )
+        ) {
+            Button(localization.t("common.ok"), role: .cancel) {
+                saveErrorMessage = nil
+            }
+        } message: {
+            Text(saveErrorMessage ?? "")
         }
     }
 

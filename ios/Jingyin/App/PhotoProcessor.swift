@@ -460,7 +460,13 @@ enum PhotoProcessor {
                     maskGroups: draft.maskGroups,
                     maskPlanes: draft.maskPlanes
                 )
+                guard !Task.isCancelled else {
+                    try? FileManager.default.removeItem(at: output)
+                    break
+                }
                 results[draft.id] = .success(output)
+            } catch is CancellationError {
+                break
             } catch {
                 results[draft.id] = .failure(error)
             }

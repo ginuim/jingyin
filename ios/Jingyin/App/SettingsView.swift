@@ -79,7 +79,7 @@ struct SettingsView: View {
                 set: { if !$0 { restoreMessage = nil } }
             )
         ) {
-            Button("OK", role: .cancel) {}
+            Button(localization.t("common.ok"), role: .cancel) {}
         } message: {
             Text(restoreMessage ?? "")
         }

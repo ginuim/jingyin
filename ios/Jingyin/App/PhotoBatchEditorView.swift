@@ -86,6 +86,7 @@ struct PhotoBatchEditorView: View {
                 }
             }
         }
+        .allowsHitTesting(!isExporting)
         .foregroundStyle(AppPalette.primaryText)
         .background(AppPalette.background)
         .navigationTitle(localization.t("photo.title"))
@@ -103,21 +104,25 @@ struct PhotoBatchEditorView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    exportPhotos()
-                } label: {
-                    ZStack {
-                        Text(localization.t("photo.exportAction"))
-                            .font(.subheadline.weight(.semibold))
-                            .opacity(isExporting ? 0 : 1)
-                        if isExporting {
-                            ProgressView()
-                                .controlSize(.small)
-                        }
+                    if isExporting {
+                        cancelPhotoExport()
+                    } else {
+                        exportPhotos()
                     }
+                } label: {
+                    Text(localization.t(
+                        isExporting ? "processing.cancel" : "photo.exportAction"
+                    ))
+                    .font(.subheadline.weight(.semibold))
                 }
-                .disabled(isAnalyzing || isExporting || currentDraft?.status == .failed)
+                .disabled(
+                    !isExporting
+                        && (isAnalyzing || currentDraft?.status == .failed)
+                )
                 .accessibilityLabel(
-                    entitlements.isUnlocked
+                    isExporting
+                        ? localization.t("processing.cancel")
+                        : entitlements.isUnlocked
                         ? localization.t("photo.exportBatch")
                         : localization.t("photo.exportCurrent")
                 )
@@ -1090,6 +1095,11 @@ struct PhotoBatchEditorView: View {
                 options: options,
                 access: access
             )
+            guard !Task.isCancelled else {
+                resetExportingDrafts()
+                isExporting = false
+                return
+            }
             var successCount = 0
             for target in targets {
                 guard let index = drafts.firstIndex(where: { $0.id == target.id }) else {
@@ -1109,6 +1119,19 @@ struct PhotoBatchEditorView: View {
                 let urls = drafts.compactMap(\.outputURL)
                 exportResult = PhotoExportResult(outputURLs: urls)
             }
+        }
+    }
+
+    private func cancelPhotoExport() {
+        exportTask?.cancel()
+        exportTask = nil
+        resetExportingDrafts()
+        isExporting = false
+    }
+
+    private func resetExportingDrafts() {
+        for index in drafts.indices where drafts[index].status == .exporting {
+            drafts[index].status = .ready
         }
     }
 }
