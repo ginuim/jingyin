@@ -7,13 +7,13 @@ export const landingZhHans: LandingCopy = {
   brand: '镜隐',
   navDownload: 'App Store',
   navPrivacy: '隐私政策',
-  comingSoon: '即将上架',
+  comingSoon: '前往 App Store 下载',
   heroEyebrow: 'iOS · 端侧处理',
   heroTitle: '分享前先遮住该藏的部分',
   heroHighlight: '原片不离开你的手机',
   heroBody:
     '镜隐在设备本地处理视频与照片：像素化、模糊、手动遮盖、变音或静音。无需账号，没有广告；免费编辑与预览，一次买断即可永久解除免费版导出限制。',
-  heroCta: '即将上架 App Store',
+  heroCta: '前往 App Store 下载',
   heroSecondary: '阅读隐私政策',
   trust: ['全程本地处理', '原素材不上传', '无订阅 · 无广告', '一次买断解锁'],
   sectionLabels: {
@@ -68,7 +68,7 @@ export const landingZhHans: LandingCopy = {
   proPoints: [
     '导出已导入视频的完整时长与更高清晰度',
     '照片批量导出',
-    '由 App Store 显示本地化价格',
+    '支持换机恢复购买',
   ],
   footerTagline: 'reaidea 出品 · 端侧隐私工具',
   footerPrivacy: '隐私政策',

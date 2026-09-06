@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import Eyebrow from '../components/Eyebrow.vue'
 import SiteFooter from '../components/SiteFooter.vue'
 import SiteHeader from '../components/SiteHeader.vue'
 import { getDictionary, homePath, type Locale } from '../i18n'
@@ -16,7 +17,7 @@ const privacy = computed(() => getDictionary(locale.value).privacy)
 
     <main class="shell policy">
       <RouterLink class="back" :to="homePath(locale)">← {{ privacy.backHome }}</RouterLink>
-      <div class="eyebrow">{{ privacy.kicker }}</div>
+      <Eyebrow :text="privacy.kicker" />
       <h1>{{ privacy.title }}</h1>
       <p class="lead">{{ privacy.lead }}</p>
       <p class="updated">{{ privacy.updated }}</p>

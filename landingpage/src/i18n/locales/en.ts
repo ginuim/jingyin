@@ -7,13 +7,13 @@ export const landingEn: LandingCopy = {
   brand: 'lenshide',
   navDownload: 'App Store',
   navPrivacy: 'Privacy',
-  comingSoon: 'Coming soon',
+  comingSoon: 'Download on the App Store',
   heroEyebrow: 'iOS · On-device',
   heroTitle: 'Hide what should stay private',
   heroHighlight: 'Your originals stay on your phone',
   heroBody:
     'lenshide processes videos and photos on your device—pixelation, blur, manual masks, mute, or pitch shift. No account or ads. Edit and preview for free, then make one purchase to remove free export limits forever.',
-  heroCta: 'Coming soon on the App Store',
+  heroCta: 'Download on the App Store',
   heroSecondary: 'Read the privacy policy',
   trust: ['Fully on-device', 'Nothing uploaded', 'No ads · No subscription', 'One-time unlock'],
   sectionLabels: {
@@ -53,7 +53,7 @@ export const landingEn: LandingCopy = {
       body: 'Apply shared settings and review each photo. Free exports one at a time; Lifetime supports batches.',
     },
   ],
-  pricingTitle: 'Edit free. Unlock exports once.',
+  pricingTitle: 'Start free. Own it forever.',
   pricingLead: 'Editing and preview are completely free. Purchase once when you need full video or batch photo export.',
   freeTitle: 'Free',
   freeBody: 'Complete editing and preview, with export limits.',
@@ -68,7 +68,7 @@ export const landingEn: LandingCopy = {
   proPoints: [
     'Export the full duration of an imported video at higher resolution',
     'Batch photo export',
-    'Price shown by the App Store in your region',
+    'Restore your purchase on a new device',
   ],
   footerTagline: 'From reaidea · on-device privacy',
   footerPrivacy: 'Privacy Policy',

@@ -7,13 +7,13 @@ export const landingJa: LandingCopy = {
   brand: 'lenshide',
   navDownload: 'App Store',
   navPrivacy: 'プライバシー',
-  comingSoon: '近日公開',
+  comingSoon: 'App Store でダウンロード',
   heroEyebrow: 'iOS · 端末内処理',
   heroTitle: '共有する前に、隠すべき部分を隠す',
   heroHighlight: '元データは端末から出ません',
   heroBody:
     'lenshide は端末内で動画と写真を処理します。モザイク、ぼかし、手動マスク、消音、声の高さ変更。アカウントも広告も不要。編集とプレビューは無料で、1回の購入で無料版の書き出し制限を永久に解除できます。',
-  heroCta: 'App Store 近日公開',
+  heroCta: 'App Store でダウンロード',
   heroSecondary: 'プライバシーポリシーを読む',
   trust: ['すべて端末内', 'アップロードなし', '広告・サブスクなし', '買い切りで解除'],
   sectionLabels: {
@@ -68,7 +68,7 @@ export const landingJa: LandingCopy = {
   proPoints: [
     '動画の長さと書き出し解像度の制限解除',
     '写真の一括書き出し',
-    '価格は App Store の地域表示に従います',
+    '機種変更時も購入を復元できる',
   ],
   footerTagline: 'reaidea · 端末内プライバシー',
   footerPrivacy: 'プライバシーポリシー',

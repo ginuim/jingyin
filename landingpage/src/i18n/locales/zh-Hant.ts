@@ -7,13 +7,13 @@ export const landingZhHant: LandingCopy = {
   brand: '鏡隱',
   navDownload: 'App Store',
   navPrivacy: '隱私權政策',
-  comingSoon: '即將上架',
+  comingSoon: '前往 App Store 下載',
   heroEyebrow: 'iOS · 裝置本機處理',
   heroTitle: '分享前先遮住該藏的部分',
   heroHighlight: '原始檔不會離開你的手機',
   heroBody:
     '鏡隱在裝置本機處理影片與照片：像素化、模糊、手動遮蓋、變聲或靜音。無需帳號，沒有廣告；免費編輯與預覽，一次買斷即可永久解除免費版匯出限制。',
-  heroCta: '即將上架 App Store',
+  heroCta: '前往 App Store 下載',
   heroSecondary: '閱讀隱私權政策',
   trust: ['全程本機處理', '原始素材不上傳', '無訂閱 · 無廣告', '一次買斷解鎖'],
   sectionLabels: {
@@ -68,7 +68,7 @@ export const landingZhHant: LandingCopy = {
   proPoints: [
     '匯出已匯入影片的完整時長與更高清晰度',
     '照片批次匯出',
-    '由 App Store 顯示本地化價格',
+    '支援換機恢復購買',
   ],
   footerTagline: 'reaidea 出品 · 端側隱私工具',
   footerPrivacy: '隱私權政策',
