@@ -42,4 +42,7 @@ next-env.d.ts
 /work/
 /ios/.derived-data/
 /ios/.device-derived-data/
+/ios/.sim-derived-data/
+/ios/.icon-derived-data/
 /ios/*.xcuserdatad/
+.repo_memory/

@@ -111,7 +111,7 @@ lenshide
 
 ### Subtitle
 
-On-device video & photo privacy
+On-device media privacy
 
 ### Promotional Text
 

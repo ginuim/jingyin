@@ -6,10 +6,12 @@ struct ProcessingView: View {
     let videoURL: URL
     let options: ProcessingOptions
     let access: ExportAccess
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var localization: LocalizationManager
     @StateObject private var processor = VideoProcessor()
     @State private var showShare = false
     @State private var saved = false
+    @State private var isSaving = false
     @State private var saveErrorMessage: String?
     @State private var processingTask: Task<Void, Never>?
     /// Must outlive body redraws. Creating AVPlayer inside `body` tears the
@@ -17,6 +19,60 @@ struct ProcessingView: View {
     @State private var previewPlayer: AVPlayer?
 
     var body: some View {
+        Group {
+            if let previewPlayer {
+                resultContent(player: previewPlayer)
+            } else {
+                processingContent
+            }
+        }
+        .foregroundStyle(AppPalette.primaryText)
+        .background(AppPalette.background.ignoresSafeArea())
+        .navigationTitle(
+            localization.t(
+                previewPlayer == nil ? "processing.title" : "processing.resultTitle"
+            )
+        )
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(processor.isRunning)
+        .task { start() }
+        .onAppear {
+            MediaPlaybackSession.activate()
+        }
+        .onChange(of: processor.outputURL) { _, url in
+            previewPlayer?.pause()
+            previewPlayer = url.map { AVPlayer(url: $0) }
+            saved = false
+            isSaving = false
+        }
+        .onDisappear {
+            processingTask?.cancel()
+            processor.discardOutput()
+            previewPlayer?.pause()
+            previewPlayer = nil
+            MediaPlaybackSession.deactivate()
+        }
+        .sheet(isPresented: $showShare) {
+            if let output = processor.outputURL {
+                ShareSheet(items: [output])
+            }
+        }
+        .alert(
+            localization.t("photo.saveFailed"),
+            isPresented: Binding(
+                get: { saveErrorMessage != nil },
+                set: { if !$0 { saveErrorMessage = nil } }
+            )
+        ) {
+            Button(localization.t("common.ok"), role: .cancel) {
+                saveErrorMessage = nil
+            }
+        } message: {
+            Text(saveErrorMessage ?? "")
+        }
+    }
+
+    private var processingContent: some View {
         VStack(spacing: 28) {
             Spacer()
             stageIcon
@@ -55,44 +111,7 @@ struct ProcessingView: View {
                     .padding(.horizontal)
                 Button(localization.t("processing.retry")) { start() }
                     .buttonStyle(.borderedProminent)
-            }
-
-            if let previewPlayer {
-                ControlledVideoPlayer(player: previewPlayer) {
-                    BareVideoPlayer(player: previewPlayer)
-                        .frame(height: 220)
-                        .clipShape(RoundedRectangle(cornerRadius: 18))
-                }
-                .padding(.horizontal)
-
-                HStack {
-                    Button {
-                        Task {
-                            if await processor.saveToPhotos() {
-                                saved = true
-                            } else {
-                                saveErrorMessage = localization.t("photo.saveFailedDetail")
-                            }
-                        }
-                    } label: {
-                        Label(
-                            saved ? localization.t("processing.saved") : localization.t("processing.save"),
-                            systemImage: saved ? "checkmark" : "square.and.arrow.down"
-                        )
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                    }
-                    .buttonStyle(.borderedProminent)
-
-                    Button {
-                        showShare = true
-                    } label: {
-                        Label(localization.t("processing.share"), systemImage: "square.and.arrow.up")
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                    }
-                    .buttonStyle(.bordered)
-                }
+                    .tint(AppPalette.accent.primary)
             }
 
             Spacer()
@@ -104,50 +123,149 @@ struct ProcessingView: View {
             }
         }
         .padding()
-        .foregroundStyle(AppPalette.primaryText)
-        .background(AppPalette.background)
-        .navigationTitle(localization.t("processing.title"))
-        .navigationBarBackButtonHidden(processor.isRunning)
-        .task { start() }
-        .onAppear {
-            MediaPlaybackSession.activate()
-        }
-        .onChange(of: processor.outputURL) { _, url in
-            previewPlayer?.pause()
-            previewPlayer = url.map { AVPlayer(url: $0) }
-            saved = false
-        }
-        .onDisappear {
-            processingTask?.cancel()
-            processor.discardOutput()
-            previewPlayer?.pause()
-            previewPlayer = nil
-            MediaPlaybackSession.deactivate()
-        }
-        .sheet(isPresented: $showShare) {
-            if let output = processor.outputURL {
-                ShareSheet(items: [output])
+    }
+
+    private func resultContent(player: AVPlayer) -> some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                resultHeader
+
+                ControlledVideoPlayer(
+                    player: player,
+                    showsCentralPlayButton: true
+                ) {
+                    BareVideoPlayer(player: player)
+                        .aspectRatio(16 / 9, contentMode: .fit)
+                        .frame(maxWidth: .infinity)
+                        .background(AppPalette.mediaCanvas)
+                        .clipShape(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        )
+                }
+
+                resultActions
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 28)
+            .padding(.bottom, 36)
         }
-        .alert(
-            localization.t("photo.saveFailed"),
-            isPresented: Binding(
-                get: { saveErrorMessage != nil },
-                set: { if !$0 { saveErrorMessage = nil } }
+    }
+
+    private var resultHeader: some View {
+        VStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(AppPalette.accent.softFill)
+                Circle()
+                    .stroke(AppPalette.accent.primary, lineWidth: 2)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(AppPalette.accent.primary)
+            }
+            .frame(width: 52, height: 52)
+            .accessibilityHidden(true)
+
+            Text(processor.stage.title(bundle: localization.bundle))
+                .font(.system(.title2, design: .rounded, weight: .bold))
+                .multilineTextAlignment(.center)
+
+            Text(localization.t("processing.completedSubtitle"))
+                .font(.subheadline)
+                .foregroundStyle(AppPalette.secondaryText)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 12)
+    }
+
+    private var resultActions: some View {
+        VStack(spacing: 14) {
+            Button(action: saveOutput) {
+                ZStack {
+                    Label(
+                        saved
+                            ? localization.t("processing.saved")
+                            : localization.t("processing.save"),
+                        systemImage: saved ? "checkmark" : "square.and.arrow.down"
+                    )
+                    .opacity(isSaving ? 0 : 1)
+
+                    if isSaving {
+                        ProgressView()
+                            .tint(AppPalette.accent.foreground)
+                    }
+                }
+                .font(.headline)
+                .frame(maxWidth: .infinity, minHeight: 58)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(AppPalette.accent.foreground)
+            .background(
+                AppPalette.accent.primary,
+                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
             )
-        ) {
-            Button(localization.t("common.ok"), role: .cancel) {
-                saveErrorMessage = nil
+            .disabled(saved || isSaving)
+
+            HStack(spacing: 12) {
+                secondaryAction(
+                    title: localization.t("processing.share"),
+                    systemImage: "square.and.arrow.up"
+                ) {
+                    showShare = true
+                }
+
+                secondaryAction(
+                    title: localization.t("processing.reprocess"),
+                    systemImage: "arrow.clockwise"
+                ) {
+                    dismiss()
+                }
             }
-        } message: {
-            Text(saveErrorMessage ?? "")
+        }
+    }
+
+    private func secondaryAction(
+        title: String,
+        systemImage: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .frame(maxWidth: .infinity, minHeight: 54)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(AppPalette.primaryText)
+        .background(
+            AppPalette.surface,
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(AppPalette.divider.opacity(0.7), lineWidth: 1)
+        }
+    }
+
+    private func saveOutput() {
+        guard !saved, !isSaving else { return }
+        isSaving = true
+        saveErrorMessage = nil
+        Task {
+            if await processor.saveToPhotos() {
+                saved = true
+            } else {
+                saveErrorMessage = localization.t("photo.saveFailedDetail")
+            }
+            isSaving = false
         }
     }
 
     private var stageIcon: some View {
         let appearance: (symbol: String, color: Color) = switch processor.stage {
         case .completed:
-            ("checkmark.shield.fill", AppPalette.success)
+            ("checkmark.circle.fill", AppPalette.accent.primary)
         case .failed:
             ("xmark.octagon.fill", AppPalette.destructive)
         default:
