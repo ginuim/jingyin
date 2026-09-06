@@ -56,11 +56,12 @@ struct PhotoFreehandMaskOverlay: View {
                                     .overlay {
                                         Circle().stroke(AppPalette.maskOutline, lineWidth: 2)
                                     }
+                                    .frame(width: 44, height: 44)
                             }
                             .buttonStyle(.plain)
                             .position(
-                                x: min(max(rect.maxX, imageBounds.minX + 14), imageBounds.maxX - 14),
-                                y: min(max(rect.minY, imageBounds.minY + 14), imageBounds.maxY - 14)
+                                x: min(max(rect.maxX, imageBounds.minX + 22), imageBounds.maxX - 22),
+                                y: min(max(rect.minY, imageBounds.minY + 22), imageBounds.maxY - 22)
                             )
                             .accessibilityLabel(localization.t("editor.deleteEntireMask"))
                         }

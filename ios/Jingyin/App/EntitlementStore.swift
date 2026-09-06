@@ -174,6 +174,6 @@ private enum EntitlementError: LocalizedError {
     case failedVerification
 
     var errorDescription: String? {
-        "The App Store transaction could not be verified."
+        String(localized: "purchase.verificationFailed")
     }
 }

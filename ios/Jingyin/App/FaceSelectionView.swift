@@ -69,7 +69,6 @@ struct FaceSelectionView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
     }
 
     private var facePreview: some View {

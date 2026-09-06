@@ -14,6 +14,7 @@ struct ProcessingView: View {
     @State private var isSaving = false
     @State private var saveErrorMessage: String?
     @State private var processingTask: Task<Void, Never>?
+    @State private var showCancelConfirmation = false
     /// Must outlive body redraws. Creating AVPlayer inside `body` tears the
     /// previous player down on every state change (e.g. tapping Save) and crashes.
     @State private var previewPlayer: AVPlayer?
@@ -70,6 +71,19 @@ struct ProcessingView: View {
         } message: {
             Text(saveErrorMessage ?? "")
         }
+        .confirmationDialog(
+            localization.t("processing.confirmCancelTitle"),
+            isPresented: $showCancelConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(localization.t("common.cancel"), role: .cancel) {}
+            Button(localization.t("processing.cancel"), role: .destructive) {
+                processingTask?.cancel()
+                processor.cancel()
+            }
+        } message: {
+            Text(localization.t("processing.confirmCancelMessage"))
+        }
     }
 
     private var processingContent: some View {
@@ -110,19 +124,21 @@ struct ProcessingView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal)
                 Button(localization.t("processing.retry")) { start() }
-                    .buttonStyle(.borderedProminent)
-                    .tint(AppPalette.accent.primary)
+                    .buttonStyle(PrimaryButtonStyle())
             }
 
             Spacer()
-            if processor.isRunning {
-                Button(localization.t("processing.cancel"), role: .destructive) {
-                    processingTask?.cancel()
-                    processor.cancel()
-                }
-            }
         }
         .padding()
+        .safeAreaInset(edge: .bottom) {
+            if processor.isRunning {
+                Button(localization.t("processing.cancel"), role: .destructive) {
+                    showCancelConfirmation = true
+                }
+                .buttonStyle(TextButtonStyle(role: .destructive))
+                .padding(.bottom, 8)
+            }
+        }
     }
 
     private func resultContent(player: AVPlayer) -> some View {
@@ -198,12 +214,7 @@ struct ProcessingView: View {
                 .font(.headline)
                 .frame(maxWidth: .infinity, minHeight: 58)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(AppPalette.accent.foreground)
-            .background(
-                AppPalette.accent.primary,
-                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-            )
+            .buttonStyle(PrimaryButtonStyle())
             .disabled(saved || isSaving)
 
             HStack(spacing: 12) {
@@ -236,16 +247,7 @@ struct ProcessingView: View {
                 .minimumScaleFactor(0.75)
                 .frame(maxWidth: .infinity, minHeight: 54)
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(AppPalette.primaryText)
-        .background(
-            AppPalette.surface,
-            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(AppPalette.divider.opacity(0.7), lineWidth: 1)
-        }
+        .buttonStyle(SecondaryButtonStyle())
     }
 
     private func saveOutput() {

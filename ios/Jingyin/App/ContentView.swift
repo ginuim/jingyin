@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @EnvironmentObject private var localization: LocalizationManager
+    @EnvironmentObject private var entitlements: EntitlementStore
     @State private var pickedItem: PhotosPickerItem?
     @State private var pickedPhotoItems: [PhotosPickerItem] = []
     @State private var importedURL: URL?
@@ -70,7 +71,7 @@ struct ContentView: View {
                     releaseImportedPhotos()
                 }
             }
-            .fullScreenCover(isPresented: $showPaywall) {
+            .sheet(isPresented: $showPaywall) {
                 PaywallView()
             }
             .task {
@@ -115,7 +116,7 @@ struct ContentView: View {
             AppPalette.background
                 .ignoresSafeArea()
 
-            VStack(spacing: 22) {
+            VStack(spacing: 24) {
                 Spacer()
                 Image("WelcomeLogo")
                     .resizable()
@@ -127,25 +128,29 @@ struct ContentView: View {
 
                 VStack(spacing: 8) {
                     Text(localization.t("brand.name"))
-                        .font(.system(size: 38, weight: .bold, design: .rounded))
+                        .font(.system(.title, design: .rounded, weight: .bold))
                     Text(localization.t("home.tagline"))
                         .font(.subheadline)
                         .foregroundStyle(AppPalette.secondaryText)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, 28)
+                        .padding(.horizontal, 20)
                 }
 
                 coverageDisclaimer
 
                 importButtons
 
+                if entitlements.isReady {
+                    entitlementStatus
+                }
+
                 Label(localization.t("home.privacy"), systemImage: "lock.shield.fill")
                     .font(.footnote)
                     .foregroundStyle(AppPalette.disabledText)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 28)
+                    .padding(.horizontal, 20)
                 Spacer()
             }
             .foregroundStyle(AppPalette.primaryText)
@@ -163,16 +168,16 @@ struct ContentView: View {
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(14)
+            .padding(16)
             .background(
                 AppPalette.surface,
-                in: RoundedRectangle(cornerRadius: 14)
+                in: RoundedRectangle(cornerRadius: 16)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14)
+                RoundedRectangle(cornerRadius: 16)
                     .strokeBorder(AppPalette.divider, lineWidth: 1)
             )
-            .padding(.horizontal, 28)
+            .padding(.horizontal, 20)
             .accessibilityLabel(localization.t("home.coverageDisclaimer"))
     }
 
@@ -215,8 +220,51 @@ struct ContentView: View {
             }
             .buttonStyle(SecondaryButtonStyle())
         }
-        .padding(.horizontal, 28)
+        .padding(.horizontal, 20)
         .disabled(loadingImport)
+    }
+
+    private var entitlementStatus: some View {
+        Button {
+            if entitlements.isUnlocked {
+                showSettings = true
+            } else {
+                showPaywall = true
+            }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: entitlements.isUnlocked ? "checkmark.circle.fill" : "gift.fill")
+                    .foregroundStyle(
+                        entitlements.isUnlocked ? AppPalette.success : AppPalette.accent.primary
+                    )
+
+                Text(localization.t(
+                    entitlements.isUnlocked
+                        ? "purchase.unlocked"
+                        : "purchase.freePlan"
+                ))
+                .font(.subheadline.weight(.semibold))
+
+                Spacer(minLength: 8)
+
+                if !entitlements.isUnlocked {
+                    Text(localization.t("purchase.unlock"))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppPalette.accent.primary)
+                }
+
+                Image(systemName: "chevron.right")
+                    .foregroundStyle(AppPalette.secondaryText)
+            }
+            .padding(.horizontal, 16)
+        }
+        .buttonStyle(SecondaryButtonStyle())
+        .padding(.horizontal, 20)
+        .accessibilityLabel(
+            entitlements.isUnlocked
+                ? localization.t("purchase.unlocked")
+                : "\(localization.t("purchase.freePlan")), \(localization.t("purchase.unlock"))"
+        )
     }
 
     private var importProgressOverlay: some View {
@@ -635,44 +683,5 @@ private struct ImportedVideo: Transferable {
             }
         }
         return result == 0
-    }
-}
-
-private struct PrimaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.headline)
-            .padding()
-            .background(
-                configuration.isPressed
-                    ? AppPalette.accent.pressed
-                    : AppPalette.accent.primary
-            )
-            .foregroundStyle(AppPalette.accent.foreground)
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .strokeBorder(
-                        AppPalette.accent.outline.opacity(configuration.isPressed ? 0.55 : 0.8),
-                        lineWidth: 1
-                    )
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-    }
-}
-
-private struct SecondaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.headline)
-            .padding()
-            .background(
-                configuration.isPressed ? AppPalette.elevatedSurface : AppPalette.surface
-            )
-            .foregroundStyle(AppPalette.primaryText)
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .strokeBorder(AppPalette.divider, lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }

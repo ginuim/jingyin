@@ -67,7 +67,7 @@ struct SettingsView: View {
         .tint(AppPalette.accent.primary)
         .navigationTitle(localization.t("settings.title"))
         .navigationBarTitleDisplayMode(.inline)
-        .fullScreenCover(isPresented: $showPaywall) {
+        .sheet(isPresented: $showPaywall) {
             PaywallView()
                 .environmentObject(localization)
                 .environmentObject(entitlements)

@@ -4,6 +4,18 @@ import CoreImage
 import SwiftUI
 import UIKit
 
+private enum EditorDestructiveAction: Identifiable {
+    case keyframe
+    case mask(MaskTrack.ID)
+
+    var id: String {
+        switch self {
+        case .keyframe: "keyframe"
+        case let .mask(id): "mask-\(id)"
+        }
+    }
+}
+
 struct EditorView: View {
     let videoURL: URL
     @EnvironmentObject private var localization: LocalizationManager
@@ -23,6 +35,7 @@ struct EditorView: View {
     @State private var showFullScreenMaskEditor = false
     @State private var faceDetectionSnapshot: FaceDetectionSnapshot?
     @State private var showFaceSelection = false
+    @State private var pendingDestructiveAction: EditorDestructiveAction?
     @State private var isDetectingFaces = false
     @State private var faceDetectionMessage: String?
     @State private var faceTrackingTasks: [MaskTrack.ID: Task<Void, Never>] = [:]
@@ -34,7 +47,6 @@ struct EditorView: View {
     @State private var isVideoPinned = true
     @State private var isScopeExpanded = true
     @State private var isSubjectsExpanded = true
-    @State private var isQualityExpanded = true
     @State private var isStyleExpanded = true
     @State private var isAudioExpanded = true
 
@@ -76,10 +88,6 @@ struct EditorView: View {
 
                     settings
 
-                    PurchaseStatusCard {
-                        showPaywall = true
-                    }
-
                     if voicePreview.isPreparing, options.audio == .voice {
                         ProgressView(localization.t("editor.preparingVoice"))
                             .font(.footnote)
@@ -102,11 +110,8 @@ struct EditorView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.85)
                             .frame(maxWidth: .infinity)
-                            .padding()
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(AppPalette.accent.primary)
-                    .foregroundStyle(.white)
+                    .buttonStyle(PrimaryButtonStyle())
                     .disabled(hasTrackingInProgress)
 
                     if hasTrackingInProgress {
@@ -145,7 +150,7 @@ struct EditorView: View {
             .environmentObject(localization)
             .environmentObject(entitlements)
         }
-        .fullScreenCover(isPresented: $showPaywall) {
+        .sheet(isPresented: $showPaywall) {
             PaywallView()
                 .environmentObject(localization)
                 .environmentObject(entitlements)
@@ -163,10 +168,10 @@ struct EditorView: View {
                 canDeleteCurrentKeyframe: canDeleteCurrentKeyframe,
                 onAddMask: addManualMask,
                 onInsertKeyframe: insertKeyframe,
-                onDeleteCurrentKeyframe: deleteCurrentKeyframe,
+                onDeleteCurrentKeyframe: requestDeleteCurrentKeyframe,
                 onShrinkMask: shrinkSelectedMask,
                 onEnlargeMask: enlargeSelectedMask,
-                onDeleteTrack: deleteMask,
+                onDeleteTrack: requestDeleteMask,
                 onEditingEnded: finishMaskEditing
             )
             .environmentObject(localization)
@@ -184,6 +189,23 @@ struct EditorView: View {
                 )
                 .environmentObject(localization)
             }
+        }
+        .confirmationDialog(
+            destructiveConfirmationTitle,
+            isPresented: Binding(
+                get: { pendingDestructiveAction != nil },
+                set: { if !$0 { pendingDestructiveAction = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button(localization.t("common.cancel"), role: .cancel) {
+                pendingDestructiveAction = nil
+            }
+            Button(localization.t("common.delete"), role: .destructive) {
+                performPendingDestructiveAction()
+            }
+        } message: {
+            Text(destructiveConfirmationMessage)
         }
         .task(id: videoEffectToken) {
             await applyPreview()
@@ -289,7 +311,7 @@ struct EditorView: View {
                                 voicePreview.pause()
                             },
                             onEditingEnded: finishMaskEditing,
-                            onDeleteTrack: deleteMask
+                            onDeleteTrack: requestDeleteMask
                         )
                     }
                 }
@@ -464,25 +486,6 @@ struct EditorView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                CollapsibleOptionSection(
-                    title: localization.t("editor.quality"),
-                    systemImage: "speedometer",
-                    isExpanded: $isQualityExpanded
-                ) {
-                    Picker(localization.t("editor.quality"), selection: $options.quality) {
-                        ForEach(QualityMode.allCases) {
-                            Text($0.title(bundle))
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.7)
-                                .tag($0)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    Text(options.quality.detail(bundle))
-                        .font(.caption)
-                        .foregroundStyle(AppPalette.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
             }
 
             CollapsibleOptionSection(
@@ -776,7 +779,7 @@ struct EditorView: View {
 
             Button(
                 role: .destructive,
-                action: deleteCurrentKeyframe
+                action: requestDeleteCurrentKeyframe
             ) {
                 Label(
                     localization.t("editor.deletePositionRecord"),
@@ -846,6 +849,8 @@ struct EditorView: View {
 
     @MainActor
     private func detectFacesAtCurrentFrame() async {
+        // Deliberately retained as a prototype only. The launch TODO keeps
+        // specified-face tracking hidden until its device matrix is reliable.
         guard !isDetectingFaces else { return }
         player.pause()
         voicePreview.pause()
@@ -1099,6 +1104,11 @@ struct EditorView: View {
         refreshMaskPreview()
     }
 
+    private func requestDeleteCurrentKeyframe() {
+        guard currentKeyframe != nil, canDeleteCurrentKeyframe else { return }
+        pendingDestructiveAction = .keyframe
+    }
+
     private func deleteCurrentKeyframe() {
         guard let selectedMaskIndex,
               options.maskTracks[selectedMaskIndex].keyframes.count > 1,
@@ -1165,6 +1175,10 @@ struct EditorView: View {
         refreshMaskPreview()
     }
 
+    private func requestDeleteMask(id: MaskTrack.ID) {
+        pendingDestructiveAction = .mask(id)
+    }
+
     private func deleteMask(id: MaskTrack.ID) {
         guard let removedIndex = options.maskTracks.firstIndex(where: { $0.id == id }) else {
             return
@@ -1182,6 +1196,39 @@ struct EditorView: View {
             selectedMaskTrackID = options.maskTracks[nextIndex].id
         }
         refreshMaskPreview()
+    }
+
+    private var destructiveConfirmationTitle: String {
+        switch pendingDestructiveAction {
+        case .keyframe:
+            localization.t("editor.confirmDeletePositionTitle")
+        case .mask:
+            localization.t("editor.confirmDeleteMaskTitle")
+        case nil:
+            ""
+        }
+    }
+
+    private var destructiveConfirmationMessage: String {
+        switch pendingDestructiveAction {
+        case .keyframe:
+            localization.t("editor.confirmDeletePositionMessage")
+        case .mask:
+            localization.t("editor.confirmDeleteMaskMessage")
+        case nil:
+            ""
+        }
+    }
+
+    private func performPendingDestructiveAction() {
+        guard let action = pendingDestructiveAction else { return }
+        pendingDestructiveAction = nil
+        switch action {
+        case .keyframe:
+            deleteCurrentKeyframe()
+        case let .mask(id):
+            deleteMask(id: id)
+        }
     }
 
     private func refreshMaskPreview() {
@@ -1521,6 +1568,14 @@ private struct ExportSettingsSheet: View {
                     ScrollView {
                         VStack(spacing: 24) {
                             accessCard
+                            if options.scope != .full {
+                                exportChoice(
+                                    title: localization.t("export.quality"),
+                                    hint: options.quality.detail(localization.bundle),
+                                    values: QualityMode.allCases,
+                                    selection: $options.quality
+                                ) { $0.title(localization.bundle) }
+                            }
                             exportChoice(
                                 title: localization.t("export.resolution"),
                                 hint: localization.t("export.resolutionHint"),
@@ -1545,7 +1600,8 @@ private struct ExportSettingsSheet: View {
                             .foregroundStyle(AppPalette.secondaryText)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .padding()
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 16)
                     }
                 } else {
                     ProgressView(localization.t("export.reading"))
@@ -1560,22 +1616,10 @@ private struct ExportSettingsSheet: View {
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button {
+                    Button(exportButtonTitle) {
                         onExport()
-                    } label: {
-                        Text(exportButtonTitle)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(AppPalette.accent.foreground)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .background(
-                                AppPalette.accent.primary,
-                                in: Capsule()
-                            )
                     }
-                    .buttonStyle(.plain)
                     .disabled(metadata == nil || !entitlements.isReady)
-                    .opacity(metadata == nil || !entitlements.isReady ? 0.45 : 1)
                 }
             }
         }
@@ -1586,7 +1630,7 @@ private struct ExportSettingsSheet: View {
         .onAppear {
             enforceAllowedResolution()
         }
-        .fullScreenCover(isPresented: $showPaywall) {
+        .sheet(isPresented: $showPaywall) {
             PaywallView()
                 .environmentObject(localization)
                 .environmentObject(entitlements)
@@ -1622,7 +1666,7 @@ private struct ExportSettingsSheet: View {
         selection: Binding<Value>,
         label: @escaping (Value) -> String
     ) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
                 Text(title)
                     .font(.headline)
@@ -1632,33 +1676,17 @@ private struct ExportSettingsSheet: View {
                     .foregroundStyle(AppPalette.secondaryText)
                     .multilineTextAlignment(.trailing)
             }
-            HStack(spacing: 8) {
+            Picker(title, selection: selection) {
                 ForEach(values, id: \.self) { value in
-                    Button {
-                        selection.wrappedValue = value
-                    } label: {
-                        Text(label(value))
-                            .font(.subheadline.weight(.semibold))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 11)
-                            .background(
-                                selection.wrappedValue == value
-                                    ? AppPalette.accent.primary
-                                    : AppPalette.elevatedSurface,
-                                in: RoundedRectangle(cornerRadius: 12)
-                            )
-                            .foregroundStyle(
-                                selection.wrappedValue == value ? AppPalette.accent.foreground : AppPalette.primaryText
-                            )
-                    }
-                    .buttonStyle(.plain)
+                    Text(label(value))
+                        .lineLimit(1)
+                        .tag(value)
                 }
             }
+            .pickerStyle(.segmented)
         }
-        .padding()
-        .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: 18))
+        .padding(16)
+        .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: 16))
     }
 }
 

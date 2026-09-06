@@ -482,11 +482,12 @@ enum PhotoProcessor {
     static func export(
         drafts: [PhotoDraft],
         options: ProcessingOptions,
-        access: ExportAccess
+        access: ExportAccess,
+        progress: (@Sendable (Int, Int) async -> Void)? = nil
     ) async -> [PhotoDraft.ID: Result<URL, Error>] {
         let allowed = access == .free ? Array(drafts.prefix(1)) : drafts
         var results: [PhotoDraft.ID: Result<URL, Error>] = [:]
-        for draft in allowed {
+        for (index, draft) in allowed.enumerated() {
             if Task.isCancelled { break }
             do {
                 let output = try await exportOne(
@@ -505,6 +506,7 @@ enum PhotoProcessor {
             } catch {
                 results[draft.id] = .failure(error)
             }
+            await progress?(index + 1, allowed.count)
         }
         return results
     }

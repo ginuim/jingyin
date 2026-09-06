@@ -7,56 +7,32 @@ struct PaywallView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            ZStack(alignment: .top) {
-                Color.black
-                    .ignoresSafeArea()
+            ScrollView {
+                VStack(spacing: 24) {
+                    navigationBar
+                    hero
+                    benefitsCard
+                    purchaseButton
 
-                sheetBackground
-
-                ScrollView {
-                    VStack(spacing: 0) {
-                        navigationBar
-                        hero
-                            .padding(.top, 42)
-                        benefitsCard
-                            .padding(.top, 30)
-                        purchaseButton
-                            .padding(.top, 30)
-
-                        if let errorMessage = entitlements.errorMessage {
-                            errorCard(errorMessage)
-                                .padding(.top, 14)
-                        }
-
-                        restoreButton
-                            .padding(.top, 24)
-                        footnote
-                            .padding(.top, 22)
+                    if let errorMessage = entitlements.errorMessage {
+                        errorCard(errorMessage)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, max(24, proxy.safeAreaInsets.bottom + 12))
+
+                    restoreButton
+                    footnote
                 }
-                .scrollIndicators(.hidden)
+                .padding(.horizontal, 20)
+                .padding(.bottom, max(24, proxy.safeAreaInsets.bottom + 12))
             }
+            .scrollIndicators(.hidden)
         }
         .foregroundStyle(AppPalette.primaryText)
+        .background(AppPalette.background)
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
         .task {
             await entitlements.loadProduct()
         }
-    }
-
-    private var sheetBackground: some View {
-        UnevenRoundedRectangle(
-            topLeadingRadius: 22,
-            bottomLeadingRadius: 0,
-            bottomTrailingRadius: 0,
-            topTrailingRadius: 22,
-            style: .continuous
-        )
-        .fill(AppPalette.background)
-        .padding(.top, 8)
-        .ignoresSafeArea(edges: .bottom)
-        .shadow(color: .black.opacity(0.22), radius: 18, y: -4)
     }
 
     private var navigationBar: some View {
@@ -64,17 +40,16 @@ struct PaywallView: View {
             Button {
                 dismiss()
             } label: {
-                Text(localization.t("export.cancel"))
-                    .font(.system(size: 17, weight: .medium))
+                Text(localization.t("paywall.close"))
+                    .font(.subheadline.weight(.semibold))
                     .frame(minWidth: 44, minHeight: 44, alignment: .leading)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(AppPalette.accent.primary)
+            .buttonStyle(TextButtonStyle())
 
             Spacer()
 
             Text(localization.t("purchase.title"))
-                .font(.system(size: 18, weight: .semibold))
+            .font(.headline)
 
             Spacer()
 
@@ -82,7 +57,6 @@ struct PaywallView: View {
                 .frame(width: 44, height: 44)
                 .accessibilityHidden(true)
         }
-        .padding(.top, 15)
     }
 
     private var hero: some View {
@@ -103,14 +77,14 @@ struct PaywallView: View {
             .accessibilityHidden(true)
 
             Text(localization.t("paywall.title"))
-                .font(.system(size: 28, weight: .bold))
+                .font(.system(.title, design: .rounded, weight: .bold))
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .minimumScaleFactor(0.82)
                 .padding(.top, 30)
 
             Text(localization.t("paywall.subtitle"))
-                .font(.system(size: 17, weight: .regular))
+                .font(.body)
                 .foregroundStyle(AppPalette.secondaryText)
                 .multilineTextAlignment(.center)
                 .lineSpacing(5)
@@ -131,11 +105,11 @@ struct PaywallView: View {
             benefitDivider
             benefit("lock.shield", "paywall.benefit.privacy")
         }
-        .padding(.horizontal, 18)
-        .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .padding(16)
+        .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(AppPalette.divider.opacity(0.38), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(AppPalette.divider.opacity(0.5), lineWidth: 1)
         }
     }
 
@@ -157,7 +131,7 @@ struct PaywallView: View {
                 .frame(width: 32)
 
             Text(localization.t(key))
-                .font(.system(size: 15, weight: .regular))
+                .font(.subheadline)
                 .lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -185,26 +159,21 @@ struct PaywallView: View {
                     }
 
                     Text(primaryButtonTitle)
-                        .font(.system(size: 19, weight: .bold))
+                        .font(.headline)
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
                 }
 
                 if !entitlements.isUnlocked {
                     Text(localization.t("paywall.oneTime"))
-                        .font(.system(size: 13, weight: .regular))
+                        .font(.footnote)
                         .opacity(0.82)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 76)
+            .frame(maxWidth: .infinity)
             .padding(.horizontal, 16)
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(AppPalette.accent.foreground)
-        .background(
-            AppPalette.accent.primary,
-            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-        )
+        .buttonStyle(PrimaryButtonStyle())
         .disabled(isPurchaseDisabled)
         .opacity(isPurchaseDisabled ? 0.55 : 1)
     }
@@ -231,22 +200,22 @@ struct PaywallView: View {
                             : "purchase.restore"
                     ))
                 }
-                .font(.system(size: 17, weight: .medium))
+                .font(.subheadline.weight(.semibold))
                 .frame(minHeight: 44)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(TextButtonStyle())
             .disabled(entitlements.isPurchasing || entitlements.isRestoring)
         }
     }
 
     private var footnote: some View {
         Text(localization.t("paywall.footnote"))
-            .font(.system(size: 13, weight: .regular))
+            .font(.footnote)
             .foregroundStyle(AppPalette.secondaryText)
             .multilineTextAlignment(.center)
             .lineSpacing(4)
             .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, 26)
+            .padding(.horizontal, 16)
     }
 
     private func errorCard(_ message: String) -> some View {
@@ -254,9 +223,9 @@ struct PaywallView: View {
             .font(.footnote)
             .foregroundStyle(AppPalette.destructive)
             .fixedSize(horizontal: false, vertical: true)
-            .padding(14)
+            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(AppPalette.destructive.opacity(0.10), in: RoundedRectangle(cornerRadius: 14))
+            .background(AppPalette.destructive.opacity(0.10), in: RoundedRectangle(cornerRadius: 16))
     }
 
     private var primaryButtonTitle: String {

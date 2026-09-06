@@ -79,12 +79,12 @@ private struct MaskTrackLayer: View {
                         .overlay {
                             Circle().stroke(AppPalette.maskOutline, lineWidth: 2)
                         }
+                        .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
-                .contentShape(Circle().inset(by: -6))
                 .position(
-                    x: min(max(previewRect.maxX, videoBounds.minX + 14), videoBounds.maxX - 14),
-                    y: min(max(previewRect.minY, videoBounds.minY + 14), videoBounds.maxY - 14)
+                    x: min(max(previewRect.maxX, videoBounds.minX + 22), videoBounds.maxX - 22),
+                    y: min(max(previewRect.minY, videoBounds.minY + 22), videoBounds.maxY - 22)
                 )
                 .accessibilityLabel(localization.t("editor.deleteEntireMask"))
 

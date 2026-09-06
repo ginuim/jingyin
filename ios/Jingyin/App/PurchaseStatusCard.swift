@@ -39,13 +39,11 @@ struct PurchaseStatusCard: View {
 
             if !entitlements.isUnlocked {
                 Button(localization.t("purchase.unlock"), action: onUnlock)
-                    .buttonStyle(.borderedProminent)
-                    .tint(AppPalette.accent.primary)
-                    .foregroundStyle(AppPalette.accent.foreground)
+                    .buttonStyle(TextButtonStyle())
             }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppPalette.accent.softFill, in: RoundedRectangle(cornerRadius: 18))
+        .background(AppPalette.accent.softFill, in: RoundedRectangle(cornerRadius: 16))
     }
 }

@@ -51,6 +51,10 @@ struct PhotoBatchEditorView: View {
     @State private var previewTask: Task<Void, Never>?
     @State private var exportTask: Task<Void, Never>?
     @State private var activeExportID: UUID?
+    @State private var exportCompletedCount = 0
+    @State private var exportTotalCount = 0
+    @State private var pendingDeleteTrackID: MaskTrack.ID?
+    @State private var showCancelExportConfirmation = false
     @State private var asciiRecentPairs = ASCIIColorRecentStore.load()
     @State private var showASCIIColorCustom = false
     @State private var selectedTool: PhotoEditorTool? = .effect
@@ -77,6 +81,10 @@ struct PhotoBatchEditorView: View {
                     .layoutPriority(1)
 
                 toolBar
+
+                if isExporting {
+                    exportProgress
+                }
 
                 if let selectedTool {
                     parameterPanel(
@@ -106,7 +114,7 @@ struct PhotoBatchEditorView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     if isExporting {
-                        cancelPhotoExport()
+                        showCancelExportConfirmation = true
                     } else {
                         exportPhotos()
                     }
@@ -155,6 +163,11 @@ struct PhotoBatchEditorView: View {
             refreshPreview()
         }
         .onChange(of: options.scope) { _, _ in
+            // Full-frame processing does not use subject or manual mask
+            // geometry. Keep those editing affordances out of the preview so
+            // stale detected-face bounds do not remain over the image.
+            selectedTrackID = nil
+            isDrawingFreehandMask = false
             resetStickerIfUnavailable()
             invalidateOutputs(at: Array(drafts.indices))
             refreshPreview()
@@ -182,10 +195,36 @@ struct PhotoBatchEditorView: View {
         .onChange(of: options) { _, options in
             ProcessingOptionsPreferenceStore.savePhoto(options)
         }
-        .fullScreenCover(isPresented: $showPaywall) {
+        .sheet(isPresented: $showPaywall) {
             PaywallView()
                 .environmentObject(localization)
                 .environmentObject(entitlements)
+        }
+        .confirmationDialog(
+            localization.t("photo.confirmDeleteMaskTitle"),
+            isPresented: Binding(
+                get: { pendingDeleteTrackID != nil },
+                set: { if !$0 { pendingDeleteTrackID = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button(localization.t("common.cancel"), role: .cancel) { pendingDeleteTrackID = nil }
+            Button(localization.t("common.delete"), role: .destructive) {
+                if let id = pendingDeleteTrackID { deleteTrack(id) }
+                pendingDeleteTrackID = nil
+            }
+        } message: {
+            Text(localization.t("photo.confirmDeleteMaskMessage"))
+        }
+        .confirmationDialog(
+            localization.t("processing.confirmCancelTitle"),
+            isPresented: $showCancelExportConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(localization.t("common.cancel"), role: .cancel) {}
+            Button(localization.t("processing.cancel"), role: .destructive) { cancelPhotoExport() }
+        } message: {
+            Text(localization.t("processing.confirmCancelMessage"))
         }
         .navigationDestination(item: $exportResult) { result in
             PhotoExportSuccessView(result: result, onReturnHome: onReturnHome)
@@ -197,6 +236,27 @@ struct PhotoBatchEditorView: View {
 
     private var currentDraft: PhotoDraft? {
         drafts.indices.contains(currentIndex) ? drafts[currentIndex] : nil
+    }
+
+    private var exportProgress: some View {
+        let total = max(exportTotalCount, 1)
+        let fraction = Double(exportCompletedCount) / Double(total)
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label(localization.t("photo.exporting"), systemImage: "photo.stack")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text(localization.format("photo.exportProgress", Int64(exportCompletedCount), Int64(total)))
+                    .font(.caption)
+                    .monospacedDigit()
+            }
+            ProgressView(value: fraction)
+                .tint(AppPalette.accent.primary)
+        }
+        .padding(16)
+        .background(AppPalette.elevatedSurface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.horizontal, 20)
+        .accessibilityElement(children: .combine)
     }
 
     private func handleDisappear() {
@@ -320,28 +380,30 @@ struct PhotoBatchEditorView: View {
                     }
                     .allowsHitTesting(!isDrawingFreehandMask)
 
-                MaskEditorOverlay(
-                    tracks: currentTracks,
-                    selectedTrackID: $selectedTrackID,
-                    timeSeconds: 0,
-                    videoDisplaySize: currentDraft?.displaySize,
-                    onEditingBegan: {},
-                    onEditingEnded: refreshPreview,
-                    onDeleteTrack: deleteTrack,
-                    accentColor: AppPalette.accent.primary
-                )
-                .allowsHitTesting(!isDrawingFreehandMask)
+                if options.scope != .full {
+                    MaskEditorOverlay(
+                        tracks: currentTracks,
+                        selectedTrackID: $selectedTrackID,
+                        timeSeconds: 0,
+                        videoDisplaySize: currentDraft?.displaySize,
+                        onEditingBegan: {},
+                        onEditingEnded: refreshPreview,
+                        onDeleteTrack: requestDeleteTrack,
+                        accentColor: AppPalette.accent.primary
+                    )
+                    .allowsHitTesting(!isDrawingFreehandMask)
 
-                PhotoFreehandMaskOverlay(
-                    groups: currentDraft?.maskGroups ?? [],
-                    selectedTrackID: $selectedTrackID,
-                    isDrawing: $isDrawingFreehandMask,
-                    displaySize: currentDraft?.displaySize,
-                    brushWidth: brushWidth,
-                    onComplete: addManualPath,
-                    onDelete: deleteTrack,
-                    accentColor: AppPalette.accent.primary
-                )
+                    PhotoFreehandMaskOverlay(
+                        groups: currentDraft?.maskGroups ?? [],
+                        selectedTrackID: $selectedTrackID,
+                        isDrawing: $isDrawingFreehandMask,
+                        displaySize: currentDraft?.displaySize,
+                        brushWidth: brushWidth,
+                        onComplete: addManualPath,
+                        onDelete: requestDeleteTrack,
+                        accentColor: AppPalette.accent.primary
+                    )
+                }
 
                 if isDrawingFreehandMask {
                     VStack {
@@ -1057,6 +1119,10 @@ struct PhotoBatchEditorView: View {
         refreshPreview()
     }
 
+    private func requestDeleteTrack(_ id: MaskTrack.ID) {
+        pendingDeleteTrackID = id
+    }
+
     private func invalidateOutputs(at indices: [Int]) {
         for index in indices where drafts.indices.contains(index) {
             if let outputURL = drafts[index].outputURL {
@@ -1089,6 +1155,8 @@ struct PhotoBatchEditorView: View {
             }
         }
         isExporting = true
+        exportCompletedCount = 0
+        exportTotalCount = targets.count
         let access = entitlements.access
         let exportID = UUID()
         activeExportID = exportID
@@ -1096,7 +1164,14 @@ struct PhotoBatchEditorView: View {
             let results = await PhotoProcessor.export(
                 drafts: targets,
                 options: options,
-                access: access
+                access: access,
+                progress: { completed, total in
+                    await MainActor.run {
+                        guard activeExportID == exportID else { return }
+                        exportCompletedCount = completed
+                        exportTotalCount = total
+                    }
+                }
             )
             guard !Task.isCancelled, activeExportID == exportID else {
                 let staleOutputs = results.values.compactMap { result -> URL? in
@@ -1123,6 +1198,8 @@ struct PhotoBatchEditorView: View {
             activeExportID = nil
             exportTask = nil
             isExporting = false
+            exportCompletedCount = 0
+            exportTotalCount = 0
             if successCount > 0 {
                 let urls = drafts.compactMap(\.outputURL)
                 exportResult = PhotoExportResult(outputURLs: urls)
@@ -1136,6 +1213,8 @@ struct PhotoBatchEditorView: View {
         exportTask = nil
         resetExportingDrafts()
         isExporting = false
+        exportCompletedCount = 0
+        exportTotalCount = 0
     }
 
     private func resetExportingDrafts() {
