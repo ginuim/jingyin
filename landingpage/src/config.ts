@@ -1,5 +1,5 @@
-/** Empty until App Store is live. Set a full https URL to enable the CTA. */
-export const APP_STORE_URL = ''
+/** Public App Store listing for the released iOS app. */
+export const APP_STORE_URL = 'https://apps.apple.com/app/lenshide/id6795803353'
 
 export const SUPPORT_URL = 'https://reaidea.com'
 export const SITE_NAME = 'lenshide'

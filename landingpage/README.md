@@ -55,4 +55,7 @@ npx vercel --prod
 
 ## App Store 链接
 
-编辑 `src/config.ts` 中的 `APP_STORE_URL`。空字符串时 CTA 显示「即将上架」。
+当前已连接到正式 App Store 页面：
+`https://apps.apple.com/app/lenshide/id6795803353`
+
+如 App Store 链接发生变化，只需更新 `src/config.ts` 中的 `APP_STORE_URL`。
