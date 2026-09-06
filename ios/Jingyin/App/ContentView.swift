@@ -403,6 +403,13 @@ struct ContentView: View {
         item: PhotosPickerItem,
         result: Result<ImportedVideo?, Error>
     ) {
+        guard pickedItem == item else {
+            if case let .success(video?) = result {
+                try? FileManager.default.removeItem(at: video.url)
+            }
+            return
+        }
+
         importProgressTask?.cancel()
         importProgressTask = nil
         activeImportProgress = nil
@@ -410,12 +417,6 @@ struct ContentView: View {
         loadingImport = false
         defer { pickedItem = nil }
 
-        guard pickedItem == item else {
-            if case let .success(video?) = result {
-                try? FileManager.default.removeItem(at: video.url)
-            }
-            return
-        }
         guard case let .success(video?) = result else {
             importErrorKey = "error.invalidVideo"
             return
@@ -447,6 +448,9 @@ struct ContentView: View {
 
             for (index, item) in items.enumerated() {
                 if Task.isCancelled { return }
+                defer {
+                    importFraction = Double(index + 1) / Double(items.count)
+                }
                 do {
                     guard let data = try await item.loadTransferable(type: Data.self) else {
                         failedCount += 1
@@ -464,7 +468,6 @@ struct ContentView: View {
                     failedCount += 1
                     continue
                 }
-                importFraction = Double(index + 1) / Double(items.count)
             }
 
             guard !Task.isCancelled else { return }

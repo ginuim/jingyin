@@ -223,6 +223,11 @@ struct RenderedPhoto: @unchecked Sendable {
 }
 
 enum PhotoProcessor {
+    /// Photo effect controls are calibrated against the editor preview. Keep
+    /// pixel-based effects visually consistent when the full-resolution export
+    /// is larger than that preview.
+    private static let previewMaximumEdge: CGFloat = 1_600
+
     enum ProcessingError: Error {
         case invalidImage
         case renderFailed
@@ -395,6 +400,36 @@ enum PhotoProcessor {
                 extent: extent
             ) != nil
         )
+
+        var pixelOptions = ProcessingOptions()
+        pixelOptions.style = .pixel
+        pixelOptions.strength = 24
+        let exportPixelOptions = optionsForPhotoRender(
+            pixelOptions,
+            maskGroups: [],
+            extent: CGRect(x: 0, y: 0, width: 4_000, height: 3_000)
+        )
+        precondition(abs(exportPixelOptions.strength - 60) < 0.001)
+
+        var blurOptions = pixelOptions
+        blurOptions.style = .blur
+        blurOptions.strength = 32
+        let exportBlurOptions = optionsForPhotoRender(
+            blurOptions,
+            maskGroups: [],
+            extent: CGRect(x: 0, y: 0, width: 4_000, height: 3_000)
+        )
+        precondition(abs(exportBlurOptions.strength - 80) < 0.001)
+
+        var stickerOptions = pixelOptions
+        stickerOptions.style = .sticker
+        stickerOptions.strength = 72
+        let exportStickerOptions = optionsForPhotoRender(
+            stickerOptions,
+            maskGroups: [],
+            extent: CGRect(x: 0, y: 0, width: 4_000, height: 3_000)
+        )
+        precondition(exportStickerOptions.strength == 72)
     }
     #endif
 
@@ -571,7 +606,11 @@ enum PhotoProcessor {
         maskGroups: [PhotoMaskGroup],
         maskPlanes: [PhotoMaskPlane]
     ) -> CIImage {
-        let photoOptions = optionsForPhoto(options, maskGroups: maskGroups)
+        let photoOptions = optionsForPhotoRender(
+            options,
+            maskGroups: maskGroups,
+            extent: source.extent
+        )
         let edgeMask = combinedEdgeMask(
             groups: maskGroups,
             planes: maskPlanes,
@@ -581,6 +620,31 @@ enum PhotoProcessor {
             source,
             externalMask: edgeMask
         )
+    }
+
+    private static func optionsForPhotoRender(
+        _ options: ProcessingOptions,
+        maskGroups: [PhotoMaskGroup],
+        extent: CGRect
+    ) -> ProcessingOptions {
+        var result = optionsForPhoto(options, maskGroups: maskGroups)
+        let longestEdge = max(extent.width, extent.height)
+        guard longestEdge.isFinite, longestEdge > previewMaximumEdge else {
+            return result
+        }
+
+        let resolutionScale = Double(longestEdge / previewMaximumEdge)
+        switch result.style {
+        case .blur:
+            result.strength *= resolutionScale
+        case .pixel, .ascii:
+            // Both filters have an effective minimum cell size of 8 px.
+            result.strength = max(8, result.strength) * resolutionScale
+        case .sticker:
+            // Stickers already scale from normalized face/mask geometry.
+            break
+        }
+        return result
     }
 
     private static func orientedImage(at url: URL) -> CIImage? {
@@ -601,9 +665,10 @@ enum PhotoProcessor {
     private static func makePreview(
         from source: CIImage
     ) throws -> (image: UIImage, ciImage: CIImage) {
-        let maximumEdge: CGFloat = 1600
         let longest = max(source.extent.width, source.extent.height)
-        let scale = longest > maximumEdge ? maximumEdge / longest : 1
+        let scale = longest > previewMaximumEdge
+            ? previewMaximumEdge / longest
+            : 1
         let preview = source
             .transformed(by: CGAffineTransform(scaleX: scale, y: scale))
         let context = CIContext(options: [.cacheIntermediates: false])

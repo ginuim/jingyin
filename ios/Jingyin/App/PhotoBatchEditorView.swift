@@ -50,6 +50,7 @@ struct PhotoBatchEditorView: View {
     @State private var analysisTask: Task<Void, Never>?
     @State private var previewTask: Task<Void, Never>?
     @State private var exportTask: Task<Void, Never>?
+    @State private var activeExportID: UUID?
     @State private var asciiRecentPairs = ASCIIColorRecentStore.load()
     @State private var showASCIIColorCustom = false
     @State private var selectedTool: PhotoEditorTool? = .effect
@@ -1089,15 +1090,20 @@ struct PhotoBatchEditorView: View {
         }
         isExporting = true
         let access = entitlements.access
+        let exportID = UUID()
+        activeExportID = exportID
         exportTask = Task {
             let results = await PhotoProcessor.export(
                 drafts: targets,
                 options: options,
                 access: access
             )
-            guard !Task.isCancelled else {
-                resetExportingDrafts()
-                isExporting = false
+            guard !Task.isCancelled, activeExportID == exportID else {
+                let staleOutputs = results.values.compactMap { result -> URL? in
+                    guard case let .success(url) = result else { return nil }
+                    return url
+                }
+                PhotoProcessor.removeOutputs(at: staleOutputs)
                 return
             }
             var successCount = 0
@@ -1114,6 +1120,8 @@ struct PhotoBatchEditorView: View {
                     drafts[index].status = .failed
                 }
             }
+            activeExportID = nil
+            exportTask = nil
             isExporting = false
             if successCount > 0 {
                 let urls = drafts.compactMap(\.outputURL)
@@ -1123,6 +1131,7 @@ struct PhotoBatchEditorView: View {
     }
 
     private func cancelPhotoExport() {
+        activeExportID = nil
         exportTask?.cancel()
         exportTask = nil
         resetExportingDrafts()

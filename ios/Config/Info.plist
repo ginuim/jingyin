@@ -11,11 +11,13 @@
     <key>CFBundleDisplayName</key>
     <string>镜隐</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>$(MARKETING_VERSION)</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>$(CURRENT_PROJECT_VERSION)</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
     <key>NSPhotoLibraryAddUsageDescription</key>
     <string>用于将本地处理完成的视频和照片保存到你的相册。</string>
     <key>NSPhotoLibraryUsageDescription</key>

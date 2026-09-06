@@ -81,11 +81,13 @@
 
 ## P1：商店发布
 
-- [ ] 隐私政策与 App Privacy 填写（公开页面已实现：`https://lenshide.reaidea.com/privacy`；待部署确认并填写 App Store Connect）
-- [ ] 简中、繁中、英文、日文商店文案（[四语草稿已完成](./app-store-listing.md)，待填写 App Store Connect）
-- [ ] 免费版与永久版截图
+- [x] 隐私政策与 App Privacy 填写（2026-09-03：针对 Guideline 2.1，在简中、繁中、英文、日文政策中新增独立人脸数据章节，明确类型、用途、共享、存储、保留与删除；App Privacy 继续按开发者不收集数据填写）
+- [x] 简中、繁中、英文、日文商店文案（2026-08-25：已填写 App Store Connect；文案见 [四语草稿](./app-store-listing.md)）
+- [x] 免费版与永久版截图（2026-08-25：四语 iPhone 6.9 英寸截屏及永久版 IAP 审核截图已上传；前三张展示顺序已按当前素材调整）
 - [x] TestFlight 内测（2026-08-04：上传 `0.1.0 (1)`，标记为 Internal Testing Only；创建「内部测试」群组并加入 1 位内部测试员，群组自动访问全部构建）
-- [ ] App Review Notes 说明完全本地处理和 IAP 测试路径（[英文草稿已完成](./app-store-listing.md#app-review-notes英文可直接粘贴)，待随构建填写）
+- [x] App Review Notes 说明完全本地处理和 IAP 测试路径（2026-08-25：已随构建 1.0 (3) 填写并提交；[英文草稿](./app-store-listing.md#app-review-notes英文可直接粘贴)）
+- [x] 部署更新后的四语隐私政策（2026-09-03：四个线上路径均已核对第 2 节和更新日期）
+- [x] 回复 2026-09-02 Guideline 2.1 人脸数据问题并重新提交（2026-09-03 09:15 发送英文回复，09:17 使用原构建 `1.0 (3)` 更新审核；App 与 IAP 均已回到「等待审核」。回复稿见 [App Store Connect 记录](./app-store-connect.md#2026-09-02-guideline-21人脸数据说明)）
 
 ## 给负责 App Store Connect 的 LLM：具体操作
 
@@ -119,7 +121,7 @@ Apple 要求签署 Paid Apps Agreement 后才能提供 IAP；收款还需要税�
 | Display Name（简中） | `永久版` |
 | Description（简中） | `一次购买，永久解锁完整视频与照片批量处理` |
 | Display Name（英文） | `Lifetime Access` |
-| Description（英文） | `One-time unlock for full video and batch photo privacy exports` |
+| Description（英文） | `Unlock full video and batch photo exports` |
 | Display Name（日文） | `永久版` |
 | Display Name（繁中） | `永久版` |
 

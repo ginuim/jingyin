@@ -32,20 +32,24 @@ struct PhotoExportSuccessView: View {
 
     var body: some View {
         ZStack {
-            AppPalette.background
+            LinearGradient(
+                colors: [AppPalette.surface, AppPalette.background],
+                startPoint: .top,
+                endPoint: .bottom
+            )
                 .ignoresSafeArea()
 
             ScrollView {
-                VStack(spacing: 22) {
-                    successHeader
+                VStack(spacing: 24) {
                     StackedExportPreview(urls: result.outputURLs)
-                        .frame(height: 220)
-                        .padding(.horizontal, 28)
+                        .frame(height: 310)
+                        .padding(.horizontal, 20)
+                    successSummary
                     primaryActions
                     secondaryActions
                 }
-                .padding(.top, 12)
-                .padding(.bottom, 28)
+                .padding(.top, 18)
+                .padding(.bottom, 36)
             }
 
             if playConfetti {
@@ -79,7 +83,7 @@ struct PhotoExportSuccessView: View {
         }
         .foregroundStyle(AppPalette.primaryText)
         .animation(.spring(response: 0.35, dampingFraction: 0.86), value: showSaveToast)
-        .navigationTitle(localization.t("photo.exportSuccess"))
+        .navigationTitle(localization.t("photo.processingComplete"))
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showShare) {
             ShareSheet(items: result.outputURLs)
@@ -110,45 +114,47 @@ struct PhotoExportSuccessView: View {
         }
     }
 
-    private var successHeader: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "checkmark")
-                .font(.system(size: 34, weight: .bold))
-                .foregroundStyle(AppPalette.success)
-                .frame(width: 72, height: 72)
-                .background(
-                    AppPalette.elevatedSurface,
-                    in: RoundedRectangle(cornerRadius: 20)
-                )
-
-            Text(localization.t("photo.exportSuccess"))
-                .font(.title.bold())
+    private var successSummary: some View {
+        VStack(spacing: 9) {
+            Text(processedCountText)
+                .font(.system(.title, design: .rounded, weight: .bold))
                 .multilineTextAlignment(.center)
 
-            Text(localization.format("photo.exportSuccessDetail", Int64(result.successCount)))
+            Text(localization.t("photo.metadataCleared"))
                 .font(.subheadline)
                 .foregroundStyle(AppPalette.secondaryText)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 28)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .padding(.horizontal, 28)
     }
 
     private var primaryActions: some View {
-        HStack(spacing: 12) {
+        VStack(spacing: 14) {
             Button {
                 saveOutputs()
             } label: {
-                Text(
-                    saved
-                        ? localization.t("processing.saved")
-                        : localization.t("photo.save")
-                )
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 13)
+                ZStack {
+                    Text(
+                        saved
+                            ? localization.t("processing.saved")
+                            : localization.t("photo.save")
+                    )
+                    .opacity(isSaving ? 0 : 1)
+
+                    if isSaving {
+                        ProgressView()
+                            .tint(AppPalette.accent.foreground)
+                    }
+                }
+                .font(.headline)
+                .frame(maxWidth: .infinity, minHeight: 56)
             }
             .buttonStyle(.plain)
-            .background(AppPalette.accent.primary, in: Capsule())
+            .background(
+                AppPalette.accent.primary,
+                in: RoundedRectangle(cornerRadius: 20)
+            )
             .foregroundStyle(AppPalette.accent.foreground)
             .disabled(saved || isSaving || result.outputURLs.isEmpty)
 
@@ -156,14 +162,14 @@ struct PhotoExportSuccessView: View {
                 showShare = true
             } label: {
                 Text(localization.t("processing.share"))
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, minHeight: 56)
             }
             .buttonStyle(.plain)
             .foregroundStyle(AppPalette.primaryText)
             .overlay {
-                Capsule().stroke(AppPalette.primaryText, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(AppPalette.primaryText, lineWidth: 1.25)
             }
             .disabled(result.outputURLs.isEmpty)
         }
@@ -171,11 +177,11 @@ struct PhotoExportSuccessView: View {
     }
 
     private var secondaryActions: some View {
-        VStack(spacing: 12) {
-            outlinedButton(localization.t("photo.continueReview")) {
+        VStack(spacing: 4) {
+            textButton(localization.t("photo.continueReview")) {
                 dismiss()
             }
-            outlinedButton(localization.t("photo.returnHome")) {
+            textButton(localization.t("photo.returnHome")) {
                 onReturnHome()
             }
             if !entitlements.isUnlocked {
@@ -186,6 +192,25 @@ struct PhotoExportSuccessView: View {
         }
         .padding(.horizontal, 28)
         .padding(.top, 4)
+    }
+
+    private var processedCountText: String {
+        if result.successCount == 1 {
+            localization.t("photo.processedSingle")
+        } else {
+            localization.format("photo.processedCount", Int64(result.successCount))
+        }
+    }
+
+    private func textButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(AppPalette.secondaryText)
     }
 
     private func outlinedButton(_ title: String, action: @escaping () -> Void) -> some View {
@@ -240,44 +265,126 @@ private struct StackedExportPreview: View {
 
     var body: some View {
         GeometryReader { geo in
-            let cardSize = min(geo.size.width * 0.72, geo.size.height * 0.92)
+            let cardWidth = min(geo.size.width * 0.62, 230)
+            let cardHeight = min(geo.size.height * 0.78, cardWidth * 1.18)
             ZStack {
-                RoundedRectangle(cornerRadius: 22)
-                    .fill(AppPalette.elevatedSurface)
-
-                ForEach(Array(previewURLs.enumerated().reversed()), id: \.offset) { index, url in
-                    let depth = previewURLs.count - 1 - index
-                    card(for: url, side: cardSize * 0.78)
-                        .rotationEffect(.degrees(depth == 0 ? 0 : (depth % 2 == 0 ? -7 : 7)))
-                        .offset(
-                            x: depth == 0 ? 0 : (depth % 2 == 0 ? -14 : 14),
-                            y: CGFloat(depth) * -6
-                        )
-                        .opacity(depth == 0 ? 1 : 0.72)
-                        .zIndex(Double(index))
+                ForEach(Array(previewURLs.enumerated()), id: \.offset) { index, url in
+                    let placement = placement(for: index, count: previewURLs.count)
+                    ExportPreviewCard(
+                        url: url,
+                        width: cardWidth,
+                        height: cardHeight
+                    )
+                    .rotationEffect(.degrees(placement.rotation))
+                    .offset(x: placement.x, y: placement.y)
+                    .zIndex(placement.zIndex)
                 }
+
+                if urls.count > previewURLs.count {
+                    Text("+\(urls.count - previewURLs.count)")
+                        .font(.subheadline.bold())
+                        .monospacedDigit()
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .foregroundStyle(AppPalette.primaryText)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .overlay {
+                            Capsule().stroke(AppPalette.divider, lineWidth: 1)
+                        }
+                        .offset(x: cardWidth * 0.52, y: -cardHeight * 0.43)
+                        .zIndex(5)
+                        .accessibilityLabel(
+                            localization.format(
+                                "photo.morePhotos",
+                                Int64(urls.count - previewURLs.count)
+                            )
+                        )
+                }
+
+                successSeal
+                    .offset(x: cardWidth * 0.49, y: cardHeight * 0.44)
+                    .zIndex(6)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .accessibilityElement(children: .contain)
     }
 
-    @ViewBuilder
-    private func card(for url: URL, side: CGFloat) -> some View {
-        if let image = UIImage(contentsOfFile: url.path) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: side, height: side)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .shadow(color: .black.opacity(0.35), radius: 10, y: 6)
-        } else {
-            RoundedRectangle(cornerRadius: 16)
-                .fill(AppPalette.elevatedSurface)
-                .frame(width: side, height: side)
-                .overlay {
-                    Image(systemName: "photo")
-                        .foregroundStyle(AppPalette.secondaryText)
-                }
+    @EnvironmentObject private var localization: LocalizationManager
+
+    private var successSeal: some View {
+        ZStack {
+            Circle()
+                .fill(AppPalette.success)
+            Circle()
+                .stroke(.white.opacity(0.88), lineWidth: 2)
+                .padding(6)
+            Image(systemName: "checkmark")
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(.white)
+        }
+        .frame(width: 50, height: 50)
+        .shadow(color: .black.opacity(0.2), radius: 6, y: 3)
+        .accessibilityHidden(true)
+    }
+
+    private func placement(for index: Int, count: Int) -> CardPlacement {
+        switch count {
+        case 1:
+            CardPlacement(x: 0, y: 0, rotation: 0, zIndex: 1)
+        case 2:
+            index == 0
+                ? CardPlacement(x: -38, y: -14, rotation: -7, zIndex: 0)
+                : CardPlacement(x: 38, y: 18, rotation: 7, zIndex: 1)
+        default:
+            switch index {
+            case 0:
+                CardPlacement(x: -46, y: -28, rotation: -7, zIndex: 1)
+            case 1:
+                CardPlacement(x: 48, y: -6, rotation: 8, zIndex: 0)
+            default:
+                CardPlacement(x: -6, y: 38, rotation: -4, zIndex: 2)
+            }
+        }
+    }
+
+    private struct CardPlacement {
+        let x: CGFloat
+        let y: CGFloat
+        let rotation: Double
+        let zIndex: Double
+    }
+}
+
+private struct ExportPreviewCard: View {
+    let url: URL
+    let width: CGFloat
+    let height: CGFloat
+
+    @State private var thumbnail: UIImage?
+
+    var body: some View {
+        Group {
+            if let thumbnail {
+                Image(uiImage: thumbnail)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                AppPalette.elevatedSurface
+                    .overlay {
+                        ProgressView()
+                            .tint(AppPalette.secondaryText)
+                    }
+            }
+        }
+        .frame(width: width, height: height)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: .black.opacity(0.26), radius: 8, y: 4)
+        .task(id: url) {
+            guard let source = UIImage(contentsOfFile: url.path) else { return }
+            thumbnail = await source.byPreparingThumbnail(
+                ofSize: CGSize(width: 900, height: 1_080)
+            ) ?? source
         }
     }
 }
@@ -357,7 +464,7 @@ private struct ConfettiBurstView: View {
                         ? 1.0
                         : max(0, 1 - (local - fadeStart) / 0.55)
 
-                    var transform = CGAffineTransform.identity
+                    let transform = CGAffineTransform.identity
                         .translatedBy(x: x, y: y)
                         .rotated(by: Angle.degrees(piece.spin * local).radians)
                         .scaledBy(x: pop, y: pop)
