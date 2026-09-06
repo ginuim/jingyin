@@ -749,7 +749,8 @@ final class FrameEffectProcessor: @unchecked Sendable {
             ? compositionTime.seconds
             : 0
         if options.style == .sticker {
-            guard options.supportsFaceSticker
+            guard options.scope == .subjects,
+                  options.supportsFaceSticker
                     || !options.stickerFaceRects.isEmpty
                     || externalMask != nil else {
                 return source
@@ -1755,8 +1756,36 @@ extension FrameEffectProcessor {
             width: 0.5,
             height: 0.5
         )]
+        precondition(options.supportsFaceSticker)
+
+        var backgroundOptions = options
+        backgroundOptions.scope = .background
+        precondition(!backgroundOptions.supportsFaceSticker)
+
+        var mixedSubjectOptions = options
+        mixedSubjectOptions.subjects.insert(.pet)
+        precondition(!mixedSubjectOptions.supportsFaceSticker)
+
         let extent = CGRect(x: 0, y: 0, width: 128, height: 128)
         let source = CIImage(color: .red).cropped(to: extent)
+        let invalidRendered = FrameEffectProcessor(options: backgroundOptions).render(source)
+        var invalidPixels = [UInt8](repeating: 0, count: 128 * 128 * 4)
+        CIContext(options: [.cacheIntermediates: false]).render(
+            invalidRendered,
+            toBitmap: &invalidPixels,
+            rowBytes: 128 * 4,
+            bounds: extent,
+            format: .RGBA8,
+            colorSpace: CGColorSpace(name: CGColorSpace.sRGB)
+        )
+        let invalidCenter = (64 * 128 + 64) * 4
+        precondition(
+            invalidPixels[invalidCenter] > 240
+                && invalidPixels[invalidCenter + 1] < 10
+                && invalidPixels[invalidCenter + 2] < 10
+                && invalidPixels[invalidCenter + 3] == 255
+        )
+
         let rendered = FrameEffectProcessor(options: options).render(source)
         var pixels = [UInt8](repeating: 0, count: 128 * 128 * 4)
         CIContext(options: [.cacheIntermediates: false]).render(

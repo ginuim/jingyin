@@ -508,11 +508,11 @@ struct EditorView: View {
                     }
                 }
                 Slider(value: $options.strength, in: strengthRange) {
-                    Text(localization.t("editor.strength"))
+                    Text(localization.t(options.style == .sticker ? "editor.size" : "editor.strength"))
                 } minimumValueLabel: {
-                    Text(localization.t("editor.weak"))
+                    Text(localization.t(options.style == .sticker ? "editor.small" : "editor.weak"))
                 } maximumValueLabel: {
-                    Text(localization.t("editor.strong"))
+                    Text(localization.t(options.style == .sticker ? "editor.large" : "editor.strong"))
                 }
                 Text(strengthDescription)
                     .font(.caption)

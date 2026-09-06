@@ -290,7 +290,7 @@ struct PhotoBatchEditorView: View {
             color = AppPalette.accent.outline
         case .completed:
             symbol = "checkmark.seal.fill"
-            color = AppPalette.success
+            color = AppPalette.accent.primary
         case .failed:
             symbol = "exclamationmark.triangle.fill"
             color = AppPalette.destructive

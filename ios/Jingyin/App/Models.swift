@@ -483,10 +483,9 @@ struct ProcessingOptions: Equatable {
     var exportFrameRate = 30
 
     var supportsFaceSticker: Bool {
-        // Stickers are a face-subject effect. The mask scope controls where
-        // the privacy effect is applied, but should not hide the Emoji tool
-        // once the user has explicitly selected faces.
-        subjects == [.face]
+        // A sticker replaces the face itself; it cannot represent an effect
+        // applied to the background or the full frame.
+        scope == .subjects && subjects == [.face]
     }
 
     mutating func toggleSubject(_ subject: SubjectKind) {
