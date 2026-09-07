@@ -11,6 +11,7 @@ final class VideoProcessor: ObservableObject {
         didSet { updateEstimatedRemainingTime() }
     }
     @Published private(set) var outputURL: URL?
+    @Published private(set) var previewImage: UIImage?
     @Published private(set) var advisory: String?
     @Published private(set) var estimatedRemainingSeconds: TimeInterval?
     private var exportSession: AVAssetExportSession?
@@ -40,6 +41,7 @@ final class VideoProcessor: ObservableObject {
             try? FileManager.default.removeItem(at: outputURL)
         }
         outputURL = nil
+        previewImage = nil
         advisory = nil
         clearRemainingTimeEstimate()
         progress = 0
@@ -106,15 +108,20 @@ final class VideoProcessor: ObservableObject {
 
             stage = .analyzing
             progress = 0.08
+            let previewSampler = ProcessingPreviewSampler { [weak self] image in
+                Task { @MainActor [weak self] in
+                    guard self?.isRunning == true else { return }
+                    self?.previewImage = UIImage(cgImage: image)
+                }
+            }
             let composition = AVMutableVideoComposition(asset: asset) { request in
-                request.finish(
-                    with: processor.render(
-                        request.sourceImage,
-                        at: request.compositionTime,
-                        renderSize: request.renderSize
-                    ),
-                    context: nil
+                let renderedImage = processor.render(
+                    request.sourceImage,
+                    at: request.compositionTime,
+                    renderSize: request.renderSize
                 )
+                previewSampler.capture(renderedImage)
+                request.finish(with: renderedImage, context: nil)
             }
             Self.configure(
                 composition,
@@ -188,6 +195,7 @@ final class VideoProcessor: ObservableObject {
             try? FileManager.default.removeItem(at: outputURL)
         }
         outputURL = nil
+        previewImage = nil
     }
 
     func saveToPhotos() async -> Bool {
@@ -626,6 +634,54 @@ final class VideoProcessor: ObservableObject {
             seconds: maximumDurationSeconds,
             preferredTimescale: max(sourceDuration.timescale, 600)
         )
+    }
+}
+
+/// Produces an occasional screen-sized snapshot from the exact Core Image
+/// output being encoded. Keeping this synchronous guarantees that AVFoundation's
+/// source pixel buffer is still valid, while the strict throttle and 480 px cap
+/// keep the extra render pass small compared with full-resolution export.
+private final class ProcessingPreviewSampler: @unchecked Sendable {
+    private let context = CIContext(options: [.cacheIntermediates: false])
+    private let lock = NSLock()
+    private let onImage: @Sendable (CGImage) -> Void
+    private var lastCaptureTime: TimeInterval = -.infinity
+
+    private static let minimumInterval: TimeInterval = 1
+    private static let maximumDimension: CGFloat = 480
+
+    init(onImage: @escaping @Sendable (CGImage) -> Void) {
+        self.onImage = onImage
+    }
+
+    func capture(_ image: CIImage) {
+        let thermalState = ProcessInfo.processInfo.thermalState
+        guard thermalState != .serious, thermalState != .critical else { return }
+
+        let now = ProcessInfo.processInfo.systemUptime
+        lock.lock()
+        guard now - lastCaptureTime >= Self.minimumInterval else {
+            lock.unlock()
+            return
+        }
+        lastCaptureTime = now
+        lock.unlock()
+
+        let sourceExtent = image.extent.integral
+        guard !sourceExtent.isInfinite,
+              !sourceExtent.isEmpty,
+              sourceExtent.width.isFinite,
+              sourceExtent.height.isFinite else { return }
+
+        let longestEdge = max(sourceExtent.width, sourceExtent.height)
+        let scale = min(1, Self.maximumDimension / longestEdge)
+        let preview = image.transformed(
+            by: CGAffineTransform(scaleX: scale, y: scale)
+        )
+        guard let cgImage = context.createCGImage(preview, from: preview.extent.integral) else {
+            return
+        }
+        onImage(cgImage)
     }
 }
 

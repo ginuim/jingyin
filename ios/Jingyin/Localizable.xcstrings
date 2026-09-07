@@ -2775,25 +2775,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Export"
+            "value" : "Start Processing"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "書き出す"
+            "value" : "処理を開始"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "开始导出"
+            "value" : "开始处理"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "開始匯出"
+            "value" : "開始處理"
           }
         }
       }
@@ -2803,25 +2803,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Export 30s Free"
+            "value" : "Process 30s Free"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "30秒を無料で書き出す"
+            "value" : "30秒を無料で処理"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "免费导出 30 秒"
+            "value" : "免费处理 30 秒"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "免費匯出 30 秒"
+            "value" : "免費處理 30 秒"
           }
         }
       }
@@ -2831,25 +2831,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Export Settings"
+            "value" : "Processing Settings"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "書き出し設定"
+            "value" : "処理設定"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "导出设置"
+            "value" : "处理设置"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "匯出設定"
+            "value" : "處理設定"
           }
         }
       }
@@ -6229,25 +6229,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Encoding"
+            "value" : "Processing"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "書き出し中"
+            "value" : "処理中"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正在编码导出"
+            "value" : "正在处理"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正在編碼匯出"
+            "value" : "正在處理"
           }
         }
       }

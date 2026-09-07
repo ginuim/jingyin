@@ -391,7 +391,7 @@ private struct ExportPreviewCard: View {
 
 /// One-shot confetti burst. Starts after onAppear so the page can settle first,
 /// then explodes from the success icon area instead of already falling.
-private struct ConfettiBurstView: View {
+struct ConfettiBurstView: View {
     var onFinished: () -> Void = {}
 
     private struct Piece {

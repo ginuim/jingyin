@@ -15,16 +15,27 @@ struct ProcessingView: View {
     @State private var saveErrorMessage: String?
     @State private var processingTask: Task<Void, Never>?
     @State private var showCancelConfirmation = false
+    @State private var playConfetti = false
     /// Must outlive body redraws. Creating AVPlayer inside `body` tears the
     /// previous player down on every state change (e.g. tapping Save) and crashes.
     @State private var previewPlayer: AVPlayer?
 
     var body: some View {
-        Group {
-            if let previewPlayer {
-                resultContent(player: previewPlayer)
-            } else {
-                processingContent
+        ZStack {
+            Group {
+                if let previewPlayer {
+                    resultContent(player: previewPlayer)
+                } else {
+                    processingContent
+                }
+            }
+
+            if playConfetti {
+                ConfettiBurstView {
+                    playConfetti = false
+                }
+                .allowsHitTesting(false)
+                .ignoresSafeArea()
             }
         }
         .foregroundStyle(AppPalette.primaryText)
@@ -43,6 +54,7 @@ struct ProcessingView: View {
         .onChange(of: processor.outputURL) { _, url in
             previewPlayer?.pause()
             previewPlayer = url.map { AVPlayer(url: $0) }
+            playConfetti = url != nil
             saved = false
             isSaving = false
         }
@@ -87,9 +99,11 @@ struct ProcessingView: View {
     }
 
     private var processingContent: some View {
-        VStack(spacing: 28) {
-            Spacer()
-            stageIcon
+        VStack(spacing: 22) {
+            Spacer(minLength: 18)
+
+            processingPreview
+
             VStack(spacing: 10) {
                 Text(processor.stage.title(bundle: localization.bundle))
                     .font(.title2.bold())
@@ -98,8 +112,8 @@ struct ProcessingView: View {
                 Text("\(Int(processor.progress * 100))%")
                     .font(.system(size: 42, weight: .bold, design: .rounded))
                     .monospacedDigit()
-                ProgressView(value: processor.progress)
-                    .tint(AppPalette.accent.primary)
+                    .contentTransition(.numericText(value: processor.progress))
+                    .animation(.easeInOut(duration: 0.2), value: processor.progress)
                 if processor.isRunning {
                     Text(remainingTimeText)
                         .font(.footnote)
@@ -127,7 +141,7 @@ struct ProcessingView: View {
                     .buttonStyle(PrimaryButtonStyle())
             }
 
-            Spacer()
+            Spacer(minLength: 18)
         }
         .padding()
         .safeAreaInset(edge: .bottom) {
@@ -139,6 +153,43 @@ struct ProcessingView: View {
                 .padding(.bottom, 8)
             }
         }
+    }
+
+    private var processingPreview: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(AppPalette.mediaCanvas)
+
+            if let image = processor.previewImage {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .transition(.opacity)
+                    .animation(.easeInOut(duration: 0.2), value: processor.previewImage)
+            } else {
+                ProgressView()
+                    .controlSize(.large)
+                    .tint(AppPalette.accent.primary)
+            }
+
+            VStack {
+                Spacer()
+                ProgressView(value: processor.progress)
+                    .tint(AppPalette.accent.primary)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 12)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 270)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(AppPalette.divider.opacity(0.65), lineWidth: 1)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(processor.stage.title(bundle: localization.bundle))
+        .accessibilityValue("\(Int(processor.progress * 100))%")
     }
 
     private func resultContent(player: AVPlayer) -> some View {
@@ -262,22 +313,6 @@ struct ProcessingView: View {
             }
             isSaving = false
         }
-    }
-
-    private var stageIcon: some View {
-        let appearance: (symbol: String, color: Color) = switch processor.stage {
-        case .completed:
-            ("checkmark.circle.fill", AppPalette.accent.primary)
-        case .failed:
-            ("xmark.octagon.fill", AppPalette.destructive)
-        default:
-            ("gearshape.2.fill", AppPalette.accent.primary)
-        }
-
-        return Image(systemName: appearance.symbol)
-            .font(.system(size: 56))
-            .foregroundStyle(appearance.color)
-            .symbolEffect(.pulse, options: .repeating, isActive: processor.isRunning)
     }
 
     private var remainingTimeText: String {
