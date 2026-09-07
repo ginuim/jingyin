@@ -224,47 +224,47 @@ struct ContentView: View {
         .disabled(loadingImport)
     }
 
+    @ViewBuilder
     private var entitlementStatus: some View {
-        Button {
-            if entitlements.isUnlocked {
-                showSettings = true
-            } else {
+        if entitlements.isUnlocked {
+            Label(
+                localization.t("purchase.unlocked"),
+                systemImage: "checkmark.seal.fill"
+            )
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(AppPalette.success)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(AppPalette.success.opacity(0.12), in: Capsule())
+            .accessibilityElement(children: .combine)
+        } else {
+            Button {
                 showPaywall = true
-            }
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: entitlements.isUnlocked ? "checkmark.circle.fill" : "gift.fill")
-                    .foregroundStyle(
-                        entitlements.isUnlocked ? AppPalette.success : AppPalette.accent.primary
-                    )
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "gift.fill")
+                        .foregroundStyle(AppPalette.accent.primary)
 
-                Text(localization.t(
-                    entitlements.isUnlocked
-                        ? "purchase.unlocked"
-                        : "purchase.freePlan"
-                ))
-                .font(.subheadline.weight(.semibold))
+                    Text(localization.t("purchase.freePlan"))
+                        .font(.subheadline.weight(.semibold))
 
-                Spacer(minLength: 8)
+                    Spacer(minLength: 8)
 
-                if !entitlements.isUnlocked {
                     Text(localization.t("purchase.unlock"))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(AppPalette.accent.primary)
-                }
 
-                Image(systemName: "chevron.right")
-                    .foregroundStyle(AppPalette.secondaryText)
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(AppPalette.secondaryText)
+                }
+                .padding(.horizontal, 16)
             }
-            .padding(.horizontal, 16)
+            .buttonStyle(SecondaryButtonStyle())
+            .padding(.horizontal, 20)
+            .accessibilityLabel(
+                "\(localization.t("purchase.freePlan")), \(localization.t("purchase.unlock"))"
+            )
         }
-        .buttonStyle(SecondaryButtonStyle())
-        .padding(.horizontal, 20)
-        .accessibilityLabel(
-            entitlements.isUnlocked
-                ? localization.t("purchase.unlocked")
-                : "\(localization.t("purchase.freePlan")), \(localization.t("purchase.unlock"))"
-        )
     }
 
     private var importProgressOverlay: some View {

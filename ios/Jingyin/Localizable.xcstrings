@@ -11,6 +11,16 @@
         }
       }
     },
+    "%@, %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
     "%lld" : {
 
     },
@@ -649,106 +659,30 @@
     },
     "common.delete" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "削除" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除" } }
-      }
-    },
-    "editor.confirmDeleteMaskMessage" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "This removes the entire mask track and its position records." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "マスク全体と位置記録が削除されます。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这会删除整条蒙版及其位置记录。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這會刪除整條蒙版及其位置記錄。" } }
-      }
-    },
-    "editor.confirmDeleteMaskTitle" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete Mask?" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "マスクを削除しますか？" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除蒙版？" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除蒙版？" } }
-      }
-    },
-    "editor.confirmDeletePositionMessage" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "The position recorded at the current time will be removed." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在時刻の位置記録が削除されます。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将删除当前时间的位置记录。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "將刪除目前時間的位置記錄。" } }
-      }
-    },
-    "editor.confirmDeletePositionTitle" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete Position Record?" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "位置記録を削除しますか？" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除位置记录？" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除位置記錄？" } }
-      }
-    },
-    "paywall.close" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Close" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "閉じる" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "關閉" } }
-      }
-    },
-    "photo.confirmDeleteMaskMessage" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "This removes this manual mask from the photo." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "この写真から手動マスクが削除されます。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这会从照片中删除此手动蒙版。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這會從照片中刪除此手動蒙版。" } }
-      }
-    },
-    "photo.confirmDeleteMaskTitle" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete Mask?" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "マスクを削除しますか？" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除蒙版？" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除蒙版？" } }
-      }
-    },
-    "photo.exporting" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Exporting photos" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真を書き出し中" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在导出照片" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "正在匯出照片" } }
-      }
-    },
-    "photo.exportProgress" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld/%lld" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld/%lld" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%lld/%lld" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%lld/%lld" } }
-      }
-    },
-    "processing.confirmCancelMessage" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "The unfinished result will be discarded." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "完了していない結果は破棄されます。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未完成的处理结果将被丢弃。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "未完成的處理結果將被捨棄。" } }
-      }
-    },
-    "processing.confirmCancelTitle" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cancel Processing?" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "処理をキャンセルしますか？" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消处理？" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "取消處理？" } }
-      }
-    },
-    "purchase.verificationFailed" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "The App Store transaction could not be verified." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "App Storeの取引を確認できませんでした。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法验证 App Store 交易。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法驗證 App Store 交易。" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除"
+          }
+        }
       }
     },
     "common.ok" : {
@@ -859,6 +793,118 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "聲音處理"
+          }
+        }
+      }
+    },
+    "editor.confirmDeleteMaskMessage" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This removes the entire mask track and its position records."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マスク全体と位置記録が削除されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这会删除整条蒙版及其位置记录。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這會刪除整條蒙版及其位置記錄。"
+          }
+        }
+      }
+    },
+    "editor.confirmDeleteMaskTitle" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Mask?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マスクを削除しますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除蒙版？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除蒙版？"
+          }
+        }
+      }
+    },
+    "editor.confirmDeletePositionMessage" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The position recorded at the current time will be removed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在時刻の位置記録が削除されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将删除当前时间的位置记录。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將刪除目前時間的位置記錄。"
+          }
+        }
+      }
+    },
+    "editor.confirmDeletePositionTitle" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Position Record?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位置記録を削除しますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除位置记录？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除位置記錄？"
           }
         }
       }
@@ -1590,34 +1636,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "效果預覽"
-          }
-        }
-      }
-    },
-    "export.quality" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Processing Accuracy"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "処理精度"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "处理精度"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "處理精度"
           }
         }
       }
@@ -2658,6 +2676,34 @@
         }
       }
     },
+    "export.quality" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Processing Accuracy"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "処理精度"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "处理精度"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "處理精度"
+          }
+        }
+      }
+    },
     "export.reading" : {
       "localizations" : {
         "en" : {
@@ -3416,6 +3462,34 @@
         }
       }
     },
+    "paywall.close" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "閉じる"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉"
+          }
+        }
+      }
+    },
     "paywall.footnote" : {
       "localizations" : {
         "en" : {
@@ -3869,6 +3943,62 @@
         }
       }
     },
+    "photo.confirmDeleteMaskMessage" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This removes this manual mask from the photo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この写真から手動マスクが削除されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这会从照片中删除此手动蒙版。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這會從照片中刪除此手動蒙版。"
+          }
+        }
+      }
+    },
+    "photo.confirmDeleteMaskTitle" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Mask?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マスクを削除しますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除蒙版？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除蒙版？"
+          }
+        }
+      }
+    },
     "photo.continueReview" : {
       "localizations" : {
         "en" : {
@@ -4005,6 +4135,62 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "免費匯出目前圖片"
+          }
+        }
+      }
+    },
+    "photo.exporting" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporting photos"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "写真を書き出し中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在导出照片"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在匯出照片"
+          }
+        }
+      }
+    },
+    "photo.exportProgress" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld/%lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld/%lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld/%lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld/%lld"
           }
         }
       }
@@ -4907,6 +5093,62 @@
         }
       }
     },
+    "processing.confirmCancelMessage" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The unfinished result will be discarded."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完了していない結果は破棄されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未完成的处理结果将被丢弃。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未完成的處理結果將被捨棄。"
+          }
+        }
+      }
+    },
+    "processing.confirmCancelTitle" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel Processing?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "処理をキャンセルしますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消处理？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消處理？"
+          }
+        }
+      }
+    },
     "processing.estimating" : {
       "localizations" : {
         "en" : {
@@ -5604,6 +5846,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "完整影片規格與圖片匯出"
+          }
+        }
+      }
+    },
+    "purchase.verificationFailed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The App Store transaction could not be verified."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Storeの取引を確認できませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法验证 App Store 交易。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法驗證 App Store 交易。"
           }
         }
       }
