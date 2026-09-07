@@ -83,15 +83,13 @@ struct ProcessingView: View {
         } message: {
             Text(saveErrorMessage ?? "")
         }
-        .confirmationDialog(
+        .alert(
             localization.t("processing.confirmCancelTitle"),
-            isPresented: $showCancelConfirmation,
-            titleVisibility: .visible
+            isPresented: $showCancelConfirmation
         ) {
             Button(localization.t("common.cancel"), role: .cancel) {}
             Button(localization.t("processing.cancel"), role: .destructive) {
-                processingTask?.cancel()
-                processor.cancel()
+                cancelAndDismiss()
             }
         } message: {
             Text(localization.t("processing.confirmCancelMessage"))
@@ -313,6 +311,14 @@ struct ProcessingView: View {
             }
             isSaving = false
         }
+    }
+
+    private func cancelAndDismiss() {
+        // Leave the processing screen immediately; AVFoundation cancellation
+        // and temporary-file cleanup continue through the existing teardown.
+        dismiss()
+        processingTask?.cancel()
+        processor.cancel()
     }
 
     private var remainingTimeText: String {
