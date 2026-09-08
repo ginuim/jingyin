@@ -11,7 +11,7 @@ private enum EditorDestructiveAction: Identifiable {
     var id: String {
         switch self {
         case .keyframe: "keyframe"
-        case let .mask(id): "mask-\(id)"
+        case .mask(let id): "mask-\(id)"
         }
     }
 }
@@ -30,6 +30,11 @@ struct EditorView: View {
     @State private var maskPreviewRevision = 0
     @State private var playheadSeconds = 0.0
     @State private var selectedMaskTrackID: MaskTrack.ID?
+    @State private var inspectedEntities: [MaskEntity] = []
+    @State private var inspectedConfiguration = ""
+    @State private var inspectedTime = -1.0
+    @State private var inspectingEntities = false
+    @State private var inspectionFailed = false
     @State private var selectedEntityID: MaskEntity.ID?
     @State private var showManualMaskEditor = false
     @State private var showFullScreenMaskEditor = false
@@ -44,11 +49,13 @@ struct EditorView: View {
     @State private var jumpObserver: NSObjectProtocol?
     @State private var asciiRecentPairs = ASCIIColorRecentStore.load()
     @State private var showASCIIColorCustom = false
-    @State private var isVideoPinned = true
-    @State private var isScopeExpanded = true
-    @State private var isSubjectsExpanded = true
-    @State private var isStyleExpanded = true
-    @State private var isAudioExpanded = true
+    @State private var maskHistory: [MaskEditSnapshot] = []
+    @State private var committedMasks = MaskEditSnapshot(tracks: [], selection: nil)
+    @State private var editFeedback: String?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var expandedParameters = false
+    @State private var sourceDuration = 0.0
+    @State private var selectedTool: VideoEditorTool = .subjects
 
     init(videoURL: URL) {
         self.videoURL = videoURL
@@ -57,75 +64,46 @@ struct EditorView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if isVideoPinned {
-                videoPlayerSection
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-                    .padding(.bottom, 10)
-                    .background(AppPalette.background)
-                    .overlay(alignment: .bottom) {
-                        LinearGradient(
-                            colors: [
-                                AppPalette.background,
-                                AppPalette.background.opacity(0)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                        .frame(height: 36)
-                        .offset(y: 36)
-                        .allowsHitTesting(false)
-                    }
-                    .zIndex(1)
-            }
-
-            ScrollView {
-                VStack(spacing: 22) {
-                    if !isVideoPinned {
-                        videoPlayerSection
-                    }
-
+        GeometryReader { geometry in
+            VStack(spacing: 8) {
+                videoPlayerSection(
+                    height: max(
+                        120, geometry.size.height * (dynamicTypeSize.isAccessibilitySize ? 0.25 : 0.40)))
+                toolBar
+                ScrollView {
                     settings
-
-                    if voicePreview.isPreparing, options.audio == .voice {
-                        ProgressView(localization.t("editor.preparingVoice"))
-                            .font(.footnote)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } else if voicePreview.isPreviewUnsupported, options.audio == .voice {
-                        Label(localization.t("error.previewUnsupported"), systemImage: "exclamationmark.triangle.fill")
-                            .font(.footnote)
-                            .foregroundStyle(AppPalette.warning)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-
-                    Button {
-                        player.pause()
-                        voicePreview.stop(unload: true)
-                        showExportSettings = true
-                    } label: {
-                        Label(localization.t("editor.start"), systemImage: "wand.and.stars")
-                            .font(.headline)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(PrimaryButtonStyle())
-                    .disabled(hasTrackingInProgress)
-
-                    if hasTrackingInProgress {
-                        Label(
-                            localization.t("tracking.waitForCompletion"),
-                            systemImage: "hourglass"
-                        )
-                        .font(.footnote)
-                        .foregroundStyle(AppPalette.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                    }
+                        .padding(16)
                 }
-                .padding()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: 16))
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+        }
+        .safeAreaInset(edge: .bottom) {
+            VStack(spacing: 8) {
+                Text(configurationSummary)
+                    .font(.footnote)
+                    .foregroundStyle(AppPalette.secondaryText)
+                    .multilineTextAlignment(.center)
+                Button {
+                    player.pause()
+                    voicePreview.stop(unload: true)
+                    showExportSettings = true
+                } label: {
+                    Text(localization.t("editor.next"))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(
+                    hasTrackingInProgress
+                        || (options.scope == .background && options.subjects.isEmpty
+                            && options.maskTracks.isEmpty)
+                )
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+            .background(AppPalette.background)
         }
         .foregroundStyle(AppPalette.primaryText)
         .background(AppPalette.background)
@@ -138,10 +116,20 @@ struct EditorView: View {
                 access: entitlements.access
             )
         }
+        .sheet(isPresented: $expandedParameters) {
+            NavigationStack {
+                ScrollView { settings.padding(20) }
+                    .navigationTitle(localization.t(selectedTool.titleKey))
+                    .toolbar { ToolbarItem(placement: .confirmationAction) {
+                        Button(localization.t("editor.done")) { expandedParameters = false }
+                    } }
+            }.presentationDetents([.large])
+        }
         .sheet(isPresented: $showExportSettings) {
             ExportSettingsSheet(
                 options: $options,
                 metadata: sourceMetadata,
+                sourceDuration: sourceDuration,
                 onExport: {
                     showExportSettings = false
                     showProcessing = true
@@ -164,16 +152,16 @@ struct EditorView: View {
                 videoDisplaySize: sourceMetadata?.displaySize,
                 timelineMarkers: manualMaskTimelineMarkers,
                 timelineRanges: manualMaskTimelineRanges,
-                isMaskEditingEnabled: showManualMaskEditor,
-                canDeleteCurrentKeyframe: canDeleteCurrentKeyframe,
-                onAddMask: addManualMask,
-                onInsertKeyframe: insertKeyframe,
-                onDeleteCurrentKeyframe: requestDeleteCurrentKeyframe,
-                onShrinkMask: shrinkSelectedMask,
-                onEnlargeMask: enlargeSelectedMask,
+                isMaskEditingEnabled: options.scope != .full,
+                onEditingBegan: {
+                    player.pause()
+                    voicePreview.pause()
+                },
                 onDeleteTrack: requestDeleteMask,
                 onEditingEnded: finishMaskEditing
-            )
+            ) {
+                manualPanel
+            }
             .environmentObject(localization)
         }
         .sheet(isPresented: $showFaceSelection) {
@@ -207,6 +195,7 @@ struct EditorView: View {
         } message: {
             Text(destructiveConfirmationMessage)
         }
+        .task(id: entityInspectionToken) { await inspectCurrentEntities() }
         .task(id: videoEffectToken) {
             await applyPreview()
         }
@@ -239,9 +228,6 @@ struct EditorView: View {
             MediaPlaybackSession.activate()
             installPlayerObservers()
             applyAudioMode()
-            if ProcessInfo.processInfo.arguments.contains("-demoPin") {
-                isVideoPinned = true
-            }
         }
         .onChange(of: options.audio) { _, _ in
             applyAudioMode()
@@ -253,9 +239,11 @@ struct EditorView: View {
         .onChange(of: options) { _, options in
             ProcessingOptionsPreferenceStore.saveVideo(options)
         }
-        .onChange(of: showManualMaskEditor) { _, isExpanded in
-            if !isExpanded {
-                selectedMaskTrackID = nil
+        .onChange(of: selectedTool) { _, tool in
+            showManualMaskEditor = tool == .manual
+            if tool == .manual {
+                player.pause()
+                voicePreview.pause()
             }
         }
         .onDisappear {
@@ -271,6 +259,43 @@ struct EditorView: View {
     }
 
     /// Exclude audio/pitch so voice slider does not rebuild the mask composition.
+    private var entityInspectionToken: String {
+        // Selection uses only a paused, current-frame snapshot; moving playback never shows old boxes.
+        "\(selectedTool.rawValue)|\(showFullScreenMaskEditor)|\(playheadSeconds)|\(options.scope.rawValue)|\(options.subjects.map(\.rawValue).sorted())"
+    }
+
+    private var entitiesMatchPlayhead: Bool {
+        player.timeControlStatus == .paused && abs(inspectedTime - playheadSeconds) < 0.08
+    }
+
+    @MainActor private func inspectCurrentEntities() async {
+        guard selectedTool == .subjects, !showFullScreenMaskEditor,
+            options.scope != .full, !options.subjects.isEmpty,
+            player.timeControlStatus == .paused else { return }
+        let configuration = "\(options.scope.rawValue)|\(options.subjects.map(\.rawValue).sorted())"
+        if entitiesMatchPlayhead && inspectedConfiguration == configuration { return }
+        inspectedTime = -1
+        inspectedEntities = []
+        let time = playheadSeconds
+        inspectingEntities = true
+        inspectionFailed = false
+        let processor = FrameEffectProcessor(options: options)
+        await processor.warmUp()
+        guard !Task.isCancelled else { return }
+        let result = await syncMaskEntities(
+            using: processor, asset: AVURLAsset(url: videoURL),
+            at: CMTime(seconds: time, preferredTimescale: 600))
+        guard !Task.isCancelled, abs(playheadSeconds - time) < 0.08 else { return }
+        inspectedEntities = result ?? []
+        inspectedTime = time
+        inspectedConfiguration = configuration
+        if let selectedEntityID, !inspectedEntities.contains(where: { $0.id == selectedEntityID }) {
+            self.selectedEntityID = nil
+        }
+        inspectionFailed = result == nil
+        inspectingEntities = false
+    }
+
     private var videoEffectToken: String {
         let subjects = options.subjects.map(\.rawValue).sorted().joined(separator: ",")
         let fg = options.asciiForeground
@@ -282,25 +307,53 @@ struct EditorView: View {
         return "\(options.quality.rawValue)|\(options.scope.rawValue)|\(options.style.rawValue)|\(options.strength)|\(options.stickerEmoji.rawValue)|\(subjects)|\(maskPreviewRevision)|\(fg.r),\(fg.g),\(fg.b),\(fg.a)|\(bg.r),\(bg.g),\(bg.b),\(bg.a)|\(entities)"
     }
 
-    private var videoPlayerSection: some View {
+    private func videoPlayerSection(height: CGFloat) -> some View {
         ControlledVideoPlayer(
             player: player,
+            thumbnailURL: videoURL,
             timelineMarkers: manualMaskTimelineMarkers,
             timelineRanges: manualMaskTimelineRanges,
             onTimeChanged: { playheadSeconds = $0 },
             onFullScreen: {
                 showFullScreenMaskEditor = true
-            },
-            isPinned: isVideoPinned,
-            onPinToggle: {
-                isVideoPinned.toggle()
             }
         ) {
             BareVideoPlayer(player: player)
-                .aspectRatio(16 / 9, contentMode: .fit)
+                .frame(height: height)
                 .clipShape(RoundedRectangle(cornerRadius: 20))
                 .overlay {
-                    if showManualMaskEditor {
+                    if selectedTool == .subjects && options.scope != .full && entitiesMatchPlayhead {
+                        GeometryReader { proxy in
+                            let bounds = VideoCoordinateSpace.aspectFitBounds(
+                                displaySize: sourceMetadata?.displaySize, in: proxy.size)
+                            ForEach(Array(inspectedEntities.enumerated()), id: \.element.id) { index, entity in
+                                let rect = entity.lastRect.rect(inPreviewBounds: bounds)
+                                Button {
+                                    selectedEntityID = entity.id
+                                } label: {
+                                    Rectangle().stroke(
+                                        selectedEntityID == entity.id
+                                            ? AppPalette.accent.primary : AppPalette.maskOutline,
+                                        style: StrokeStyle(
+                                            lineWidth: selectedEntityID == entity.id ? 3 : 1,
+                                            dash: selectedEntityID == entity.id ? [] : [5, 4])
+                                    )
+                                    .overlay(alignment: .topLeading) {
+                                        Text("\(index + 1)").font(.caption.bold())
+                                            .padding(4).background(AppPalette.mediaScrim)
+                                            .foregroundStyle(AppPalette.maskOutline)
+                                    }
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .frame(width: rect.width, height: rect.height)
+                                .position(x: rect.midX, y: rect.midY)
+                                .accessibilityLabel(localization.format("editor.entityItem", Int64(index + 1)))
+                                .accessibilityAddTraits(selectedEntityID == entity.id ? .isSelected : [])
+                            }
+                        }
+                    }
+                    if showManualMaskEditor && options.scope != .full {
                         MaskEditorOverlay(
                             tracks: $options.maskTracks,
                             selectedTrackID: $selectedMaskTrackID,
@@ -319,257 +372,395 @@ struct EditorView: View {
     }
 
     private var settings: some View {
-        let bundle = localization.bundle
-        return VStack(spacing: 18) {
-            CollapsibleOptionSection(
-                title: localization.t("editor.scope"),
-                systemImage: "viewfinder",
-                isExpanded: $isScopeExpanded
-            ) {
-                Picker(localization.t("editor.scope"), selection: $options.scope) {
-                    ForEach(MaskScope.allCases) {
-                        Text($0.title(bundle))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                            .tag($0)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: options.scope) { _, _ in
-                    resetStickerIfUnavailable()
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(localization.t(selectedTool.titleKey)).font(.headline)
+                Spacer()
+                if !expandedParameters {
+                    Button { expandedParameters = true } label: {
+                        Label(localization.t("editor.expandParameters"), systemImage: "chevron.up")
+                    }.buttonStyle(TextButtonStyle())
                 }
             }
+            switch selectedTool {
+            case .subjects: subjectsPanel
+            case .manual: manualPanel
+            case .style: stylePanel
+            case .audio: audioPanel
+            }
+        }
+    }
 
+    private var subjectsPanel: some View {
+        let bundle = localization.bundle
+        return VStack(alignment: .leading, spacing: 12) {
+
+            HStack(spacing: 8) {
+                presetButton(.face)
+                presetButton(.person)
+            }
+
+            Picker(localization.t("editor.scope"), selection: $options.scope) {
+                ForEach(MaskScope.allCases) {
+                    Text($0.title(bundle))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .tag($0)
+                }
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: options.scope) { _, _ in
+                resetStickerIfUnavailable()
+            }
             if options.scope != .full {
-                CollapsibleOptionSection(
-                    title: localization.t("editor.manualMasks"),
-                    systemImage: "square.dashed",
-                    meta: manualMaskCountLabel,
-                    isExpanded: $showManualMaskEditor
-                ) {
-                    HStack(spacing: 10) {
+                Toggle(
+                    localization.t("editor.automatic"),
+                    isOn: Binding(
+                        get: { !options.subjects.isEmpty },
+                        set: { enabled in
+                            options.subjects = enabled ? [.person] : []
+                            options.maskEntities = []
+                            selectedEntityID = nil
+                            resetStickerIfUnavailable()
+                        }
+                    ))
+
+                HStack(spacing: 10) {
+                    ForEach(SubjectKind.allCases) { subject in
+                        let isSelected = options.subjects.contains(subject)
                         Button {
-                            addManualMask(shape: .ellipse)
+                            toggle(subject)
                         } label: {
-                            Label(
-                                localization.t("editor.addEllipse"),
-                                systemImage: "circle.dashed"
-                            )
-                            .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
+                            ZStack(alignment: .topTrailing) {
+                                VStack(spacing: 7) {
+                                    Image(systemName: subject.icon)
+                                    Text(subject.title(bundle))
+                                        .font(.caption.bold())
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.8)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
 
-                        Button {
-                            addManualMask(shape: .rectangle)
-                        } label: {
-                            Label(
-                                localization.t("editor.addRectangle"),
-                                systemImage: "rectangle.dashed"
-                            )
-                            .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                    }
-
-                    if !options.maskTracks.isEmpty {
-                        maskSelector
-                    }
-
-                    if selectedMaskTrackID != nil {
-                        HStack(spacing: 10) {
-                            Button(action: shrinkSelectedMask) {
-                                Label(
-                                    localization.t("editor.shrinkMask"),
-                                    systemImage: "minus.magnifyingglass"
+                                Image(
+                                    systemName: isSelected
+                                        ? "checkmark.circle.fill"
+                                        : "circle"
                                 )
-                                .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.bordered)
-
-                            Button(action: enlargeSelectedMask) {
-                                Label(
-                                    localization.t("editor.enlargeMask"),
-                                    systemImage: "plus.magnifyingglass"
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(
+                                    isSelected ? AppPalette.accent.foreground : AppPalette.secondaryText
                                 )
-                                .frame(maxWidth: .infinity)
+                                .padding(6)
                             }
-                            .buttonStyle(.bordered)
+                            .background(
+                                isSelected
+                                    ? AppPalette.accent.primary
+                                    : AppPalette.elevatedSurface,
+                                in: RoundedRectangle(cornerRadius: 12)
+                            )
+                            .foregroundStyle(isSelected ? AppPalette.accent.foreground : AppPalette.primaryText)
                         }
-
-                        HStack(spacing: 10) {
-                            maskVisibilityMenu
-                                .frame(maxWidth: .infinity)
-
-                            positionRecordsMenu
-                                .frame(maxWidth: .infinity)
-                        }
-
-                        if let selectedFaceTrack {
-                            faceTrackingStatus(selectedFaceTrack)
-                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(isSelected ? .isSelected : [])
                     }
+                }
 
-                    Text(localization.t("editor.manualMaskHint"))
+                if options.subjects.contains(.pet) {
+                    Text(localization.t("editor.petHint"))
                         .font(.caption)
                         .foregroundStyle(AppPalette.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
-
-                    Label(
-                        localization.t("editor.keyframeTimelineHint"),
-                        systemImage: "timeline.selection"
-                    )
-                    .font(.caption)
-                    .foregroundStyle(AppPalette.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
                 }
 
-                CollapsibleOptionSection(
-                    title: localization.t("editor.subjects"),
-                    systemImage: "person.2.crop.square.stack",
-                    isExpanded: $isSubjectsExpanded
-                ) {
-                    HStack(spacing: 10) {
-                        ForEach(SubjectKind.allCases) { subject in
-                            let isSelected = options.subjects.contains(subject)
-                            Button {
-                                toggle(subject)
-                            } label: {
-                                ZStack(alignment: .topTrailing) {
-                                    VStack(spacing: 7) {
-                                        Image(systemName: subject.icon)
-                                        Text(subject.title(bundle))
-                                            .font(.caption.bold())
-                                            .lineLimit(1)
-                                            .minimumScaleFactor(0.8)
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 10)
-
-                                    Image(
-                                        systemName: isSelected
-                                            ? "checkmark.circle.fill"
-                                            : "circle"
-                                    )
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(
-                                        isSelected ? AppPalette.accent.foreground : AppPalette.secondaryText
-                                    )
-                                    .padding(6)
-                                }
-                                .background(
-                                    isSelected
-                                        ? AppPalette.accent.primary
-                                        : AppPalette.elevatedSurface,
-                                    in: RoundedRectangle(cornerRadius: 12)
-                                )
-                                .foregroundStyle(isSelected ? AppPalette.accent.foreground : AppPalette.primaryText)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityAddTraits(isSelected ? .isSelected : [])
-                        }
-                    }
-
-                    if options.subjects.contains(.pet) {
-                        Text(localization.t("editor.petHint"))
-                            .font(.caption)
-                            .foregroundStyle(AppPalette.secondaryText)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    if !options.maskEntities.isEmpty {
+                if inspectingEntities {
+                    ProgressView(localization.t("editor.inspecting"))
+                } else if entitiesMatchPlayhead {
+                    if inspectedEntities.isEmpty {
+                        Text(localization.t(inspectionFailed ? "editor.inspectionFailed" : "editor.noEntities"))
+                            .font(.footnote)
+                    } else {
                         entitySelector
                     }
-
-                    Text(localization.t("editor.entityHint"))
-                        .font(.caption)
-                        .foregroundStyle(AppPalette.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(localization.t("editor.pauseToInspect")).font(.footnote)
                 }
 
-            }
-
-            CollapsibleOptionSection(
-                title: localization.t("editor.style"),
-                systemImage: "circle.lefthalf.filled",
-                isExpanded: $isStyleExpanded
-            ) {
-                Picker(localization.t("editor.style"), selection: $options.style) {
-                    ForEach(availableEffectStyles) {
-                        Text($0.title(bundle))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                            .tag($0)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: options.style) { _, style in
-                    switch style {
-                    case .blur: options.strength = 32
-                    case .pixel: options.strength = 24
-                    case .ascii: options.strength = 14
-                    case .sticker: options.strength = 72
-                    }
-                }
-                Slider(value: $options.strength, in: strengthRange) {
-                    Text(localization.t(options.style == .sticker ? "editor.size" : "editor.strength"))
-                } minimumValueLabel: {
-                    Text(localization.t(options.style == .sticker ? "editor.small" : "editor.weak"))
-                } maximumValueLabel: {
-                    Text(localization.t(options.style == .sticker ? "editor.large" : "editor.strong"))
-                }
-                Text(strengthDescription)
+                Text(localization.t("editor.entityHint"))
                     .font(.caption)
                     .foregroundStyle(AppPalette.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
-
-                if options.style == .ascii {
-                    asciiColorControls(bundle: bundle)
+                if options.scope == .background && options.subjects.isEmpty && options.maskTracks.isEmpty {
+                    Text(localization.t("editor.backgroundEmpty")).font(.footnote)
                 }
-                if options.style == .sticker {
-                    stickerControls
+            }
+        }
+    }
+
+    private var stylePanel: some View {
+        let bundle = localization.bundle
+        return VStack(alignment: .leading, spacing: 12) {
+
+            Picker(localization.t("editor.style"), selection: $options.style) {
+                ForEach(availableEffectStyles) {
+                    Text($0.title(bundle))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .tag($0)
+                }
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: options.style) { _, style in
+                switch style {
+                case .blur: options.strength = 32
+                case .pixel: options.strength = 24
+                case .ascii: options.strength = 14
+                case .sticker: options.strength = 72
+                }
+            }
+            Slider(value: $options.strength, in: strengthRange) {
+                Text(localization.t(options.style == .sticker ? "editor.size" : "editor.strength"))
+            } minimumValueLabel: {
+                Text(localization.t(options.style == .sticker ? "editor.small" : "editor.weak"))
+            } maximumValueLabel: {
+                Text(localization.t(options.style == .sticker ? "editor.large" : "editor.strong"))
+            }
+            Text(strengthDescription)
+                .font(.caption)
+                .foregroundStyle(AppPalette.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if options.style == .ascii {
+                asciiColorControls(bundle: bundle)
+            }
+            if options.style == .sticker {
+                stickerControls
+            }
+        }
+    }
+
+    private var audioPanel: some View {
+        let bundle = localization.bundle
+        return VStack(alignment: .leading, spacing: 12) {
+
+            Picker(localization.t("editor.audio"), selection: $options.audio) {
+                ForEach(AudioMode.allCases) {
+                    Text($0.title(bundle))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .tag($0)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            if options.audio == .voice {
+                HStack {
+                    Text(localization.t("editor.pitchLow"))
+                        .font(.caption)
+                        .foregroundStyle(AppPalette.secondaryText)
+                    Slider(
+                        value: Binding(
+                            get: { Double(options.voicePitch) },
+                            set: { options.voicePitch = Int($0.rounded()) }
+                        ),
+                        in: Double(VoicePitchStore.range.lowerBound)...Double(VoicePitchStore.range.upperBound),
+                        step: 1
+                    )
+                    Text(localization.t("editor.pitchHigh"))
+                        .font(.caption)
+                        .foregroundStyle(AppPalette.secondaryText)
                 }
             }
 
-            CollapsibleOptionSection(
-                title: localization.t("editor.audio"),
-                systemImage: "speaker.wave.2",
-                meta: options.audioMeta(bundle: bundle),
-                isExpanded: $isAudioExpanded
-            ) {
-                Picker(localization.t("editor.audio"), selection: $options.audio) {
-                    ForEach(AudioMode.allCases) {
-                        Text($0.title(bundle))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                            .tag($0)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                if options.audio == .voice {
-                    HStack {
-                        Text(localization.t("editor.pitchLow"))
-                            .font(.caption)
-                            .foregroundStyle(AppPalette.secondaryText)
-                        Slider(
-                            value: Binding(
-                                get: { Double(options.voicePitch) },
-                                set: { options.voicePitch = Int($0.rounded()) }
-                            ),
-                            in: Double(VoicePitchStore.range.lowerBound)...Double(VoicePitchStore.range.upperBound),
-                            step: 1
-                        )
-                        Text(localization.t("editor.pitchHigh"))
-                            .font(.caption)
-                            .foregroundStyle(AppPalette.secondaryText)
-                    }
-                }
-
+            if options.audio == .voice {
                 Text(localization.t("editor.pitchHint"))
                     .font(.caption)
                     .foregroundStyle(AppPalette.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
+                voicePreviewStatus
             }
+        }
+    }
+
+    private func presetButton(_ kind: SubjectKind) -> some View {
+        Button {
+            options.scope = .subjects
+            options.subjects = [kind]
+            options.maskEntities = []
+            selectedEntityID = nil
+            resetStickerIfUnavailable()
+        } label: {
+            Label(
+                kind.title(localization.bundle),
+                systemImage: options.scope == .subjects && options.subjects == [kind]
+                    ? "checkmark.circle.fill" : kind.icon
+            )
+            .frame(maxWidth: .infinity)
+        }.buttonStyle(TextButtonStyle())
+    }
+
+    private var manualPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if options.scope == .full {
+                Text(localization.t("editor.manualNotNeeded"))
+            } else {
+
+                HStack(spacing: 10) {
+                    Button {
+                        addManualMask(shape: .ellipse)
+                    } label: {
+                        Label(
+                            localization.t("editor.addEllipse"),
+                            systemImage: "plus.circle"
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(TextButtonStyle())
+
+                    Button {
+                        addManualMask(shape: .rectangle)
+                    } label: {
+                        Label(
+                            localization.t("editor.addRectangle"),
+                            systemImage: "plus.circle"
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(TextButtonStyle())
+                }
+
+                if !options.maskTracks.isEmpty {
+                    maskSelector
+                }
+
+                if let selectedMaskIndex {
+                    maskVisibilityMenu
+                    Toggle(
+                        localization.t("editor.animatePosition"),
+                        isOn: Binding(
+                            get: { options.maskTracks.first(where: { $0.id == selectedMaskTrackID })?.effectivePositionMode == .animated },
+                            set: { setPositionMode($0) }
+                        ))
+                    Text(
+                        localization.t(
+                            options.maskTracks[selectedMaskIndex].effectivePositionMode == .animated
+                                ? "editor.animatedHint" : "editor.fixedHint")
+                    )
+                    .font(.footnote).foregroundStyle(AppPalette.secondaryText)
+                    HStack {
+                        Button {
+                            jumpToRecord(forward: false)
+                        } label: {
+                            Label(localization.t("editor.previousRecord"), systemImage: "backward.end")
+                        }
+                        Button {
+                            jumpToRecord(forward: true)
+                        } label: {
+                            Label(localization.t("editor.nextRecord"), systemImage: "forward.end")
+                        }
+                    }.buttonStyle(TextButtonStyle())
+                    Button(role: .destructive) {
+                        deleteMask(id: options.maskTracks[selectedMaskIndex].id)
+                    } label: {
+                        Label(localization.t("editor.deleteEntireMask"), systemImage: "trash")
+                    }.buttonStyle(TextButtonStyle(role: .destructive))
+                    HStack(spacing: 10) {
+                        Button(action: shrinkSelectedMask) {
+                            Label(
+                                localization.t("editor.shrinkMask"),
+                                systemImage: "minus.magnifyingglass"
+                            )
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(TextButtonStyle())
+
+                        Button(action: enlargeSelectedMask) {
+                            Label(
+                                localization.t("editor.enlargeMask"),
+                                systemImage: "plus.magnifyingglass"
+                            )
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(TextButtonStyle())
+                    }
+
+                    HStack(spacing: 10) {
+                        positionRecordsMenu
+                            .frame(maxWidth: .infinity)
+                            .disabled(options.maskTracks[selectedMaskIndex].effectivePositionMode != .animated)
+                    }
+
+                    if let selectedFaceTrack {
+                        faceTrackingStatus(selectedFaceTrack)
+                    }
+                }
+
+                Button(action: undoMaskEdit) {
+                    Label(localization.t("editor.undo"), systemImage: "arrow.uturn.backward")
+                }.buttonStyle(TextButtonStyle()).disabled(maskHistory.isEmpty)
+                if let editFeedback { Text(editFeedback).font(.footnote) }
+                Text(
+                    localization.t(
+                        options.scope == .background ? "editor.backgroundManualHint" : "editor.manualHelp")
+                )
+                .font(.caption)
+                .foregroundStyle(AppPalette.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+                Label(
+                    localization.t("editor.keyframeTimelineHint"),
+                    systemImage: "timeline.selection"
+                )
+                .font(.caption)
+                .foregroundStyle(AppPalette.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var configurationSummary: String {
+        let subjects = SubjectKind.allCases.filter { options.subjects.contains($0) }
+            .map { $0.title(localization.bundle) }.joined(separator: " + ")
+        let target =
+            options.scope == .subjects
+            ? (subjects.isEmpty ? localization.t("editor.manualTool") : subjects)
+            : options.scope.title(localization.bundle)
+                + (options.scope == .background ? " · " + subjects : "")
+        return [
+            target, options.style.title(localization.bundle),
+            options.audioMeta(bundle: localization.bundle),
+        ].joined(separator: " · ")
+    }
+
+    private var toolBar: some View {
+        HStack(spacing: 8) {
+            ForEach(VideoEditorTool.allCases) { tool in
+                Button {
+                    selectedTool = tool
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: tool.icon).font(.system(size: 18))
+                        Text(localization.t(tool.titleKey)).font(.caption.weight(.semibold))
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .padding(.vertical, 4)
+                    .background(
+                        selectedTool == tool ? AppPalette.accent.softFill : AppPalette.surface,
+                        in: RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(TextButtonStyle())
+                .accessibilityAddTraits(selectedTool == tool ? .isSelected : [])
+            }
+        }
+    }
+
+    @ViewBuilder private var voicePreviewStatus: some View {
+        if voicePreview.isPreparing {
+            ProgressView(localization.t("editor.preparingVoice"))
+        } else if voicePreview.isPreviewUnsupported {
+            Text(localization.t("error.previewUnsupported"))
+                .foregroundStyle(AppPalette.secondaryText)
         }
     }
 
@@ -587,15 +778,16 @@ struct EditorView: View {
         VStack(alignment: .leading, spacing: 10) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(Array(options.maskEntities.enumerated()), id: \.element.id) { index, entity in
+                    ForEach(Array(inspectedEntities.enumerated()), id: \.element.id) { index, entity in
                         Button {
                             selectedEntityID = entity.id
                         } label: {
                             Label {
-                                Text(localization.format(
-                                    "editor.entityItem",
-                                    Int64(index + 1)
-                                ))
+                                Text(
+                                    localization.format(
+                                        "editor.entityItem",
+                                        Int64(index + 1)
+                                    ))
                             } icon: {
                                 Image(systemName: entity.kind.icon)
                             }
@@ -626,23 +818,24 @@ struct EditorView: View {
             }
 
             if let selectedEntityID,
-               let index = options.maskEntities.firstIndex(where: { $0.id == selectedEntityID }) {
+                let entity = inspectedEntities.first(where: { $0.id == selectedEntityID })
+            {
+                let enabled =
+                    options.maskEntities.first(where: { $0.id == selectedEntityID })?.isEnabled
+                    ?? entity.isEnabled
                 Button {
-                    options.maskEntities[index].isEnabled.toggle()
+                    if let index = options.maskEntities.firstIndex(where: { $0.id == selectedEntityID }) {
+                        options.maskEntities[index].isEnabled.toggle()
+                    } else {
+                        var changed = entity
+                        changed.isEnabled = !enabled
+                        options.maskEntities.append(changed)
+                    }
                 } label: {
                     Label(
-                        localization.t(
-                            options.maskEntities[index].isEnabled
-                                ? "editor.entityDisable"
-                                : "editor.entityEnable"
-                        ),
-                        systemImage: options.maskEntities[index].isEnabled
-                            ? "eye.slash"
-                            : "eye"
-                    )
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
+                        localization.t(enabled ? "editor.entityDisable" : "editor.entityEnable"),
+                        systemImage: enabled ? "eye.slash" : "eye")
+                }.buttonStyle(TextButtonStyle())
             }
         }
         .padding(.top, 4)
@@ -657,7 +850,7 @@ struct EditorView: View {
     }
 
     private var manualMaskTimelineMarkers: [VideoTimelineMarker] {
-        guard showManualMaskEditor else { return [] }
+        guard showManualMaskEditor || showFullScreenMaskEditor else { return [] }
         return options.maskTracks.flatMap { track in
             track.keyframes
                 .filter { $0.origin == .manual }
@@ -672,7 +865,7 @@ struct EditorView: View {
     }
 
     private var manualMaskTimelineRanges: [VideoTimelineRange] {
-        guard showManualMaskEditor else { return [] }
+        guard showManualMaskEditor || showFullScreenMaskEditor else { return [] }
         return options.maskTracks.compactMap { track in
             guard track.activeFromSeconds != nil || track.activeUntilSeconds != nil else {
                 return nil
@@ -765,7 +958,7 @@ struct EditorView: View {
             }
             .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(TextButtonStyle())
     }
 
     private var positionRecordsMenu: some View {
@@ -795,7 +988,7 @@ struct EditorView: View {
             .font(.caption.bold())
             .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(TextButtonStyle())
     }
 
     private var selectedMaskVisibilitySummary: String {
@@ -804,18 +997,18 @@ struct EditorView: View {
         }
         let track = options.maskTracks[selectedMaskIndex]
         switch (track.activeFromSeconds, track.activeUntilSeconds) {
-        case let (start?, end?):
+        case (let start?, let end?):
             return localization.format(
                 "editor.visibilityRange",
                 formatTimestamp(start),
                 formatTimestamp(end)
             )
-        case let (start?, nil):
+        case (let start?, nil):
             return localization.format(
                 "editor.visibilityFrom",
                 formatTimestamp(start)
             )
-        case let (nil, end?):
+        case (nil, let end?):
             return localization.format(
                 "editor.visibilityUntil",
                 formatTimestamp(end)
@@ -937,9 +1130,10 @@ struct EditorView: View {
                     initialVisionBoundingBox: initialVisionBoundingBox
                 )
                 guard !Task.isCancelled,
-                      let index = options.maskTracks.firstIndex(where: {
-                          $0.id == trackID
-                      }) else {
+                    let index = options.maskTracks.firstIndex(where: {
+                        $0.id == trackID
+                    })
+                else {
                     return
                 }
                 options.maskTracks[index].applyTrackingResult(
@@ -950,9 +1144,11 @@ struct EditorView: View {
             } catch is CancellationError {
                 return
             } catch {
-                guard let index = options.maskTracks.firstIndex(where: {
-                    $0.id == trackID
-                }) else {
+                guard
+                    let index = options.maskTracks.firstIndex(where: {
+                        $0.id == trackID
+                    })
+                else {
                     return
                 }
                 options.maskTracks[index].trackingState = .lost
@@ -1048,7 +1244,7 @@ struct EditorView: View {
                         systemImage: "scope"
                     )
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(TextButtonStyle())
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         case .needsRetracking:
@@ -1066,7 +1262,7 @@ struct EditorView: View {
                         systemImage: "scope"
                     )
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(TextButtonStyle())
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         case .notTracked:
@@ -1092,12 +1288,14 @@ struct EditorView: View {
 
     private func insertKeyframe() {
         guard let selectedMaskIndex,
-              let rect = options.maskTracks[selectedMaskIndex]
-                .keyframedRect(at: editingTimeSeconds) else {
+            let rect = options.maskTracks[selectedMaskIndex]
+                .keyframedRect(at: editingTimeSeconds)
+        else {
             return
         }
         player.pause()
         voicePreview.pause()
+        guard options.maskTracks[selectedMaskIndex].effectivePositionMode == .animated else { return }
         options.maskTracks[selectedMaskIndex].setKeyframe(
             MaskKeyframe(timeSeconds: editingTimeSeconds, rect: rect)
         )
@@ -1106,7 +1304,7 @@ struct EditorView: View {
 
     private func requestDeleteCurrentKeyframe() {
         guard currentKeyframe != nil, canDeleteCurrentKeyframe else { return }
-        pendingDestructiveAction = .keyframe
+        deleteCurrentKeyframe()
     }
 
     private func deleteCurrentKeyframe() {
@@ -1129,18 +1327,15 @@ struct EditorView: View {
 
     private func scaleSelectedMask(by factor: Double) {
         guard let selectedMaskIndex,
-              let rect = options.maskTracks[selectedMaskIndex]
-                .keyframedRect(at: editingTimeSeconds) else {
+            let rect = options.maskTracks[selectedMaskIndex]
+                .keyframedRect(at: editingTimeSeconds)
+        else {
             return
         }
         player.pause()
         voicePreview.pause()
-        options.maskTracks[selectedMaskIndex].setKeyframe(
-            MaskKeyframe(
-                timeSeconds: editingTimeSeconds,
-                rect: rect.scaledAroundCenter(by: factor)
-            )
-        )
+        options.maskTracks[selectedMaskIndex].updateManualRect(
+            rect.scaledAroundCenter(by: factor), at: editingTimeSeconds)
         refreshMaskPreview()
     }
 
@@ -1150,10 +1345,11 @@ struct EditorView: View {
         player.pause()
         options.maskTracks[selectedMaskIndex].activeFromSeconds = time
         if let end = options.maskTracks[selectedMaskIndex].activeUntilSeconds,
-           end < time {
+            end < time
+        {
             options.maskTracks[selectedMaskIndex].activeUntilSeconds = time
         }
-        insertKeyframe()
+        refreshMaskPreview()
     }
 
     private func setSelectedMaskEnd() {
@@ -1162,10 +1358,11 @@ struct EditorView: View {
         player.pause()
         options.maskTracks[selectedMaskIndex].activeUntilSeconds = time
         if let start = options.maskTracks[selectedMaskIndex].activeFromSeconds,
-           start > time {
+            start > time
+        {
             options.maskTracks[selectedMaskIndex].activeFromSeconds = time
         }
-        insertKeyframe()
+        refreshMaskPreview()
     }
 
     private func showSelectedMaskForWholeTimeline() {
@@ -1226,13 +1423,48 @@ struct EditorView: View {
         switch action {
         case .keyframe:
             deleteCurrentKeyframe()
-        case let .mask(id):
+        case .mask(let id):
             deleteMask(id: id)
         }
     }
 
     private func refreshMaskPreview() {
+        if options.maskTracks != committedMasks.tracks {
+            maskHistory.append(committedMasks)
+            if maskHistory.count > 40 { maskHistory.removeFirst() }
+            committedMasks = MaskEditSnapshot(tracks: options.maskTracks, selection: selectedMaskTrackID)
+        }
         maskPreviewRevision += 1
+    }
+
+    private func undoMaskEdit() {
+        guard let previous = maskHistory.popLast() else { return }
+        options.maskTracks = previous.tracks
+        selectedMaskTrackID = previous.selection
+        committedMasks = previous
+        maskPreviewRevision += 1
+        editFeedback = nil
+    }
+
+    private func setPositionMode(_ moving: Bool) {
+        guard let selectedMaskIndex else { return }
+        options.maskTracks[selectedMaskIndex].setPositionMode(
+            moving ? .animated : .fixed, at: editingTimeSeconds)
+        refreshMaskPreview()
+    }
+
+    private func jumpToRecord(forward: Bool) {
+        guard let selectedMaskIndex else { return }
+        let times = options.maskTracks[selectedMaskIndex].keyframes.map(\.timeSeconds).sorted()
+        let time = editingTimeSeconds
+        guard
+            let target = forward
+                ? times.first(where: { $0 > time + 0.12 }) : times.last(where: { $0 < time - 0.12 })
+        else { return }
+        player.pause()
+        player.seek(
+            to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero,
+            toleranceAfter: .zero)
     }
 
     private func finishMaskEditing() {
@@ -1242,20 +1474,28 @@ struct EditorView: View {
             )
         }
         refreshMaskPreview()
+        if let selectedMaskIndex,
+            options.maskTracks[selectedMaskIndex].effectivePositionMode == .animated
+        {
+            editFeedback = localization.format(
+                "editor.positionSaved", formatTimestamp(editingTimeSeconds))
+        }
     }
 
     private func formatTimestamp(_ seconds: TimeInterval) -> String {
         let safeSeconds = max(0, seconds.isFinite ? seconds : 0)
         let total = Int(safeSeconds.rounded(.down))
-        return String(format: "%d:%02d", total / 60, total % 60)
+        return String(format: "%d:%04.1f", total / 60, safeSeconds.truncatingRemainder(dividingBy: 60))
     }
 
     @MainActor
     private func loadSourceMetadata() async {
         guard sourceMetadata == nil,
-              let metadata = try? await SourceVideoMetadata.load(from: videoURL) else {
+            let metadata = try? await SourceVideoMetadata.load(from: videoURL)
+        else {
             return
         }
+        sourceDuration = (try? await AVURLAsset(url: videoURL).load(.duration).seconds) ?? 0
         sourceMetadata = metadata
         if !metadata.availableResolutions.contains(options.exportResolution) {
             options.exportResolution = .defaultValue(for: metadata.shortEdge)
@@ -1483,7 +1723,9 @@ struct EditorView: View {
         generator.requestedTimeToleranceAfter = .zero
         do {
             let cgImage = try await generator.image(at: time).image
-            return processor.syncEntities(from: CIImage(cgImage: cgImage))
+            return await Task.detached(priority: .userInitiated) {
+                processor.syncEntities(from: CIImage(cgImage: cgImage))
+            }.value
         } catch {
             return nil
         }
@@ -1555,6 +1797,7 @@ struct EditorView: View {
 private struct ExportSettingsSheet: View {
     @Binding var options: ProcessingOptions
     let metadata: SourceVideoMetadata?
+    let sourceDuration: Double
     let onExport: () -> Void
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var localization: LocalizationManager
@@ -1567,6 +1810,14 @@ private struct ExportSettingsSheet: View {
                 if let metadata {
                     ScrollView {
                         VStack(spacing: 24) {
+                            Text(
+                                "\(Int(min(sourceDuration, entitlements.access.maximumDurationSeconds ?? sourceDuration))) s · \(options.exportResolution.title) · \(options.audioMeta(bundle: localization.bundle))"
+                            )
+                            .font(.headline)
+                            if let limit = entitlements.access.maximumDurationSeconds, sourceDuration > limit {
+                                Text(localization.t("editor.truncated"))
+                                    .font(.footnote)
+                            }
                             accessCard
                             if options.scope != .full {
                                 exportChoice(
@@ -1638,9 +1889,7 @@ private struct ExportSettingsSheet: View {
     }
 
     private var exportButtonTitle: String {
-        entitlements.isUnlocked
-            ? localization.t("export.start")
-            : localization.t("export.startFree")
+        localization.t("export.start")
     }
 
     private var accessCard: some View {
@@ -1690,50 +1939,6 @@ private struct ExportSettingsSheet: View {
     }
 }
 
-private struct CollapsibleOptionSection<Content: View>: View {
-    let title: String
-    let systemImage: String
-    var meta: String? = nil
-    @Binding var isExpanded: Bool
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: isExpanded ? 13 : 0) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isExpanded.toggle()
-                }
-            } label: {
-                HStack {
-                    Label(title, systemImage: systemImage)
-                        .font(.headline)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.85)
-                    Spacer(minLength: 8)
-                    if let meta {
-                        Text(meta)
-                            .font(.caption)
-                            .foregroundStyle(AppPalette.secondaryText)
-                    }
-                    Image(systemName: "chevron.down")
-                        .font(.caption.bold())
-                        .foregroundStyle(AppPalette.secondaryText)
-                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if isExpanded {
-                content
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-        .padding()
-        .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: 18))
-    }
-}
-
 struct ASCIIColorSwatch: View {
     let pair: ASCIIColorPair
     let isSelected: Bool
@@ -1779,4 +1984,30 @@ struct ASCIIColorSwatch: View {
         .accessibilityLabel(accessibilityLabel)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
+}
+
+private enum VideoEditorTool: String, CaseIterable, Identifiable {
+    case subjects, style, audio, manual
+    var id: String { rawValue }
+    var titleKey: String.LocalizationValue {
+        switch self {
+        case .subjects: "editor.subjects"
+        case .style: "editor.style"
+        case .audio: "editor.audio"
+        case .manual: "editor.manualTool"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .subjects: "person.crop.rectangle"
+        case .style: "circle.lefthalf.filled"
+        case .audio: "speaker.wave.2"
+        case .manual: "square.dashed"
+        }
+    }
+}
+
+private struct MaskEditSnapshot {
+    var tracks: [MaskTrack]
+    var selection: MaskTrack.ID?
 }

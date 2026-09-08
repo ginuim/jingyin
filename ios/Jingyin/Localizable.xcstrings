@@ -24,6 +24,16 @@
     "%lld" : {
 
     },
+    "%lld s · %@ · %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld s · %2$@ · %3$@"
+          }
+        }
+      }
+    },
     "%lld%%" : {
 
     },
@@ -769,6 +779,62 @@
         }
       }
     },
+    "editor.animatedHint" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seek, then adjust the region. Positions are recorded automatically and interpolated. This does not track objects."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再生位置を移動して領域を調整すると位置が記録され、記録間を滑らかに移動します。自動追跡ではありません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移动播放头，再调整区域；位置自动记录，记录之间平滑移动。不会自动跟随。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移動播放頭，再調整區域；位置自動記錄，記錄之間平滑移動。不會自動跟隨。"
+          }
+        }
+      }
+    },
+    "editor.animatePosition" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move over time"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "時間に合わせて位置を調整"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "随时间调整位置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隨時間調整位置"
+          }
+        }
+      }
+    },
     "editor.audio" : {
       "localizations" : {
         "en" : {
@@ -793,6 +859,90 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "聲音處理"
+          }
+        }
+      }
+    },
+    "editor.automatic" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatic detection"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動検出"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动识别"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動識別"
+          }
+        }
+      }
+    },
+    "editor.backgroundEmpty" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose what to keep before continuing."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "残す対象を選んでから続けてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请选择要保留的对象，再继续处理。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請選擇要保留的對象，再繼續處理。"
+          }
+        }
+      }
+    },
+    "editor.backgroundManualHint" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In background mode, manual regions keep the original image; the surrounding background receives the effect."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "背景モードでは手動領域の元画像を残し、周囲の背景に効果を適用します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "背景模式下，手动区域保留原画面，其余背景应用效果。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "背景模式下，手動區域保留原畫面，其餘背景套用效果。"
           }
         }
       }
@@ -1084,25 +1234,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Disable This Subject"
+            "value" : "Uncover this object"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "この対象をオフ"
+            "value" : "この対象の遮蔽を解除"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "关闭此主体"
+            "value" : "取消遮盖此对象"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "關閉此主體"
+            "value" : "取消遮蓋此對象"
           }
         }
       }
@@ -1112,25 +1262,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mask Again"
+            "value" : "Cover this object"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "再度マスク"
+            "value" : "この対象を遮蔽"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "重新遮盖"
+            "value" : "遮盖此对象"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "重新遮蓋"
+            "value" : "遮蓋此對象"
           }
         }
       }
@@ -1140,25 +1290,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Turn off individual auto-detected subjects. Your choice is remembered while scrubbing when possible."
+            "value" : "Numbers identify this frame only. Exclusions use position matching across frames; review each section."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "自動検出した対象は個別にオフにできます。スクラブ中も可能な範囲で選択を維持します。"
+            "value" : "番号は現在のフレーム用です。除外はフレーム間の位置照合に基づくため、各区間を確認してください。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "自动识别的主体可单独关闭；拖动时间轴时会尽量记住你的选择。"
+            "value" : "对象编号仅用于当前画面；跨帧排除依赖位置匹配，请逐段复核。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "自動辨識的主體可單獨關閉；拖動時間軸時會盡量記住你的選擇。"
+            "value" : "對象編號僅用於目前畫面；跨影格排除依賴位置配對，請逐段複核。"
           }
         }
       }
@@ -1247,6 +1397,62 @@
         }
       }
     },
+    "editor.expandParameters" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expand"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展开"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開"
+          }
+        }
+      }
+    },
+    "editor.fixedHint" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fixed position, without tracking. Moving or resizing updates the entire active interval."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "固定位置で、自動追跡はしません。移動・サイズ変更は表示期間全体に適用されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "固定位置，不会自动跟随。拖动或缩放会更新整个显示时段的位置。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "固定位置，不會自動跟隨。拖動或縮放會更新整個顯示時段的位置。"
+          }
+        }
+      }
+    },
     "editor.fullScreenTitle" : {
       "localizations" : {
         "en" : {
@@ -1271,6 +1477,62 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全螢幕預覽"
+          }
+        }
+      }
+    },
+    "editor.inspecting" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analyzing this frame"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のフレームを解析中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在分析当前画面"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在分析目前畫面"
+          }
+        }
+      }
+    },
+    "editor.inspectionFailed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frame analysis failed. Seek to retry."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解析できませんでした。再生位置を移動して再試行してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前画面分析失败，请移动时间轴重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前畫面分析失敗，請移動時間軸重試。"
           }
         }
       }
@@ -1331,7 +1593,36 @@
         }
       }
     },
+    "editor.manualHelp" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a region to cover missed content. Tap empty space to deselect; delete from the toolbar and undo if needed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "領域を追加して見落としを補正します。余白をタップして選択解除、ツールのゴミ箱で削除できます。取り消しも可能です。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加区域补充遗漏内容。点击空白取消选中；垃圾桶删除区域，可撤销。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增區域補充遺漏內容。點擊空白取消選取；垃圾桶刪除區域，可復原。"
+          }
+        }
+      }
+    },
     "editor.manualMaskHint" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1383,6 +1674,62 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "手動蒙版"
+          }
+        }
+      }
+    },
+    "editor.manualNotNeeded" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full-frame mode needs no touch-ups. Existing regions return when you switch back."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画面全体モードでは個別の補正は不要です。切り替えると既存の領域が戻ります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全画面模式无需单独补遮。已有区域会在切回后恢复。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全畫面模式無需單獨補遮。已有區域會在切回後恢復。"
+          }
+        }
+      }
+    },
+    "editor.manualTool" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch up"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手動で補正"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手动补遮"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手動補遮"
           }
         }
       }
@@ -1439,6 +1786,118 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "蒙版 %lld"
+          }
+        }
+      }
+    },
+    "editor.next" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "次へ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一步"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一步"
+          }
+        }
+      }
+    },
+    "editor.nextRecord" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next position"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "次の位置"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一位置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一位置"
+          }
+        }
+      }
+    },
+    "editor.noEntities" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No objects found in this frame"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このフレームに対象が見つかりません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前画面未找到对象"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前畫面未找到對象"
+          }
+        }
+      }
+    },
+    "editor.pauseToInspect" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause to select objects in this frame"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一時停止してフレーム内の対象を選択"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂停后点选当前画面中的对象"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫停後點選目前畫面中的對象"
           }
         }
       }
@@ -1583,6 +2042,34 @@
         }
       }
     },
+    "editor.positionSaved" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Position recorded at %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ の位置を記録しました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已记录 %@ 的位置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已記錄 %@ 的位置"
+          }
+        }
+      }
+    },
     "editor.preparingVoice" : {
       "localizations" : {
         "en" : {
@@ -1636,6 +2123,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "效果預覽"
+          }
+        }
+      }
+    },
+    "editor.previousRecord" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous position"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前の位置"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上一位置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上一位置"
           }
         }
       }
@@ -1837,6 +2352,7 @@
       }
     },
     "editor.start" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2056,6 +2572,62 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "編輯"
+          }
+        }
+      }
+    },
+    "editor.truncated" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only the first 30 seconds will be processed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先頭30秒のみ処理します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次仅处理前 30 秒。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次僅處理前 30 秒。"
+          }
+        }
+      }
+    },
+    "editor.undo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo region edit"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "領域の編集を取り消す"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撤销区域修改"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復原區域修改"
           }
         }
       }
@@ -2845,6 +3417,7 @@
       }
     },
     "export.startFree" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7139,6 +7712,7 @@
       }
     },
     "tracking.waitForCompletion" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

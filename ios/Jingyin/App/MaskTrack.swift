@@ -186,6 +186,8 @@ struct MaskKeyframe: Codable, Equatable, Hashable, Identifiable, Sendable {
     }
 }
 
+enum ManualPositionMode: String, Codable, Sendable { case fixed, animated }
+
 struct MaskTrack: Codable, Equatable, Hashable, Identifiable, Sendable {
     let id: UUID
     var shape: MaskTrackShape
@@ -197,6 +199,26 @@ struct MaskTrack: Codable, Equatable, Hashable, Identifiable, Sendable {
     var trackingState: MaskTrackingState
     var trackingLostAtSeconds: TimeInterval?
     private(set) var keyframes: [MaskKeyframe]
+    private var manualPositionMode: ManualPositionMode?
+
+    var effectivePositionMode: ManualPositionMode {
+        manualPositionMode ?? (keyframes.count > 1 ? .animated : .fixed)
+    }
+
+    mutating func setPositionMode(_ mode: ManualPositionMode, at time: TimeInterval) {
+        guard source == .manual, let rect = keyframedRect(at: time) else { return }
+        manualPositionMode = mode
+        keyframes = [MaskKeyframe(timeSeconds: mode == .fixed ? 0 : time, rect: rect)]
+    }
+
+    mutating func updateManualRect(_ rect: NormalizedVideoRect, at time: TimeInterval) {
+        if source == .manual && effectivePositionMode == .fixed {
+            manualPositionMode = .fixed
+            keyframes = [MaskKeyframe(timeSeconds: 0, rect: rect)]
+        } else {
+            setKeyframe(MaskKeyframe(timeSeconds: time, rect: rect))
+        }
+    }
 
     init(
         id: UUID = UUID(),
@@ -343,58 +365,58 @@ struct MaskTrack: Codable, Equatable, Hashable, Identifiable, Sendable {
 }
 
 #if DEBUG
-enum MaskTrackSmoke {
-    static func run() {
-        let firstRect = NormalizedVideoRect(
-            x: 0.1,
-            y: 0.2,
-            width: 0.2,
-            height: 0.25
-        )
-        let secondRect = NormalizedVideoRect(
-            x: 0.5,
-            y: 0.4,
-            width: 0.2,
-            height: 0.25
-        )
-        var track = MaskTrack(
-            shape: .ellipse,
-            source: .detectedFace,
-            trackingState: .lost,
-            trackingLostAtSeconds: 2,
-            keyframes: [
-                MaskKeyframe(timeSeconds: 0, rect: firstRect),
-                MaskKeyframe(
-                    timeSeconds: 2,
-                    rect: secondRect,
-                    origin: .automaticTracking
-                ),
-            ]
-        )
+    enum MaskTrackSmoke {
+        static func run() {
+            let firstRect = NormalizedVideoRect(
+                x: 0.1,
+                y: 0.2,
+                width: 0.2,
+                height: 0.25
+            )
+            let secondRect = NormalizedVideoRect(
+                x: 0.5,
+                y: 0.4,
+                width: 0.2,
+                height: 0.25
+            )
+            var track = MaskTrack(
+                shape: .ellipse,
+                source: .detectedFace,
+                trackingState: .lost,
+                trackingLostAtSeconds: 2,
+                keyframes: [
+                    MaskKeyframe(timeSeconds: 0, rect: firstRect),
+                    MaskKeyframe(
+                        timeSeconds: 2,
+                        rect: secondRect,
+                        origin: .automaticTracking
+                    ),
+                ]
+            )
 
-        // A loss holds the last known box for privacy until the user corrects
-        // it, rather than silently exposing the remainder of the clip.
-        precondition(track.rect(at: 4) == secondRect)
-        track.markManualCorrection(at: 1)
-        precondition(track.trackingState == .lost)
-        track.setKeyframe(MaskKeyframe(timeSeconds: 3, rect: firstRect))
-        track.markManualCorrection(at: 3)
-        precondition(track.trackingState == .needsRetracking)
-        precondition(track.trackingLostAtSeconds == nil)
+            // A loss holds the last known box for privacy until the user corrects
+            // it, rather than silently exposing the remainder of the clip.
+            precondition(track.rect(at: 4) == secondRect)
+            track.markManualCorrection(at: 1)
+            precondition(track.trackingState == .lost)
+            track.setKeyframe(MaskKeyframe(timeSeconds: 3, rect: firstRect))
+            track.markManualCorrection(at: 3)
+            precondition(track.trackingState == .needsRetracking)
+            precondition(track.trackingLostAtSeconds == nil)
 
-        track.removeKeyframes(after: 3)
-        track.applyTrackingResult(
-            keyframes: [
-                MaskKeyframe(
-                    timeSeconds: 4,
-                    rect: secondRect,
-                    origin: .automaticTracking
-                ),
-            ],
-            lostAtSeconds: nil
-        )
-        precondition(track.trackingState == .tracked)
-        precondition(track.rect(at: 4) == secondRect)
+            track.removeKeyframes(after: 3)
+            track.applyTrackingResult(
+                keyframes: [
+                    MaskKeyframe(
+                        timeSeconds: 4,
+                        rect: secondRect,
+                        origin: .automaticTracking
+                    )
+                ],
+                lostAtSeconds: nil
+            )
+            precondition(track.trackingState == .tracked)
+            precondition(track.rect(at: 4) == secondRect)
+        }
     }
-}
 #endif

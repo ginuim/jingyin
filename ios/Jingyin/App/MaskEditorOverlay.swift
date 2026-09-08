@@ -17,6 +17,7 @@ struct MaskEditorOverlay: View {
                 in: proxy.size
             )
             ZStack {
+                Color.clear.contentShape(Rectangle()).onTapGesture { selectedTrackID = nil }
                 ForEach($tracks) { $track in
                     if let normalizedRect = track.rect(at: timeSeconds) {
                         MaskTrackLayer(
@@ -70,30 +71,17 @@ private struct MaskTrackLayer: View {
                 .gesture(moveGesture)
 
             if isSelected {
-                Button(action: onDelete) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .black))
-                        .foregroundStyle(AppPalette.maskOutline)
-                        .frame(width: 28, height: 28)
-                        .background(AppPalette.destructive, in: Circle())
-                        .overlay {
-                            Circle().stroke(AppPalette.maskOutline, lineWidth: 2)
-                        }
-                        .frame(width: 44, height: 44)
-                }
-                .buttonStyle(.plain)
-                .position(
-                    x: min(max(previewRect.maxX, videoBounds.minX + 22), videoBounds.maxX - 22),
-                    y: min(max(previewRect.minY, videoBounds.minY + 22), videoBounds.maxY - 22)
-                )
-                .accessibilityLabel(localization.t("editor.deleteEntireMask"))
-
-                Circle()
-                    .fill(accentColor)
-                    .stroke(AppPalette.maskOutlineShadow, lineWidth: 2)
-                    .frame(width: 26, height: 26)
-                    .contentShape(Circle().inset(by: -8))
-                    .position(x: previewRect.maxX, y: previewRect.maxY)
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(AppPalette.maskOutline)
+                    .frame(width: 28, height: 28)
+                    .background(accentColor, in: Circle())
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+                    .position(
+                        x: min(max(previewRect.maxX, videoBounds.minX + 22), videoBounds.maxX - 22),
+                        y: min(max(previewRect.maxY, videoBounds.minY + 22), videoBounds.maxY - 22)
+                    )
                     .gesture(resizeGesture)
                     .accessibilityLabel(localization.t("editor.resizeMask"))
             }
@@ -182,9 +170,7 @@ private struct MaskTrackLayer: View {
 
     private func updateTrack(rect: NormalizedVideoRect) {
         var updated = track
-        updated.setKeyframe(
-            MaskKeyframe(timeSeconds: timeSeconds, rect: rect)
-        )
+        updated.updateManualRect(rect, at: timeSeconds)
         track = updated
     }
 }

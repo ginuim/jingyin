@@ -51,6 +51,7 @@ struct BareVideoPlayer: UIViewRepresentable {
 /// preview is attached through `AVPlayerItem.videoComposition`.
 struct ControlledVideoPlayer<Content: View>: View {
     let player: AVPlayer
+    let thumbnailURL: URL?
     let showsCentralPlayButton: Bool
     let timelineMarkers: [VideoTimelineMarker]
     let timelineRanges: [VideoTimelineRange]
@@ -61,6 +62,9 @@ struct ControlledVideoPlayer<Content: View>: View {
     @ViewBuilder private let content: Content
 
     @EnvironmentObject private var localization: LocalizationManager
+    @State private var thumbnails: [UIImage] = []
+    @State private var seekGeneration = 0
+    @State private var thumbnailGeneration = UUID()
     @State private var currentSeconds = 0.0
     @State private var durationSeconds = 0.0
     @State private var scrubSeconds = 0.0
@@ -76,6 +80,7 @@ struct ControlledVideoPlayer<Content: View>: View {
 
     init(
         player: AVPlayer,
+        thumbnailURL: URL? = nil,
         showsCentralPlayButton: Bool = false,
         timelineMarkers: [VideoTimelineMarker] = [],
         timelineRanges: [VideoTimelineRange] = [],
@@ -86,6 +91,7 @@ struct ControlledVideoPlayer<Content: View>: View {
         @ViewBuilder content: () -> Content
     ) {
         self.player = player
+        self.thumbnailURL = thumbnailURL
         self.showsCentralPlayButton = showsCentralPlayButton
         self.timelineMarkers = timelineMarkers
         self.timelineRanges = timelineRanges
@@ -105,7 +111,7 @@ struct ControlledVideoPlayer<Content: View>: View {
                             Image(systemName: isPinned ? "pin.fill" : "pin")
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundStyle(isPinned ? AppPalette.accent.foreground : AppPalette.maskOutline)
-                                .frame(width: 36, height: 36)
+                                .frame(width: 44, height: 44)
                                 .background(
                                     isPinned
                                         ? AppPalette.accent.primary
@@ -130,7 +136,7 @@ struct ControlledVideoPlayer<Content: View>: View {
                             )
                             .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(AppPalette.maskOutline)
-                            .frame(width: 36, height: 36)
+                            .frame(width: 44, height: 44)
                             .background(AppPalette.mediaScrim, in: Circle())
                         }
                         .buttonStyle(.plain)
@@ -153,11 +159,14 @@ struct ControlledVideoPlayer<Content: View>: View {
                     }
                 }
 
+            if thumbnailURL != nil {
+                thumbnailStrip
+            }
             HStack(spacing: 9) {
                 Button(action: togglePlayback) {
                     Image(systemName: playerIsPaused ? "play.fill" : "pause.fill")
                         .font(.system(size: 14, weight: .bold))
-                        .frame(width: 30, height: 30)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -183,9 +192,73 @@ struct ControlledVideoPlayer<Content: View>: View {
             .padding(.horizontal, 4)
         }
         .fixedSize(horizontal: false, vertical: true)
+        .task(id: thumbnailURL) { await loadThumbnails() }
+        .onDisappear {
+            thumbnailGeneration = UUID()
+            thumbnails.removeAll()
+        }
         .onAppear(perform: refreshState)
         .onReceive(refreshTimer) { _ in
             refreshState()
+        }
+    }
+
+    private var thumbnailStrip: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                HStack(spacing: 0) {
+                    ForEach(0..<8, id: \.self) { index in
+                        Group {
+                            if index < thumbnails.count {
+                                Image(uiImage: thumbnails[index]).resizable().scaledToFill()
+                            } else {
+                                AppPalette.elevatedSurface
+                            }
+                        }
+                        .frame(width: proxy.size.width / 8, height: 36)
+                        .clipped()
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                Rectangle().fill(AppPalette.accent.primary).frame(width: 3)
+                    .offset(
+                        x: CGFloat(min(max(displayedSeconds / max(durationSeconds, 0.01), 0), 1))
+                            * max(0, proxy.size.width - 3))
+            }
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    if !isScrubbing { scrubStateChanged(true) }
+                    scrubSeconds = min(max(Double(value.location.x / max(proxy.size.width, 1)), 0), 1) * durationSeconds
+                }
+                .onEnded { _ in scrubStateChanged(false) })
+        }
+        .frame(height: 44)
+        .accessibilityHidden(true)
+    }
+
+    @MainActor private func loadThumbnails() async {
+        thumbnails.removeAll()
+        guard let thumbnailURL else { return }
+        let identity = UUID()
+        thumbnailGeneration = identity
+        let asset = AVURLAsset(url: thumbnailURL)
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: 160, height: 160)
+        defer { generator.cancelAllCGImageGeneration() }
+        do {
+            let duration = try await asset.load(.duration).seconds
+            guard duration.isFinite, duration > 0 else { return }
+            for index in 0..<8 {
+                try Task.checkCancellation()
+                let frame = try await generator.image(
+                    at: CMTime(seconds: duration * Double(index) / 8, preferredTimescale: 600))
+                guard !Task.isCancelled, thumbnailGeneration == identity else { return }
+                thumbnails.append(UIImage(cgImage: frame.image))
+            }
+        } catch {
+            // A failed thumbnail never blocks the independent transport controls.
         }
     }
 
@@ -312,20 +385,24 @@ struct ControlledVideoPlayer<Content: View>: View {
         if editing {
             isScrubbing = true
             scrubSeconds = currentSeconds
-            resumeAfterScrubbing = player.timeControlStatus != .paused
+            resumeAfterScrubbing = false
             player.pause()
             refreshState()
             return
         }
 
-        let destination = CMTime(seconds: scrubSeconds, preferredTimescale: 600)
+        seekGeneration += 1
+        let generation = seekGeneration
+        let target = scrubSeconds
+        let destination = CMTime(seconds: target, preferredTimescale: 600)
         Task { @MainActor in
             await player.seek(
                 to: destination,
                 toleranceBefore: .zero,
                 toleranceAfter: .zero
             )
-            currentSeconds = scrubSeconds
+            guard generation == seekGeneration else { return }
+            currentSeconds = target
             isScrubbing = false
             if resumeAfterScrubbing {
                 player.play()

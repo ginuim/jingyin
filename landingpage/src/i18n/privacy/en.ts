@@ -22,6 +22,7 @@ export const privacyEn: PrivacyCopy = {
     {
       heading: '2. Face data',
       paragraphs: [
+        'The video editor also derives up to eight reduced full-frame thumbnails for timeline navigation, and keeps up to forty region-edit undo states. These may contain visible faces or region coordinates, are used only within the current session, are never uploaded or written to disk or preferences, and are released when the editor closes or the app terminates. Thumbnails show the selected original media, not proof of completed covering.',
         'When you select a photo for photo processing, face masking is enabled by default. For video processing, face detection runs when you select Faces as the subject to cover. The app uses Apple Vision APIs on the device to detect face locations and may temporarily derive face bounding rectangles, normalized coordinates, and masks or keyframes needed to place pixelation, blur, or stickers.',
         'lenshide does not create or collect facial embeddings, biometric templates, faceprints, identity labels, or persistent facial landmark profiles. It does not recognize or identify people. Face data is used only to apply the visual privacy effect you request. It is not used for authentication, advertising, marketing, analytics, profiling, or any unrelated purpose.',
         'All face detection and processing take place on your device. Face data is not uploaded to lenshide servers, transferred off the device, shared with third parties, sold, or made available to the developer.',

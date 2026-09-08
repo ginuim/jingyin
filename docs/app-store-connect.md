@@ -1,12 +1,12 @@
 # 镜隐 App Store Connect 配置记录
 
-更新时间：2026-09-03
+更新时间：2026-09-07
 
 配套文档：市场与定价见 [app-store-market-and-pricing.md](./app-store-market-and-pricing.md)；首发清单见 [ios-launch-todo.md](./ios-launch-todo.md)。
 
 ## 结论
 
-付费闭环在 Connect 侧的前置条件已齐：Paid Apps Agreement **有效**、银行 **可用**、美国税表 **使用中**、Family Sharing **已开**、IAP 与 App 定价已配好，DSA 交易商信息 **有效**。2026-09-02，iOS `1.0 (3)` 因 Guideline 2.1 要求补充人脸数据处理说明而被拒；不是功能或 IAP 故障。2026-09-03 已发布四语隐私政策的独立「人脸数据」章节，向审核团队提交完整英文说明，并使用原构建重新提交；App 与 IAP 当前均为**等待审核**。真机 Sandbox 购买与 TestFlight 商店价格验证仍待完成。
+付费闭环在 Connect 侧的前置条件已齐：Paid Apps Agreement **有效**、银行 **可用**、美国税表 **使用中**、Family Sharing **已开**、IAP 与 App 定价已配好，DSA 交易商信息 **有效**。2026-09-02，iOS `1.0 (3)` 因 Guideline 2.1 要求补充人脸数据处理说明而被拒；不是功能或 IAP 故障。2026-09-03 已发布四语隐私政策的独立「人脸数据」章节并完成上一轮回复。2026-09-07 已撤回原提审的 `1.0.1 (5)`，上传当前工程归档 `1.0.1 (6)` 并重新提交；App 当前为**等待审核**。真机 Sandbox 购买与 TestFlight 商店价格验证仍待完成。
 
 ## 账号与标识
 
@@ -93,7 +93,7 @@ ASC 上若仍是「仅视频」旧描述，照片批量上线前提交版本前�
 | 项 | 状态 |
 | --- | --- |
 | 历史内测构建 | `0.1.0 (1)`（Internal Testing Only） |
-| 当前送审构建 | `1.0 (3)`（2026-08-25 上传并处理完成，已随版本提交审核） |
+| 当前送审构建 | `1.0.1 (6)`（2026-09-07 上传并处理完成，撤回 `1.0.1 (5)` 后重新提交审核） |
 | 分发范围 | **Internal Testing Only**（不能转为外部测试或正式 App Store 构建） |
 | 出口合规 | 不使用专有、标准或其他非豁免加密；App Store Connect 已接受声明 |
 | 内部群组 | 「内部测试」；自动访问全部构建 |
@@ -208,3 +208,10 @@ in a persistent database or in user preferences.”
 Please let us know if any additional information is required.
 
 Best regards
+
+
+## 2026-09-08 视频工作区审核说明补充（草稿，未提交）
+
+Video timeline navigation derives at most eight reduced full-frame thumbnails from the selected original video. The editor also retains at most forty region-edit undo states in session memory. They may contain visible faces or region coordinates. They are not uploaded, shared, or persisted to disk or preferences, and are released when the editor closes or the app terminates. They are used solely for local editing and do not identify people. Timeline thumbnails are source frames, not evidence of completed masking.
+
+四语政策源码同次补充；上线部署与 App Store Connect 审核备注尚需同步，不能以本地文档更新视为已提交。
