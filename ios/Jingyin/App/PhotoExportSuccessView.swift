@@ -26,7 +26,6 @@ struct PhotoExportSuccessView: View {
     let result: PhotoExportResult
     let onReturnHome: () -> Void
 
-    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var localization: LocalizationManager
     @EnvironmentObject private var entitlements: EntitlementStore
 
@@ -187,13 +186,6 @@ struct PhotoExportSuccessView: View {
 
     private var secondaryActions: some View {
         VStack(spacing: 4) {
-            textButton(localization.t(
-                result.remainingCount > 0
-                    ? "photo.continueRemaining"
-                    : "photo.continueReview"
-            )) {
-                dismiss()
-            }
             textButton(localization.t("photo.returnHome")) {
                 onReturnHome()
             }
@@ -355,7 +347,9 @@ private struct ZoomableExportPreview: View {
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        .padding(6)
+        // Leave enough breathing room for the drop shadow, including below
+        // the image. The previous 6pt inset clipped the lower blur edge.
+        .padding(10)
         .clipped()
         .task(id: url) {
             guard let source = UIImage(contentsOfFile: url.path) else { return }

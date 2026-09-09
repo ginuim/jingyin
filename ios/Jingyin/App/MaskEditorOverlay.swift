@@ -90,27 +90,36 @@ private struct MaskTrackLayer: View {
 
     @ViewBuilder
     private var maskShape: some View {
-        switch track.shape {
-        case .ellipse:
-            Ellipse()
-                .fill(accentColor.opacity(isSelected ? 0.16 : 0.08))
-                .stroke(
-                    isSelected ? accentColor : AppPalette.maskOutline,
-                    style: StrokeStyle(
-                        lineWidth: isSelected ? 3 : 2,
-                        dash: isSelected ? [] : [6, 5]
-                    )
-                )
-        case .rectangle:
+        if track.manualPath != nil {
+            // The brush effect is the region; its box is only a selected
+            // transform handle, never a filled rectangular coverage preview.
             Rectangle()
-                .fill(accentColor.opacity(isSelected ? 0.16 : 0.08))
-                .stroke(
-                    isSelected ? accentColor : AppPalette.maskOutline,
-                    style: StrokeStyle(
-                        lineWidth: isSelected ? 3 : 2,
-                        dash: isSelected ? [] : [6, 5]
+                .fill(Color.clear)
+                .stroke(isSelected ? accentColor : Color.clear,
+                        style: StrokeStyle(lineWidth: 2, dash: [4, 4]))
+        } else {
+            switch track.shape {
+            case .ellipse:
+                Ellipse()
+                    .fill(accentColor.opacity(isSelected ? 0.16 : 0.08))
+                    .stroke(
+                        isSelected ? accentColor : AppPalette.maskOutline,
+                        style: StrokeStyle(
+                            lineWidth: isSelected ? 3 : 2,
+                            dash: isSelected ? [] : [6, 5]
+                        )
                     )
-                )
+            case .rectangle:
+                Rectangle()
+                    .fill(accentColor.opacity(isSelected ? 0.16 : 0.08))
+                    .stroke(
+                        isSelected ? accentColor : AppPalette.maskOutline,
+                        style: StrokeStyle(
+                            lineWidth: isSelected ? 3 : 2,
+                            dash: isSelected ? [] : [6, 5]
+                        )
+                    )
+            }
         }
     }
 

@@ -721,6 +721,7 @@
       }
     },
     "editor.addEllipse" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -749,6 +750,7 @@
       }
     },
     "editor.addRectangle" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -940,6 +942,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "背景模式下，手動區域保留原畫面，其餘背景套用效果。"
+          }
+        }
+      }
+    },
+    "editor.brushHint" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paint over the area to cover, then lift your finger. Applies to the whole video by default."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隠したい範囲をなぞり、指を離すと完了します。初期設定では動画全体に適用されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在画面上涂抹需要遮盖的区域，松手完成。默认覆盖整段视频。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在畫面上塗抹需要遮蓋的區域，放手完成。預設套用至整段影片。"
           }
         }
       }
@@ -1227,6 +1257,7 @@
       }
     },
     "editor.entityDisable" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1255,6 +1286,7 @@
       }
     },
     "editor.entityEnable" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1535,6 +1567,7 @@
       }
     },
     "editor.keyframeTimelineHint" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2570,6 +2603,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "辨識主體"
+          }
+        }
+      }
+    },
+    "editor.timingAndMotion" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Timing and movement"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表示区間と移動"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出现时段与移动"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示時段與移動"
           }
         }
       }
@@ -4740,6 +4801,7 @@
       }
     },
     "photo.continueRemaining" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4768,6 +4830,7 @@
       }
     },
     "photo.continueReview" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

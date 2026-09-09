@@ -152,44 +152,6 @@ struct PhotoMaskGroup: Identifiable, Hashable, Sendable {
     }
 }
 
-/// A freehand brush stroke in the same top-left, display-oriented coordinate
-/// space used by photo previews and final Core Image exports.
-struct NormalizedMaskPath: Hashable, Sendable {
-    struct Point: Hashable, Sendable {
-        let x: Double
-        let y: Double
-
-        init(x: Double, y: Double) {
-            self.x = min(max(x.isFinite ? x : 0, 0), 1)
-            self.y = min(max(y.isFinite ? y : 0, 0), 1)
-        }
-    }
-
-    let points: [Point]
-    let strokeWidth: Double
-
-    init?(points: [Point], strokeWidth: Double = 0.08) {
-        guard !points.isEmpty else { return nil }
-        self.points = points
-        self.strokeWidth = min(max(strokeWidth.isFinite ? strokeWidth : 0.08, 0.01), 0.30)
-    }
-
-    var boundingRect: NormalizedVideoRect {
-        let xs = points.map(\.x)
-        let ys = points.map(\.y)
-        let minX = xs.min() ?? 0
-        let minY = ys.min() ?? 0
-        let maxX = xs.max() ?? minX
-        let maxY = ys.max() ?? minY
-        return NormalizedVideoRect(
-            x: minX,
-            y: minY,
-            width: max(maxX - minX, 0.002),
-            height: max(maxY - minY, 0.002)
-        )
-    }
-}
-
 struct PhotoDraft: Identifiable {
     let id: UUID
     let inputURL: URL
@@ -1128,7 +1090,7 @@ enum PhotoProcessor {
         return combined
     }
 
-    private static func manualPathMask(
+    static func manualPathMask(
         _ path: NormalizedMaskPath,
         extent: CGRect
     ) -> CIImage? {

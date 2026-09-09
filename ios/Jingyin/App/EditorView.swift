@@ -36,6 +36,8 @@ struct EditorView: View {
     @State private var inspectingEntities = false
     @State private var inspectionFailed = false
     @State private var selectedEntityID: MaskEntity.ID?
+    @State private var isDrawingFreehandMask = false
+    @State private var brushWidth = 0.08
     @State private var showManualMaskEditor = false
     @State private var showFullScreenMaskEditor = false
     @State private var faceDetectionSnapshot: FaceDetectionSnapshot?
@@ -156,22 +158,8 @@ struct EditorView: View {
         .fullScreenCover(isPresented: $showFullScreenMaskEditor) {
             FullScreenMaskEditorView(
                 player: player,
-                tracks: $options.maskTracks,
-                selectedTrackID: $selectedMaskTrackID,
-                playheadSeconds: $playheadSeconds,
-                videoDisplaySize: sourceMetadata?.displaySize,
-                timelineMarkers: manualMaskTimelineMarkers,
-                timelineRanges: manualMaskTimelineRanges,
-                isMaskEditingEnabled: options.scope != .full,
-                onEditingBegan: {
-                    player.pause()
-                    voicePreview.pause()
-                },
-                onDeleteTrack: requestDeleteMask,
-                onEditingEnded: finishMaskEditing
-            ) {
-                manualPanel
-            }
+                playheadSeconds: $playheadSeconds
+            )
             .environmentObject(localization)
         }
         .sheet(isPresented: $showFaceSelection) {
@@ -254,6 +242,7 @@ struct EditorView: View {
             ProcessingOptionsPreferenceStore.saveVideo(options)
         }
         .onChange(of: selectedTool) { _, tool in
+            isDrawingFreehandMask = false
             showManualMaskEditor = tool == .manual
             if tool == .manual {
                 player.pause()
@@ -325,7 +314,9 @@ struct EditorView: View {
         let display = sourceMetadata?.displaySize ?? CGSize(width: 16, height: 9)
         let aspect = max(display.width / max(display.height, 1), 0.1)
         let fittingHeight = max(0, size.width - 24) / aspect
-        let limit = size.height * (dynamicTypeSize.isAccessibilitySize ? 0.20 : 0.34)
+        let fraction: CGFloat = selectedTool == .manual
+            ? (isDrawingFreehandMask ? 0.58 : 0.44) : 0.40
+        let limit = size.height * (dynamicTypeSize.isAccessibilitySize ? 0.20 : fraction)
         return max(dynamicTypeSize.isAccessibilitySize ? 88 : 100, min(fittingHeight, limit))
     }
 
@@ -337,6 +328,7 @@ struct EditorView: View {
             timelineRanges: manualMaskTimelineRanges,
             onTimeChanged: { playheadSeconds = $0 },
             onFullScreen: {
+                isDrawingFreehandMask = false
                 showFullScreenMaskEditor = true
             }
         ) {
@@ -388,6 +380,16 @@ struct EditorView: View {
                             onEditingEnded: finishMaskEditing,
                             onDeleteTrack: requestDeleteMask
                         )
+                        .allowsHitTesting(!isDrawingFreehandMask)
+                        if isDrawingFreehandMask {
+                            PhotoFreehandMaskOverlay(
+                                groups: [], selectedTrackID: $selectedMaskTrackID,
+                                isDrawing: $isDrawingFreehandMask,
+                                displaySize: sourceMetadata?.displaySize,
+                                brushWidth: brushWidth, onComplete: addManualPath,
+                                onDelete: requestDeleteMask
+                            )
+                        }
                     }
                 }
         }
@@ -395,23 +397,25 @@ struct EditorView: View {
 
     private var settings: some View {
         return VStack(alignment: .leading, spacing: 8) {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(localization.t(selectedTool.titleKey)).font(.headline)
-                    if !expandedParameters {
-                        Button { expandedParameters = true } label: {
-                            Label(localization.t("editor.expandParameters"), systemImage: "chevron.up")
-                        }.buttonStyle(TextButtonStyle())
+            if selectedTool != .manual {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(localization.t(selectedTool.titleKey)).font(.headline)
+                        if !expandedParameters {
+                            Button { expandedParameters = true } label: {
+                                Label(localization.t("editor.expandParameters"), systemImage: "chevron.up")
+                            }.buttonStyle(TextButtonStyle())
+                        }
                     }
-                }
-            } else {
-                HStack {
-                    Text(localization.t(selectedTool.titleKey)).font(.headline)
-                    Spacer()
-                    if !expandedParameters {
-                        Button { expandedParameters = true } label: {
-                            Label(localization.t("editor.expandParameters"), systemImage: "chevron.up")
-                        }.buttonStyle(TextButtonStyle())
+                } else {
+                    HStack {
+                        Text(localization.t(selectedTool.titleKey)).font(.headline)
+                        Spacer()
+                        if !expandedParameters {
+                            Button { expandedParameters = true } label: {
+                                Label(localization.t("editor.expandParameters"), systemImage: "chevron.up")
+                            }.buttonStyle(TextButtonStyle())
+                        }
                     }
                 }
             }
@@ -618,122 +622,92 @@ struct EditorView: View {
     }
 
     private var manualPanel: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             if options.scope == .full {
                 Text(localization.t("editor.manualNotNeeded"))
             } else {
-
-                HStack(spacing: 10) {
-                    Button {
-                        addManualMask(shape: .ellipse)
+                HStack {
+                    Menu {
+                        Button { addManualMask(shape: .ellipse) } label: {
+                            Label(localization.t("photo.addEllipse"), systemImage: "circle")
+                        }
+                        Button { addManualMask(shape: .rectangle) } label: {
+                            Label(localization.t("photo.addRectangle"), systemImage: "rectangle")
+                        }
+                        Button {
+                            player.pause()
+                            voicePreview.pause()
+                            selectedMaskTrackID = nil
+                            isDrawingFreehandMask = true
+                        } label: {
+                            Label(localization.t("photo.addFreehand"), systemImage: "scribble.variable")
+                        }
                     } label: {
-                        Label(
-                            localization.t("editor.addEllipse"),
-                            systemImage: "plus.circle"
-                        )
-                        .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(TextButtonStyle())
-
-                    Button {
-                        addManualMask(shape: .rectangle)
-                    } label: {
-                        Label(
-                            localization.t("editor.addRectangle"),
-                            systemImage: "plus.circle"
-                        )
-                        .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(TextButtonStyle())
+                        Label(localization.t("photo.addMask"), systemImage: "plus")
+                    }.buttonStyle(.bordered)
+                    Spacer(minLength: 0)
+                    Button(action: undoMaskEdit) {
+                        Label(localization.t("editor.undo"), systemImage: "arrow.uturn.backward")
+                    }.disabled(maskHistory.isEmpty)
                 }
-
-                if !options.maskTracks.isEmpty {
-                    maskSelector
-                }
-
-                if let selectedMaskIndex {
-                    maskVisibilityMenu
-                    Toggle(
-                        localization.t("editor.animatePosition"),
-                        isOn: Binding(
-                            get: { options.maskTracks.first(where: { $0.id == selectedMaskTrackID })?.effectivePositionMode == .animated },
-                            set: { setPositionMode($0) }
-                        ))
-                    Text(
-                        localization.t(
-                            options.maskTracks[selectedMaskIndex].effectivePositionMode == .animated
-                                ? "editor.animatedHint" : "editor.fixedHint")
-                    )
-                    .font(.footnote).foregroundStyle(AppPalette.secondaryText)
+                if isDrawingFreehandMask {
                     HStack {
-                        Button {
-                            jumpToRecord(forward: false)
-                        } label: {
-                            Label(localization.t("editor.previousRecord"), systemImage: "backward.end")
-                        }
-                        Button {
-                            jumpToRecord(forward: true)
-                        } label: {
-                            Label(localization.t("editor.nextRecord"), systemImage: "forward.end")
-                        }
-                    }.buttonStyle(TextButtonStyle())
-                    Button(role: .destructive) {
-                        deleteMask(id: options.maskTracks[selectedMaskIndex].id)
-                    } label: {
-                        Label(localization.t("editor.deleteEntireMask"), systemImage: "trash")
-                    }.buttonStyle(TextButtonStyle(role: .destructive))
-                    HStack(spacing: 10) {
-                        Button(action: shrinkSelectedMask) {
-                            Label(
-                                localization.t("editor.shrinkMask"),
-                                systemImage: "minus.magnifyingglass"
-                            )
-                            .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(TextButtonStyle())
-
-                        Button(action: enlargeSelectedMask) {
-                            Label(
-                                localization.t("editor.enlargeMask"),
-                                systemImage: "plus.magnifyingglass"
-                            )
-                            .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(TextButtonStyle())
+                        Text(localization.t("photo.brushSize")).font(.caption)
+                        Slider(value: $brushWidth, in: 0.01...0.30)
+                            .accessibilityLabel(localization.t("photo.brushSize"))
+                        Button(localization.t("common.cancel")) { isDrawingFreehandMask = false }
                     }
-
-                    HStack(spacing: 10) {
-                        positionRecordsMenu
-                            .frame(maxWidth: .infinity)
-                            .disabled(options.maskTracks[selectedMaskIndex].effectivePositionMode != .animated)
-                    }
-
-                    if let selectedFaceTrack {
-                        faceTrackingStatus(selectedFaceTrack)
+                    Text(localization.t("editor.brushHint"))
+                        .font(.caption).foregroundStyle(AppPalette.secondaryText)
+                } else {
+                    if !options.maskTracks.isEmpty { maskSelector }
+                    if let selectedMaskIndex {
+                        HStack {
+                            Button(action: shrinkSelectedMask) {
+                                Label(localization.t("editor.shrinkMask"), systemImage: "minus.magnifyingglass")
+                            }
+                            Button(action: enlargeSelectedMask) {
+                                Label(localization.t("editor.enlargeMask"), systemImage: "plus.magnifyingglass")
+                            }
+                            Spacer(minLength: 0)
+                            Button(role: .destructive) {
+                                requestDeleteMask(id: options.maskTracks[selectedMaskIndex].id)
+                            } label: {
+                                Image(systemName: "trash").frame(width: 44, height: 44)
+                            }.accessibilityLabel(localization.t("editor.deleteEntireMask"))
+                        }.font(.caption)
+                        DisclosureGroup(localization.t("editor.timingAndMotion")) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                maskVisibilityMenu
+                                Toggle(localization.t("editor.animatePosition"), isOn: Binding(
+                                    get: { options.maskTracks.first(where: { $0.id == selectedMaskTrackID })?.effectivePositionMode == .animated },
+                                    set: { setPositionMode($0) }))
+                                Text(localization.t(options.maskTracks[selectedMaskIndex].effectivePositionMode == .animated
+                                    ? "editor.animatedHint" : "editor.fixedHint"))
+                                    .font(.caption).foregroundStyle(AppPalette.secondaryText)
+                                if options.maskTracks[selectedMaskIndex].effectivePositionMode == .animated {
+                                    HStack {
+                                        Button { jumpToRecord(forward: false) } label: {
+                                            Image(systemName: "backward.end")
+                                        }.accessibilityLabel(localization.t("editor.previousRecord"))
+                                        positionRecordsMenu
+                                        Button { jumpToRecord(forward: true) } label: {
+                                            Image(systemName: "forward.end")
+                                        }.accessibilityLabel(localization.t("editor.nextRecord"))
+                                    }
+                                }
+                            }.padding(.top, 8)
+                        }.font(.subheadline)
+                    } else {
+                        Text(localization.t(options.scope == .background
+                            ? "editor.backgroundManualHint" : "editor.manualHelp"))
+                            .font(.caption).foregroundStyle(AppPalette.secondaryText)
                     }
                 }
-
-                Button(action: undoMaskEdit) {
-                    Label(localization.t("editor.undo"), systemImage: "arrow.uturn.backward")
-                }.buttonStyle(TextButtonStyle()).disabled(maskHistory.isEmpty)
-                if let editFeedback { Text(editFeedback).font(.footnote) }
-                Text(
-                    localization.t(
-                        options.scope == .background ? "editor.backgroundManualHint" : "editor.manualHelp")
-                )
-                .font(.caption)
-                .foregroundStyle(AppPalette.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
-
-                Label(
-                    localization.t("editor.keyframeTimelineHint"),
-                    systemImage: "timeline.selection"
-                )
-                .font(.caption)
-                .foregroundStyle(AppPalette.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
+                if let editFeedback { Text(editFeedback).font(.caption) }
             }
         }
+        .tint(AppPalette.accent.primary)
     }
 
     @ViewBuilder private var toolBar: some View {
@@ -915,7 +889,7 @@ struct EditorView: View {
                     } label: {
                         Label(
                             localization.format("editor.maskItem", Int64(index + 1)),
-                            systemImage: track.source == .detectedFace
+                            systemImage: track.manualPath != nil ? "scribble.variable" : track.source == .detectedFace
                                 ? "person.crop.circle"
                                 : (
                                     track.shape == .ellipse
@@ -1043,7 +1017,17 @@ struct EditorView: View {
         }
     }
 
+    private func addManualPath(_ path: NormalizedMaskPath) {
+        player.pause()
+        let track = MaskTrack(shape: .rectangle, manualPath: path,
+            keyframes: [MaskKeyframe(timeSeconds: 0, rect: path.boundingRect)])
+        options.maskTracks.append(track)
+        selectedMaskTrackID = track.id
+        refreshMaskPreview()
+    }
+
     private func addManualMask(shape: MaskTrackShape) {
+        isDrawingFreehandMask = false
         player.pause()
         voicePreview.pause()
         let track = MaskTrack(

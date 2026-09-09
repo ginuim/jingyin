@@ -787,6 +787,7 @@ final class FrameEffectProcessor: @unchecked Sendable {
     private let asciiGlyphTiles: [CIImage]
     private let stickerTile: CIImage?
     private var cachedMask: CIImage?
+    private var brushMasks: [UUID: (path: NormalizedMaskPath, extent: CGRect, mask: CIImage)] = [:]
     private var cachedFaceRects: [NormalizedVideoRect] = []
     private var frameIndex = 0
     private var liveEntities: [MaskEntity]
@@ -887,7 +888,8 @@ final class FrameEffectProcessor: @unchecked Sendable {
                 + maskTrackRects(at: timeSeconds)
                 + options.stickerFaceRects
             effected = stickerImage(over: source, faceRects: faceRects, extent: extent)
-            if let externalMask {
+            if let externalMask = Self.combinedMask(externalMask,
+                maskTrackMask(at: timeSeconds, extent: extent, pathsOnly: true), extent: extent) {
                 effected = stickerBrushImage(
                     over: effected,
                     mask: externalMask,
@@ -1380,28 +1382,26 @@ final class FrameEffectProcessor: @unchecked Sendable {
 
     private func maskTrackMask(
         at timeSeconds: TimeInterval,
-        extent: CGRect
+        extent: CGRect,
+        pathsOnly: Bool = false
     ) -> CIImage? {
-        let activeTracks = options.maskTracks.compactMap { track -> (MaskTrackShape, CGRect)? in
-            guard let normalizedRect = track.rect(at: timeSeconds),
-                  !normalizedRect.isEmpty else {
-                return nil
-            }
-            return (
-                track.shape,
-                normalizedRect.rect(inCoreImageExtent: extent)
-            )
-        }
+        let activeTracks = options.maskTracks.filter { $0.rect(at: timeSeconds) != nil && (!pathsOnly || $0.manualPath != nil) }
         guard !activeTracks.isEmpty else { return nil }
-
         var mask = CIImage(color: .black).cropped(to: extent)
-        for (shape, rect) in activeTracks {
+        for track in activeTracks {
+            guard let normalizedRect = track.rect(at: timeSeconds) else { continue }
+            let rect = normalizedRect.rect(inCoreImageExtent: extent)
             let shapeMask: CIImage
-            switch shape {
-            case .rectangle:
-                shapeMask = CIImage(color: .white).cropped(to: rect)
-            case .ellipse:
-                shapeMask = Self.ellipseMask(in: rect, extent: extent)
+            if let path = track.path(at: timeSeconds) {
+                guard let rendered = brushMask(for: track, path: path, extent: extent) else { continue }
+                shapeMask = rendered
+            } else {
+                switch track.shape {
+                case .rectangle:
+                    shapeMask = CIImage(color: .white).cropped(to: rect)
+                case .ellipse:
+                    shapeMask = Self.ellipseMask(in: rect, extent: extent)
+                }
             }
             mask = shapeMask.applyingFilter(
                 "CIMaximumCompositing",
@@ -1411,9 +1411,21 @@ final class FrameEffectProcessor: @unchecked Sendable {
         return mask.cropped(to: extent)
     }
 
+    // Accessed under the frame processor lock. Keep one raster per track,
+    // replacing it when an animated rectangle changes instead of accumulating frames.
+    private func brushMask(for track: MaskTrack, path: NormalizedMaskPath, extent: CGRect) -> CIImage? {
+        if let cached = brushMasks[track.id], cached.path == path, cached.extent == extent {
+            return cached.mask
+        }
+        guard let mask = PhotoProcessor.manualPathMask(path, extent: extent) else { return nil }
+        brushMasks[track.id] = (path, extent, mask)
+        return mask
+    }
+
     private func maskTrackRects(at timeSeconds: TimeInterval) -> [NormalizedVideoRect] {
         options.maskTracks.compactMap { track in
-            guard track.source == .detectedFace || track.source == .manual else { return nil }
+            guard track.manualPath == nil,
+                  track.source == .detectedFace || track.source == .manual else { return nil }
             return track.rect(at: timeSeconds)
         }
     }
