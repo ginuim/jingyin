@@ -24,7 +24,7 @@ private enum PhotoEditorTool: String, CaseIterable, Identifiable {
         case .subjects: localization.t("editor.subjects")
         case .scope: localization.t("editor.scope")
         case .effect: localization.t("editor.style")
-        case .masks: localization.t("editor.manualMasks")
+        case .masks: localization.t("photo.adjustRegions")
         }
     }
 }
@@ -70,32 +70,38 @@ struct PhotoBatchEditorView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            VStack(spacing: 0) {
-                photoStrip
-                Divider()
-                    .overlay(AppPalette.divider)
+            ZStack {
+                VStack(spacing: 0) {
+                    photoStrip
+                    Divider()
+                        .overlay(AppPalette.divider)
 
-                preview
-                    .padding(12)
-                    .frame(maxHeight: .infinity)
-                    .layoutPriority(1)
+                    preview
+                        .padding(12)
+                        .frame(maxHeight: .infinity)
+                        .layoutPriority(1)
 
-                toolBar
+                    toolBar
+
+                    if let selectedTool {
+                        parameterPanel(
+                            for: selectedTool,
+                            height: min(Self.parameterPanelHeight, proxy.size.height * 0.48)
+                        )
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                }
+                .allowsHitTesting(!isExporting)
 
                 if isExporting {
+                    Color.black.opacity(0.22)
+                        .ignoresSafeArea()
                     exportProgress
-                }
-
-                if let selectedTool {
-                    parameterPanel(
-                        for: selectedTool,
-                        height: min(Self.parameterPanelHeight, proxy.size.height * 0.48)
-                    )
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .frame(maxWidth: 300)
+                        .padding(24)
                 }
             }
         }
-        .allowsHitTesting(!isExporting)
         .foregroundStyle(AppPalette.primaryText)
         .background(AppPalette.background)
         .navigationTitle(localization.t("photo.title"))
@@ -119,9 +125,7 @@ struct PhotoBatchEditorView: View {
                         exportPhotos()
                     }
                 } label: {
-                    Text(localization.t(
-                        isExporting ? "processing.cancel" : "photo.exportAction"
-                    ))
+                    Text(exportButtonTitle)
                     .font(.subheadline.weight(.semibold))
                 }
                 .disabled(
@@ -238,6 +242,20 @@ struct PhotoBatchEditorView: View {
         drafts.indices.contains(currentIndex) ? drafts[currentIndex] : nil
     }
 
+    private var exportableCount: Int {
+        drafts.filter { $0.status != .failed }.count
+    }
+
+    private var exportButtonTitle: String {
+        if isExporting {
+            return localization.t("processing.cancel")
+        }
+        if entitlements.isUnlocked {
+            return localization.format("photo.exportCount", Int64(exportableCount))
+        }
+        return localization.t("photo.exportCurrent")
+    }
+
     private var exportProgress: some View {
         let total = max(exportTotalCount, 1)
         let fraction = Double(exportCompletedCount) / Double(total)
@@ -252,11 +270,17 @@ struct PhotoBatchEditorView: View {
             }
             ProgressView(value: fraction)
                 .tint(AppPalette.accent.primary)
+
+            Button(localization.t("processing.cancel")) {
+                showCancelExportConfirmation = true
+            }
+            .buttonStyle(TextButtonStyle(role: .destructive))
+            .frame(maxWidth: .infinity)
         }
-        .padding(16)
-        .background(AppPalette.elevatedSurface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .padding(.horizontal, 20)
-        .accessibilityElement(children: .combine)
+        .padding(18)
+        .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
+        .accessibilityElement(children: .contain)
     }
 
     private func handleDisappear() {
@@ -314,7 +338,7 @@ struct PhotoBatchEditorView: View {
                             .frame(width: 58, height: 58)
                             .clipShape(RoundedRectangle(cornerRadius: 6))
 
-                            statusBadge(draft.status)
+                            statusBadge(draft.status, isReviewed: draft.isReviewed)
                         }
                         .overlay {
                             RoundedRectangle(cornerRadius: 7)
@@ -335,7 +359,7 @@ struct PhotoBatchEditorView: View {
         .background(AppPalette.surface)
     }
 
-    private func statusBadge(_ status: PhotoWorkStatus) -> some View {
+    private func statusBadge(_ status: PhotoWorkStatus, isReviewed: Bool) -> some View {
         let symbol: String
         let color: Color
         switch status {
@@ -343,14 +367,14 @@ struct PhotoBatchEditorView: View {
             symbol = "clock.fill"
             color = AppPalette.secondaryText
         case .ready:
-            symbol = "checkmark.circle.fill"
-            color = AppPalette.accent.primary
+            symbol = isReviewed ? "checkmark.circle.fill" : "exclamationmark.circle.fill"
+            color = isReviewed ? AppPalette.success : AppPalette.accent.primary
         case .exporting:
             symbol = "arrow.up.circle.fill"
             color = AppPalette.accent.outline
         case .completed:
-            symbol = "checkmark.seal.fill"
-            color = AppPalette.accent.primary
+            symbol = isReviewed ? "checkmark.seal.fill" : "exclamationmark.circle.fill"
+            color = isReviewed ? AppPalette.success : AppPalette.accent.primary
         case .failed:
             symbol = "exclamationmark.triangle.fill"
             color = AppPalette.destructive
@@ -447,7 +471,16 @@ struct PhotoBatchEditorView: View {
     @ViewBuilder
     private func parameterPanel(for tool: PhotoEditorTool, height: CGFloat) -> some View {
         ScrollView(.vertical, showsIndicators: true) {
-            Group {
+            VStack(alignment: .leading, spacing: 8) {
+                Label(
+                    tool == .masks
+                        ? localization.t("photo.currentOnly")
+                        : localization.format("photo.applyAll", Int64(drafts.count)),
+                    systemImage: tool == .masks ? "photo" : "photo.stack"
+                )
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(AppPalette.secondaryText)
+
                 switch tool {
                 case .subjects:
                     subjectOptions
@@ -465,7 +498,7 @@ struct PhotoBatchEditorView: View {
             // Taller tools can still scroll inside the fixed panel.
             .frame(
                 minHeight: max(height - 16, 0),
-                alignment: tool == .effect ? .topLeading : .center
+                alignment: .topLeading
             )
             .padding(.bottom, 4)
         }
@@ -563,66 +596,41 @@ struct PhotoBatchEditorView: View {
             }
             .buttonStyle(.bordered)
 
-            if let groups = currentDraft?.maskGroups, !groups.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
-                            Button {
-                                selectedTrackID = group.id
-                            } label: {
-                                Label {
-                                    Text(localization.format(
-                                        "editor.maskItem",
-                                        Int64(index + 1)
-                                    ))
-                                } icon: {
-                                    Image(
-                                        systemName: maskGroupIcon(group)
-                                    )
-                                }
-                                .font(.caption.weight(.semibold))
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(
-                                    selectedTrackID == group.id
-                                        ? AppPalette.accent.primary
-                                        : AppPalette.elevatedSurface,
-                                    in: Capsule()
-                                )
-                                .foregroundStyle(
-                                    selectedTrackID == group.id
-                                        ? AppPalette.accent.foreground
-                                        : AppPalette.primaryText
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityHint(localization.t(
-                                maskGroupAccessibilityKey(group)
-                            ))
-                        }
-                    }
-                }
+            if !automaticMaskGroups.isEmpty {
+                maskGroupSection(
+                    title: localization.t("photo.automaticRegions"),
+                    groups: automaticMaskGroups
+                )
             }
 
-            HStack(spacing: 10) {
-                Image(systemName: "paintbrush.pointed")
-                    .foregroundStyle(AppPalette.secondaryText)
-                Text(localization.t("photo.brushSize"))
-                    .font(.caption.weight(.semibold))
-                Slider(
-                    value: $brushWidth,
-                    in: 0.02...0.20,
-                    onEditingChanged: { editing in
-                        if !editing {
-                            updateSelectedBrushWidth()
-                        }
-                    }
+            if !manualMaskGroups.isEmpty {
+                maskGroupSection(
+                    title: localization.t("photo.manualRegions"),
+                    groups: manualMaskGroups
                 )
-                .accessibilityLabel(localization.t("photo.brushSize"))
-                Text("\(Int((brushWidth * 100).rounded()))")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(AppPalette.secondaryText)
-                    .frame(width: 22, alignment: .trailing)
+            }
+
+            if shouldShowBrushSize {
+                HStack(spacing: 10) {
+                    Image(systemName: "paintbrush.pointed")
+                        .foregroundStyle(AppPalette.secondaryText)
+                    Text(localization.t("photo.brushSize"))
+                        .font(.caption.weight(.semibold))
+                    Slider(
+                        value: $brushWidth,
+                        in: 0.02...0.20,
+                        onEditingChanged: { editing in
+                            if !editing {
+                                updateSelectedBrushWidth()
+                            }
+                        }
+                    )
+                    .accessibilityLabel(localization.t("photo.brushSize"))
+                    Text("\(Int((brushWidth * 100).rounded()))")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(AppPalette.secondaryText)
+                        .frame(width: 22, alignment: .trailing)
+                }
             }
 
             Text(localization.t("photo.maskHint"))
@@ -691,6 +699,63 @@ struct PhotoBatchEditorView: View {
             .buttonStyle(.plain)
             .disabled(isAnalyzing)
             .opacity(isAnalyzing ? 0.45 : 1)
+        }
+    }
+
+    private var automaticMaskGroups: [PhotoMaskGroup] {
+        currentDraft?.maskGroups.filter { $0.track.source != .manual } ?? []
+    }
+
+    private var manualMaskGroups: [PhotoMaskGroup] {
+        currentDraft?.maskGroups.filter { $0.track.source == .manual } ?? []
+    }
+
+    private var shouldShowBrushSize: Bool {
+        if isDrawingFreehandMask { return true }
+        guard let selectedTrackID else { return false }
+        return currentDraft?.maskGroups.first(where: { $0.id == selectedTrackID })?.hasManualPath == true
+    }
+
+    private func maskGroupSection(
+        title: String,
+        groups: [PhotoMaskGroup]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(AppPalette.secondaryText)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(groups) { group in
+                        let number = (currentDraft?.maskGroups.firstIndex(where: { $0.id == group.id }) ?? 0) + 1
+                        Button {
+                            selectedTrackID = group.id
+                        } label: {
+                            Label {
+                                Text(localization.format("editor.maskItem", Int64(number)))
+                            } icon: {
+                                Image(systemName: maskGroupIcon(group))
+                            }
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                selectedTrackID == group.id
+                                    ? AppPalette.accent.primary
+                                    : AppPalette.surface,
+                                in: Capsule()
+                            )
+                            .foregroundStyle(
+                                selectedTrackID == group.id
+                                    ? AppPalette.accent.foreground
+                                    : AppPalette.primaryText
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint(localization.t(maskGroupAccessibilityKey(group)))
+                    }
+                }
+            }
         }
     }
 
@@ -1051,6 +1116,7 @@ struct PhotoBatchEditorView: View {
                 return
             }
             renderedPreview = rendered.image
+            drafts[currentIndex].isReviewed = true
         }
     }
 
@@ -1129,6 +1195,7 @@ struct PhotoBatchEditorView: View {
                 try? FileManager.default.removeItem(at: outputURL)
             }
             drafts[index].outputURL = nil
+            drafts[index].isReviewed = false
             if drafts[index].status == .completed {
                 drafts[index].status = .ready
             }
@@ -1182,6 +1249,7 @@ struct PhotoBatchEditorView: View {
                 return
             }
             var successCount = 0
+            var successfulURLs: [URL] = []
             for target in targets {
                 guard let index = drafts.firstIndex(where: { $0.id == target.id }) else {
                     continue
@@ -1191,6 +1259,7 @@ struct PhotoBatchEditorView: View {
                     drafts[index].outputURL = url
                     drafts[index].status = .completed
                     successCount += 1
+                    successfulURLs.append(url)
                 case .failure, .none:
                     drafts[index].status = .failed
                 }
@@ -1201,8 +1270,11 @@ struct PhotoBatchEditorView: View {
             exportCompletedCount = 0
             exportTotalCount = 0
             if successCount > 0 {
-                let urls = drafts.compactMap(\.outputURL)
-                exportResult = PhotoExportResult(outputURLs: urls)
+                exportResult = PhotoExportResult(
+                    outputURLs: successfulURLs,
+                    totalDraftCount: drafts.count,
+                    limitedToCurrentPhoto: !entitlements.isUnlocked
+                )
             }
         }
     }
@@ -1222,4 +1294,5 @@ struct PhotoBatchEditorView: View {
             drafts[index].status = .ready
         }
     }
+
 }

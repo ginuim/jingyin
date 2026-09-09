@@ -37,9 +37,6 @@
     "%lld%%" : {
 
     },
-    "+%lld" : {
-
-    },
     "advisory.noAudio" : {
       "localizations" : {
         "en" : {
@@ -1651,6 +1648,7 @@
       }
     },
     "editor.manualMasks" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4402,6 +4400,34 @@
         }
       }
     },
+    "photo.adjustRegions" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adjust Areas"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "範囲を調整"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "调整区域"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "調整區域"
+          }
+        }
+      }
+    },
     "photo.analyzing" : {
       "localizations" : {
         "en" : {
@@ -4455,6 +4481,62 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在本機辨識 %lld / %lld"
+          }
+        }
+      }
+    },
+    "photo.applyAll" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Applies to all %lld photos"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld枚すべてに適用"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "应用到全部 %lld 张"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "套用到全部 %lld 張"
+          }
+        }
+      }
+    },
+    "photo.automaticRegions" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatically detected"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動検出"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动识别"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動辨識"
           }
         }
       }
@@ -4572,6 +4654,34 @@
         }
       }
     },
+    "photo.continueRemaining" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review Remaining Photos"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "残りの写真を確認"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续检查剩余照片"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "繼續檢查其餘照片"
+          }
+        }
+      }
+    },
     "photo.continueReview" : {
       "localizations" : {
         "en" : {
@@ -4596,6 +4706,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "返回覆核"
+          }
+        }
+      }
+    },
+    "photo.currentOnly" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current photo only"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在の写真のみ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅当前照片"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "僅目前照片"
           }
         }
       }
@@ -4629,6 +4767,7 @@
       }
     },
     "photo.exportAction" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4680,6 +4819,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "匯出全部圖片"
+          }
+        }
+      }
+    },
+    "photo.exportCount" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export %lld Photos"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld枚を書き出す"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出 %lld 张"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯出 %lld 張"
           }
         }
       }
@@ -4821,6 +4988,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "照片無法讀取"
+          }
+        }
+      }
+    },
+    "photo.manualRegions" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manually added"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手動で追加"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手动添加"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手動新增"
           }
         }
       }
@@ -5022,6 +5217,7 @@
       }
     },
     "photo.morePhotos" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5157,6 +5353,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新辨識全部圖片"
+          }
+        }
+      }
+    },
+    "photo.resultRemaining" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld other photos have not been exported"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ほか%lld枚はまだ書き出されていません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其余 %lld 张尚未导出"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其餘 %lld 張尚未匯出"
           }
         }
       }

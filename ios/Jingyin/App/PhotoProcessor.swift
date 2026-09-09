@@ -197,6 +197,7 @@ struct PhotoDraft: Identifiable {
     var maskGroups: [PhotoMaskGroup]
     var maskPlanes: [PhotoMaskPlane]
     var status: PhotoWorkStatus
+    var isReviewed: Bool
     var outputURL: URL?
 
     init(id: UUID = UUID(), inputURL: URL) {
@@ -207,6 +208,7 @@ struct PhotoDraft: Identifiable {
         maskGroups = []
         maskPlanes = []
         status = .pending
+        isReviewed = false
         outputURL = nil
     }
 }

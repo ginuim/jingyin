@@ -4,12 +4,21 @@ import UIKit
 struct PhotoExportResult: Identifiable, Hashable {
     let id: UUID
     let outputURLs: [URL]
+    let totalDraftCount: Int
+    let limitedToCurrentPhoto: Bool
 
     var successCount: Int { outputURLs.count }
+    var remainingCount: Int { max(totalDraftCount - successCount, 0) }
 
-    init(outputURLs: [URL]) {
+    init(
+        outputURLs: [URL],
+        totalDraftCount: Int,
+        limitedToCurrentPhoto: Bool
+    ) {
         self.id = UUID()
         self.outputURLs = outputURLs
+        self.totalDraftCount = totalDraftCount
+        self.limitedToCurrentPhoto = limitedToCurrentPhoto
     }
 }
 
@@ -40,9 +49,9 @@ struct PhotoExportSuccessView: View {
                 .ignoresSafeArea()
 
             ScrollView {
-                VStack(spacing: 24) {
-                    StackedExportPreview(urls: result.outputURLs)
-                        .frame(height: 310)
+                VStack(spacing: 20) {
+                    ExportInspectionPreview(urls: result.outputURLs)
+                        .frame(height: 330)
                         .padding(.horizontal, 20)
                     successSummary
                     primaryActions
@@ -125,6 +134,16 @@ struct PhotoExportSuccessView: View {
                 .foregroundStyle(AppPalette.secondaryText)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
+
+            if result.limitedToCurrentPhoto && result.remainingCount > 0 {
+                Text(localization.format(
+                    "photo.resultRemaining",
+                    Int64(result.remainingCount)
+                ))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppPalette.accent.primary)
+                .multilineTextAlignment(.center)
+            }
         }
         .padding(.horizontal, 28)
     }
@@ -150,12 +169,7 @@ struct PhotoExportSuccessView: View {
                 .font(.headline)
                 .frame(maxWidth: .infinity, minHeight: 56)
             }
-            .buttonStyle(.plain)
-            .background(
-                AppPalette.accent.primary,
-                in: RoundedRectangle(cornerRadius: 20)
-            )
-            .foregroundStyle(AppPalette.accent.foreground)
+            .buttonStyle(PrimaryButtonStyle())
             .disabled(saved || isSaving || result.outputURLs.isEmpty)
 
             Button {
@@ -165,12 +179,7 @@ struct PhotoExportSuccessView: View {
                     .font(.headline)
                     .frame(maxWidth: .infinity, minHeight: 56)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(AppPalette.primaryText)
-            .overlay {
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(AppPalette.primaryText, lineWidth: 1.25)
-            }
+            .buttonStyle(SecondaryButtonStyle())
             .disabled(result.outputURLs.isEmpty)
         }
         .padding(.horizontal, 28)
@@ -178,7 +187,11 @@ struct PhotoExportSuccessView: View {
 
     private var secondaryActions: some View {
         VStack(spacing: 4) {
-            textButton(localization.t("photo.continueReview")) {
+            textButton(localization.t(
+                result.remainingCount > 0
+                    ? "photo.continueRemaining"
+                    : "photo.continueReview"
+            )) {
                 dismiss()
             }
             textButton(localization.t("photo.returnHome")) {
@@ -209,8 +222,7 @@ struct PhotoExportSuccessView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(AppPalette.secondaryText)
+        .buttonStyle(TextButtonStyle())
     }
 
     private func outlinedButton(_ title: String, action: @escaping () -> Void) -> some View {
@@ -256,136 +268,135 @@ struct PhotoExportSuccessView: View {
     }
 }
 
-private struct StackedExportPreview: View {
+private struct ExportInspectionPreview: View {
     let urls: [URL]
 
-    private var previewURLs: [URL] {
-        Array(urls.prefix(3))
-    }
+    @EnvironmentObject private var localization: LocalizationManager
+    @State private var selectedIndex = 0
 
     var body: some View {
-        GeometryReader { geo in
-            let cardWidth = min(geo.size.width * 0.62, 230)
-            let cardHeight = min(geo.size.height * 0.78, cardWidth * 1.18)
-            ZStack {
-                ForEach(Array(previewURLs.enumerated()), id: \.offset) { index, url in
-                    let placement = placement(for: index, count: previewURLs.count)
-                    ExportPreviewCard(
-                        url: url,
-                        width: cardWidth,
-                        height: cardHeight
-                    )
-                    .rotationEffect(.degrees(placement.rotation))
-                    .offset(x: placement.x, y: placement.y)
-                    .zIndex(placement.zIndex)
-                }
-
-                if urls.count > previewURLs.count {
-                    Text("+\(urls.count - previewURLs.count)")
-                        .font(.subheadline.bold())
-                        .monospacedDigit()
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .foregroundStyle(AppPalette.primaryText)
-                        .background(.ultraThinMaterial, in: Capsule())
-                        .overlay {
-                            Capsule().stroke(AppPalette.divider, lineWidth: 1)
-                        }
-                        .offset(x: cardWidth * 0.52, y: -cardHeight * 0.43)
-                        .zIndex(5)
-                        .accessibilityLabel(
-                            localization.format(
-                                "photo.morePhotos",
-                                Int64(urls.count - previewURLs.count)
-                            )
-                        )
-                }
-
-                successSeal
-                    .offset(x: cardWidth * 0.49, y: cardHeight * 0.44)
-                    .zIndex(6)
+        VStack(spacing: 10) {
+            if urls.indices.contains(selectedIndex) {
+                ZoomableExportPreview(url: urls[selectedIndex])
+                    .id(urls[selectedIndex])
+            } else {
+                AppPalette.mediaCanvas
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            HStack(spacing: 18) {
+                Button {
+                    selectedIndex = max(selectedIndex - 1, 0)
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .frame(width: 36, height: 36)
+                }
+                .buttonStyle(.bordered)
+                .disabled(selectedIndex == 0)
+
+                Text(localization.format(
+                    "photo.exportProgress",
+                    Int64(selectedIndex + 1),
+                    Int64(urls.count)
+                ))
+                .font(.subheadline.weight(.semibold))
+                .monospacedDigit()
+                .frame(minWidth: 64)
+
+                Button {
+                    selectedIndex = min(selectedIndex + 1, urls.count - 1)
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .frame(width: 36, height: 36)
+                }
+                .buttonStyle(.bordered)
+                .disabled(selectedIndex >= urls.count - 1)
+            }
         }
         .accessibilityElement(children: .contain)
     }
-
-    @EnvironmentObject private var localization: LocalizationManager
-
-    private var successSeal: some View {
-        ZStack {
-            Circle()
-                .fill(AppPalette.success)
-            Circle()
-                .stroke(.white.opacity(0.88), lineWidth: 2)
-                .padding(6)
-            Image(systemName: "checkmark")
-                .font(.system(size: 19, weight: .semibold))
-                .foregroundStyle(.white)
-        }
-        .frame(width: 50, height: 50)
-        .shadow(color: .black.opacity(0.2), radius: 6, y: 3)
-        .accessibilityHidden(true)
-    }
-
-    private func placement(for index: Int, count: Int) -> CardPlacement {
-        switch count {
-        case 1:
-            CardPlacement(x: 0, y: 0, rotation: 0, zIndex: 1)
-        case 2:
-            index == 0
-                ? CardPlacement(x: -38, y: -14, rotation: -7, zIndex: 0)
-                : CardPlacement(x: 38, y: 18, rotation: 7, zIndex: 1)
-        default:
-            switch index {
-            case 0:
-                CardPlacement(x: -46, y: -28, rotation: -7, zIndex: 1)
-            case 1:
-                CardPlacement(x: 48, y: -6, rotation: 8, zIndex: 0)
-            default:
-                CardPlacement(x: -6, y: 38, rotation: -4, zIndex: 2)
-            }
-        }
-    }
-
-    private struct CardPlacement {
-        let x: CGFloat
-        let y: CGFloat
-        let rotation: Double
-        let zIndex: Double
-    }
 }
 
-private struct ExportPreviewCard: View {
+private struct ZoomableExportPreview: View {
     let url: URL
-    let width: CGFloat
-    let height: CGFloat
 
     @State private var thumbnail: UIImage?
+    @State private var scale: CGFloat = 1
+    @State private var offset: CGSize = .zero
+    @GestureState private var gestureScale: CGFloat = 1
+    @GestureState private var gestureOffset: CGSize = .zero
 
     var body: some View {
-        Group {
-            if let thumbnail {
-                Image(uiImage: thumbnail)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                AppPalette.elevatedSurface
-                    .overlay {
-                        ProgressView()
-                            .tint(AppPalette.secondaryText)
-                    }
+        GeometryReader { proxy in
+            Group {
+                if let thumbnail {
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .scaledToFit()
+                        .scaleEffect(displayScale)
+                        .offset(displayOffset)
+                        .gesture(zoomGesture.simultaneously(with: panGesture))
+                        .onTapGesture(count: 2) {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                scale = 1
+                                offset = .zero
+                            }
+                        }
+                } else {
+                    ProgressView()
+                        .tint(AppPalette.secondaryText)
+                }
             }
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        .frame(width: width, height: height)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.26), radius: 8, y: 4)
+        .background(AppPalette.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(AppPalette.divider, lineWidth: 1)
+        }
+        .clipped()
         .task(id: url) {
             guard let source = UIImage(contentsOfFile: url.path) else { return }
             thumbnail = await source.byPreparingThumbnail(
-                ofSize: CGSize(width: 900, height: 1_080)
+                ofSize: CGSize(width: 1_600, height: 1_600)
             ) ?? source
         }
+    }
+
+    private var displayScale: CGFloat {
+        min(max(scale * gestureScale, 1), 4)
+    }
+
+    private var displayOffset: CGSize {
+        guard displayScale > 1 else { return .zero }
+        return CGSize(
+            width: offset.width + gestureOffset.width,
+            height: offset.height + gestureOffset.height
+        )
+    }
+
+    private var zoomGesture: some Gesture {
+        MagnificationGesture()
+            .updating($gestureScale) { value, state, _ in
+                state = value
+            }
+            .onEnded { value in
+                scale = min(max(scale * value, 1), 4)
+                if scale == 1 { offset = .zero }
+            }
+    }
+
+    private var panGesture: some Gesture {
+        DragGesture()
+            .updating($gestureOffset) { value, state, _ in
+                guard displayScale > 1 else { return }
+                state = value.translation
+            }
+            .onEnded { value in
+                guard displayScale > 1 else { return }
+                offset.width += value.translation.width
+                offset.height += value.translation.height
+            }
     }
 }
 
