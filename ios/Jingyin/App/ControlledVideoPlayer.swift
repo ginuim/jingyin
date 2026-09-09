@@ -4,19 +4,6 @@ import Combine
 import SwiftUI
 import UIKit
 
-struct VideoTimelineMarker: Equatable, Identifiable {
-    let id: UUID
-    let timeSeconds: TimeInterval
-    let isSelected: Bool
-}
-
-struct VideoTimelineRange: Equatable, Identifiable {
-    let id: UUID
-    let startSeconds: TimeInterval
-    let endSeconds: TimeInterval?
-    let isSelected: Bool
-}
-
 /// Renders `AVPlayer` frames without AVKit's built-in transport chrome.
 /// Custom play/scrub UI lives in `ControlledVideoPlayer` instead.
 struct BareVideoPlayer: UIViewRepresentable {
@@ -53,8 +40,6 @@ struct ControlledVideoPlayer<Content: View>: View {
     let player: AVPlayer
     let thumbnailURL: URL?
     let showsCentralPlayButton: Bool
-    let timelineMarkers: [VideoTimelineMarker]
-    let timelineRanges: [VideoTimelineRange]
     let onTimeChanged: (TimeInterval) -> Void
     let onFullScreen: (() -> Void)?
     let isPinned: Bool
@@ -87,8 +72,6 @@ struct ControlledVideoPlayer<Content: View>: View {
         player: AVPlayer,
         thumbnailURL: URL? = nil,
         showsCentralPlayButton: Bool = false,
-        timelineMarkers: [VideoTimelineMarker] = [],
-        timelineRanges: [VideoTimelineRange] = [],
         onTimeChanged: @escaping (TimeInterval) -> Void = { _ in },
         onFullScreen: (() -> Void)? = nil,
         isPinned: Bool = false,
@@ -98,8 +81,6 @@ struct ControlledVideoPlayer<Content: View>: View {
         self.player = player
         self.thumbnailURL = thumbnailURL
         self.showsCentralPlayButton = showsCentralPlayButton
-        self.timelineMarkers = timelineMarkers
-        self.timelineRanges = timelineRanges
         self.onTimeChanged = onTimeChanged
         self.onFullScreen = onFullScreen
         self.isPinned = isPinned
@@ -333,85 +314,10 @@ struct ControlledVideoPlayer<Content: View>: View {
         )
         .tint(AppPalette.accent.primary)
         .disabled(durationSeconds <= 0)
-        .overlay {
-            GeometryReader { proxy in
-                ZStack {
-                    ForEach(visibleTimelineRanges) { range in
-                        let startX = markerPosition(
-                            for: range.startSeconds,
-                            width: proxy.size.width
-                        )
-                        let endX = markerPosition(
-                            for: range.endSeconds ?? durationSeconds,
-                            width: proxy.size.width
-                        )
-                        Capsule()
-                            .fill(
-                                range.isSelected
-                                    ? AppPalette.warning
-                                    : AppPalette.secondaryText
-                            )
-                            .frame(width: max(endX - startX, 3), height: 6)
-                            .position(
-                                x: startX + max(endX - startX, 3) / 2,
-                                y: proxy.size.height / 2
-                            )
-                    }
-
-                    ForEach(visibleTimelineMarkers) { marker in
-                        Capsule()
-                            .fill(marker.isSelected ? AppPalette.warning : AppPalette.maskOutline)
-                            .frame(
-                                width: marker.isSelected ? 4 : 3,
-                                height: marker.isSelected ? 18 : 12
-                            )
-                            .shadow(
-                                color: AppPalette.maskOutlineShadow,
-                                radius: 1
-                            )
-                            .position(
-                                x: markerPosition(
-                                    for: marker.timeSeconds,
-                                    width: proxy.size.width
-                                ),
-                                y: proxy.size.height / 2
-                            )
-                    }
-                }
-            }
-            .allowsHitTesting(false)
-        }
         .accessibilityLabel(localization.t("player.progress"))
         .accessibilityValue(
             "\(formatTime(displayedSeconds)) / \(formatTime(durationSeconds))"
         )
-    }
-
-    private var visibleTimelineMarkers: [VideoTimelineMarker] {
-        timelineMarkers.filter {
-            $0.timeSeconds.isFinite
-                && $0.timeSeconds >= 0
-                && $0.timeSeconds <= durationSeconds
-        }
-    }
-
-    private var visibleTimelineRanges: [VideoTimelineRange] {
-        timelineRanges.filter {
-            $0.startSeconds.isFinite
-                && $0.startSeconds >= 0
-                && $0.startSeconds <= durationSeconds
-                && ($0.endSeconds == nil || $0.endSeconds?.isFinite == true)
-        }
-    }
-
-    private func markerPosition(
-        for timeSeconds: TimeInterval,
-        width: CGFloat
-    ) -> CGFloat {
-        guard durationSeconds > 0 else { return 0 }
-        let progress = min(max(timeSeconds / durationSeconds, 0), 1)
-        // Keep edge markers visible instead of clipping half their width.
-        return 2 + CGFloat(progress) * max(width - 4, 0)
     }
 
     private func togglePlayback() {

@@ -71,6 +71,7 @@ struct EditorView: View {
             VStack(spacing: 8) {
                 videoPlayerSection(
                     height: previewHeight(in: geometry.size))
+                maskTimelineTrack
                 toolBar
                 ScrollView {
                     settings
@@ -324,8 +325,6 @@ struct EditorView: View {
         ControlledVideoPlayer(
             player: player,
             thumbnailURL: videoURL,
-            timelineMarkers: manualMaskTimelineMarkers,
-            timelineRanges: manualMaskTimelineRanges,
             onTimeChanged: { playheadSeconds = $0 },
             onFullScreen: {
                 isDrawingFreehandMask = false
@@ -676,28 +675,37 @@ struct EditorView: View {
                                 Image(systemName: "trash").frame(width: 44, height: 44)
                             }.accessibilityLabel(localization.t("editor.deleteEntireMask"))
                         }.font(.caption)
-                        DisclosureGroup(localization.t("editor.timingAndMotion")) {
-                            VStack(alignment: .leading, spacing: 8) {
-                                maskVisibilityMenu
-                                Toggle(localization.t("editor.animatePosition"), isOn: Binding(
-                                    get: { options.maskTracks.first(where: { $0.id == selectedMaskTrackID })?.effectivePositionMode == .animated },
-                                    set: { setPositionMode($0) }))
-                                Text(localization.t(options.maskTracks[selectedMaskIndex].effectivePositionMode == .animated
-                                    ? "editor.animatedHint" : "editor.fixedHint"))
-                                    .font(.caption).foregroundStyle(AppPalette.secondaryText)
-                                if options.maskTracks[selectedMaskIndex].effectivePositionMode == .animated {
-                                    HStack {
-                                        Button { jumpToRecord(forward: false) } label: {
-                                            Image(systemName: "backward.end")
-                                        }.accessibilityLabel(localization.t("editor.previousRecord"))
-                                        positionRecordsMenu
-                                        Button { jumpToRecord(forward: true) } label: {
-                                            Image(systemName: "forward.end")
-                                        }.accessibilityLabel(localization.t("editor.nextRecord"))
-                                    }
-                                }
-                            }.padding(.top, 8)
-                        }.font(.subheadline)
+                        Picker(
+                            localization.t("editor.positionMode"),
+                            selection: Binding(
+                                get: {
+                                    options.maskTracks[selectedMaskIndex]
+                                        .effectivePositionMode
+                                },
+                                set: { setPositionMode($0 == .animated) }
+                            )
+                        ) {
+                            Text(localization.t("editor.positionFixed"))
+                                .tag(ManualPositionMode.fixed)
+                            Text(localization.t("editor.positionAnimated"))
+                                .tag(ManualPositionMode.animated)
+                        }
+                        .pickerStyle(.segmented)
+                        Text(localization.t(options.maskTracks[selectedMaskIndex].effectivePositionMode == .animated
+                            ? "editor.animatedHint" : "editor.fixedHint"))
+                            .font(.caption).foregroundStyle(AppPalette.secondaryText)
+                        if options.maskTracks[selectedMaskIndex].effectivePositionMode == .animated {
+                            HStack {
+                                Button { jumpToRecord(forward: false) } label: {
+                                    Image(systemName: "backward.end")
+                                }.accessibilityLabel(localization.t("editor.previousRecord"))
+                                keyframeToggleButton
+                                Button { jumpToRecord(forward: true) } label: {
+                                    Image(systemName: "forward.end")
+                                }.accessibilityLabel(localization.t("editor.nextRecord"))
+                            }
+                        }
+                        maskVisibilityMenu
                     } else {
                         Text(localization.t(options.scope == .background
                             ? "editor.backgroundManualHint" : "editor.manualHelp"))
@@ -848,34 +856,51 @@ struct EditorView: View {
         )
     }
 
-    private var manualMaskTimelineMarkers: [VideoTimelineMarker] {
-        guard showManualMaskEditor || showFullScreenMaskEditor else { return [] }
-        return options.maskTracks.flatMap { track in
-            track.keyframes
-                .filter { $0.origin == .manual }
-                .map { keyframe in
-                    VideoTimelineMarker(
-                        id: keyframe.id,
-                        timeSeconds: keyframe.timeSeconds,
-                        isSelected: track.id == selectedMaskTrackID
-                    )
-                }
+    /// Keyframe/visibility strip under the player. Dragging range handles
+    /// streams preview updates without history spam; the history snapshot is
+    /// committed once when the drag ends.
+    @ViewBuilder private var maskTimelineTrack: some View {
+        if selectedTool == .manual,
+            options.scope != .full,
+            !options.maskTracks.isEmpty,
+            !showFullScreenMaskEditor
+        {
+            MaskTimelineTrackView(
+                tracks: options.maskTracks,
+                selectedTrackID: selectedMaskTrackID,
+                durationSeconds: sourceDuration,
+                playheadSeconds: playheadSeconds,
+                onSeek: seekToKeyframe,
+                onRangeEditBegan: { _ in
+                    player.pause()
+                    voicePreview.pause()
+                },
+                onRangeChanged: updateMaskActiveRange,
+                onRangeEditEnded: { _ in refreshMaskPreview() }
+            )
         }
     }
 
-    private var manualMaskTimelineRanges: [VideoTimelineRange] {
-        guard showManualMaskEditor || showFullScreenMaskEditor else { return [] }
-        return options.maskTracks.compactMap { track in
-            guard track.activeFromSeconds != nil || track.activeUntilSeconds != nil else {
-                return nil
-            }
-            return VideoTimelineRange(
-                id: track.id,
-                startSeconds: track.activeFromSeconds ?? 0,
-                endSeconds: track.activeUntilSeconds,
-                isSelected: track.id == selectedMaskTrackID
-            )
-        }
+    private func seekToKeyframe(_ time: TimeInterval) {
+        player.pause()
+        voicePreview.pause()
+        player.seek(
+            to: CMTime(seconds: time, preferredTimescale: 600),
+            toleranceBefore: .zero,
+            toleranceAfter: .zero
+        )
+    }
+
+    private func updateMaskActiveRange(
+        trackID: MaskTrack.ID,
+        start: TimeInterval?,
+        end: TimeInterval?
+    ) {
+        guard let index = options.maskTracks.firstIndex(where: { $0.id == trackID })
+        else { return }
+        options.maskTracks[index].activeFromSeconds = start
+        options.maskTracks[index].activeUntilSeconds = end
+        maskPreviewRevision += 1
     }
 
     private var maskSelector: some View {
@@ -960,34 +985,28 @@ struct EditorView: View {
         .buttonStyle(TextButtonStyle())
     }
 
-    private var positionRecordsMenu: some View {
-        Menu {
-            Button(action: insertKeyframe) {
-                Label(
-                    localization.t("editor.recordPosition"),
-                    systemImage: "diamond.fill"
-                )
+    /// Mobile-editor-style diamond toggle: adds a keyframe at the playhead, or
+    /// deletes the keyframe under the playhead when one exists.
+    private var keyframeToggleButton: some View {
+        Button {
+            if currentKeyframe != nil {
+                requestDeleteCurrentKeyframe()
+            } else {
+                insertKeyframe()
             }
-
-            Button(
-                role: .destructive,
-                action: requestDeleteCurrentKeyframe
-            ) {
-                Label(
-                    localization.t("editor.deletePositionRecord"),
-                    systemImage: "diamond.slash"
-                )
-            }
-            .disabled(!canDeleteCurrentKeyframe)
         } label: {
             Label(
-                localization.t("editor.positionRecords"),
-                systemImage: "point.topleft.down.to.point.bottomright.curvepath"
+                localization.t(
+                    currentKeyframe != nil
+                        ? "editor.deleteKeyframe" : "editor.addKeyframe"
+                ),
+                systemImage: currentKeyframe != nil ? "diamond.slash" : "diamond"
             )
             .font(.caption.bold())
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(TextButtonStyle())
+        .disabled(currentKeyframe != nil && !canDeleteCurrentKeyframe)
     }
 
     private var selectedMaskVisibilitySummary: String {
