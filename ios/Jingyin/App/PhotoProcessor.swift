@@ -1,4 +1,5 @@
 import CoreImage
+import ImageIO
 import Photos
 import UIKit
 import Vision
@@ -530,7 +531,11 @@ enum PhotoProcessor {
     nonisolated private static func addImagesToPhotos(_ urls: [URL]) async throws {
         try await PHPhotoLibrary.shared().performChanges {
             for url in urls {
-                PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: url)
+                let request = PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: url)
+                // This is a newly rendered asset, not the original capture.
+                // Keep the Photos timeline at the moment it is saved rather
+                // than inheriting a source capture date.
+                request?.creationDate = Date()
             }
         }
     }
@@ -588,14 +593,30 @@ enum PhotoProcessor {
                 .appendingPathComponent("jingyin-photo-output-\(UUID().uuidString)")
                 .appendingPathExtension("jpg")
             do {
-                try context.writeJPEGRepresentation(
-                    of: rendered,
-                    to: output,
-                    colorSpace: colorSpace,
-                    options: [
-                        kCGImageDestinationLossyCompressionQuality as CIImageRepresentationOption: 0.95
-                    ]
+                guard let cgImage = context.createCGImage(
+                    rendered,
+                    from: rendered.extent,
+                    format: .RGBA8,
+                    colorSpace: colorSpace
+                ), let destination = CGImageDestinationCreateWithURL(
+                    output as CFURL,
+                    "public.jpeg" as CFString,
+                    1,
+                    nil
+                ) else {
+                    throw ProcessingError.renderFailed
+                }
+                // CIImage retains source properties. Writing through an Image
+                // destination with only its encoding-quality property makes
+                // the JPEG a fresh raster without EXIF, GPS, IPTC, or XMP.
+                CGImageDestinationAddImage(
+                    destination,
+                    cgImage,
+                    [kCGImageDestinationLossyCompressionQuality: 0.95] as CFDictionary
                 )
+                guard CGImageDestinationFinalize(destination) else {
+                    throw ProcessingError.renderFailed
+                }
                 return output
             } catch {
                 try? FileManager.default.removeItem(at: output)
