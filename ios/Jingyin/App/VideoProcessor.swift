@@ -16,6 +16,10 @@ final class VideoProcessor: ObservableObject {
     @Published private(set) var estimatedRemainingSeconds: TimeInterval?
     private var exportSession: AVAssetExportSession?
     private var progressTask: Task<Void, Never>?
+    private var processingGeneration = 0
+#if DEBUG
+    private var hasInjectedFailure = false
+#endif
     private var estimateStartedAt: Date?
     private var estimateLastUpdatedAt: Date?
     private var estimateAnchorProgress = 0.0
@@ -37,6 +41,7 @@ final class VideoProcessor: ObservableObject {
         bundle: Bundle = .main
     ) async {
         cancel()
+        let runGeneration = processingGeneration
         if let outputURL {
             try? FileManager.default.removeItem(at: outputURL)
         }
@@ -46,12 +51,22 @@ final class VideoProcessor: ObservableObject {
         clearRemainingTimeEstimate()
         progress = 0
         stage = .reading
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-demoFailProcessingOnce"),
+           !hasInjectedFailure {
+            hasInjectedFailure = true
+            stage = .failed(Self.message(for: ProcessorError.exportFailed, bundle: bundle))
+            return
+        }
+#endif
         var pendingDestination: URL?
         // Keep screen awake for the whole export; lock/sleep commonly yields
         // AVErrorOperationInterrupted ("The operation was interrupted").
         UIApplication.shared.isIdleTimerDisabled = true
         defer {
-            UIApplication.shared.isIdleTimerDisabled = false
+            if processingGeneration == runGeneration {
+                UIApplication.shared.isIdleTimerDisabled = false
+            }
             if let pendingDestination {
                 try? FileManager.default.removeItem(at: pendingDestination)
             }
@@ -60,6 +75,7 @@ final class VideoProcessor: ObservableObject {
         do {
             let asset = AVURLAsset(url: sourceURL)
             let duration = try await asset.load(.duration)
+            try ensureCurrentRun(runGeneration)
             guard duration.seconds.isFinite, duration.seconds > 0 else {
                 throw ProcessorError.invalidVideo
             }
@@ -104,13 +120,14 @@ final class VideoProcessor: ObservableObject {
 
             stage = .warmingUp
             await processor.warmUp()
-            try Task.checkCancellation()
+            try ensureCurrentRun(runGeneration)
 
             stage = .analyzing
             progress = 0.08
             let previewSampler = ProcessingPreviewSampler { [weak self] image in
                 Task { @MainActor [weak self] in
-                    guard self?.isRunning == true else { return }
+                    guard self?.processingGeneration == runGeneration,
+                          self?.isRunning == true else { return }
                     self?.previewImage = UIImage(cgImage: image)
                 }
             }
@@ -147,7 +164,8 @@ final class VideoProcessor: ObservableObject {
                     semitones: effectiveOptions.voicePitch,
                     destination: destination,
                     exportPreset: effectiveOptions.exportResolution.exportPreset,
-                    bundle: bundle
+                    bundle: bundle,
+                    runGeneration: runGeneration
                 )
             case .original, .mute:
                 beginRemainingTimeEstimate(from: 0.1, through: 0.98)
@@ -160,33 +178,38 @@ final class VideoProcessor: ObservableObject {
                     destination: destination,
                     exportPreset: effectiveOptions.exportResolution.exportPreset,
                     progressStart: 0.1,
-                    progressSpan: 0.88
+                    progressSpan: 0.88,
+                    runGeneration: runGeneration
                 )
             }
 
             // The view may disappear just after AVFoundation finishes. Honor
             // that cancellation before publishing a result that no screen
             // remains to clean up.
-            try Task.checkCancellation()
+            try ensureCurrentRun(runGeneration)
             outputURL = destination
             pendingDestination = nil
             progress = 1
             clearRemainingTimeEstimate()
             stage = .completed(destination)
         } catch is CancellationError {
+            guard processingGeneration == runGeneration else { return }
             clearRemainingTimeEstimate()
             stage = .failed(String(localized: "error.cancelled", bundle: bundle))
         } catch {
+            guard processingGeneration == runGeneration else { return }
             clearRemainingTimeEstimate()
             stage = .failed(Self.message(for: error, bundle: bundle))
         }
     }
 
     func cancel() {
+        processingGeneration &+= 1
         progressTask?.cancel()
         progressTask = nil
         exportSession?.cancelExport()
         exportSession = nil
+        UIApplication.shared.isIdleTimerDisabled = false
     }
 
     func discardOutput() {
@@ -230,7 +253,8 @@ final class VideoProcessor: ObservableObject {
         semitones: Int,
         destination: URL,
         exportPreset: String,
-        bundle: Bundle
+        bundle: Bundle,
+        runGeneration: Int
     ) async throws {
         let mutedVideoURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("jingyin-muted-\(UUID().uuidString).mp4")
@@ -256,10 +280,11 @@ final class VideoProcessor: ObservableObject {
             destination: mutedVideoURL,
             exportPreset: exportPreset,
             progressStart: 0.1,
-            progressSpan: 0.55
+            progressSpan: 0.55,
+            runGeneration: runGeneration
         )
 
-        try Task.checkCancellation()
+        try ensureCurrentRun(runGeneration)
         progress = 0.68
         beginRemainingTimeEstimate(
             from: 0.68,
@@ -274,9 +299,11 @@ final class VideoProcessor: ObservableObject {
                 maximumDuration: sourceTimeRange == nil ? nil : duration.seconds
             ) { [weak self] value in
                 Task { @MainActor in
+                    guard self?.processingGeneration == runGeneration else { return }
                     self?.progress = 0.68 + value * 0.18
                 }
             }
+            try ensureCurrentRun(runGeneration)
             pitchedAudioURL = audioURL
             progress = 0.88
             estimatedRemainingSeconds = 2
@@ -285,9 +312,13 @@ final class VideoProcessor: ObservableObject {
                 audioURL: audioURL,
                 outputURL: destination
             )
+            try ensureCurrentRun(runGeneration)
         } catch VoicePitchExporter.ExportError.noAudioTrack {
+            try ensureCurrentRun(runGeneration)
             advisory = String(localized: "advisory.noAudio", bundle: bundle)
             try FileManager.default.copyItem(at: mutedVideoURL, to: destination)
+        } catch is CancellationError {
+            throw CancellationError()
         } catch let error as VoicePitchExporter.ExportError {
             throw error
         } catch {
@@ -304,7 +335,8 @@ final class VideoProcessor: ObservableObject {
         destination: URL,
         exportPreset: String,
         progressStart: Double,
-        progressSpan: Double
+        progressSpan: Double,
+        runGeneration: Int
     ) async throws {
         let ranges = Self.chunkRanges(
             for: sourceTimeRange
@@ -319,7 +351,8 @@ final class VideoProcessor: ObservableObject {
                 destination: destination,
                 exportPreset: exportPreset,
                 progressStart: progressStart,
-                progressSpan: progressSpan
+                progressSpan: progressSpan,
+                runGeneration: runGeneration
             )
             return
         }
@@ -348,7 +381,8 @@ final class VideoProcessor: ObservableObject {
                 destination: chunkURLs[index],
                 exportPreset: exportPreset,
                 progressStart: progressStart + Double(index) * chunkSpan,
-                progressSpan: chunkSpan
+                progressSpan: chunkSpan,
+                runGeneration: runGeneration
             )
         }
 
@@ -357,7 +391,8 @@ final class VideoProcessor: ObservableObject {
             chunkURLs,
             destination: destination,
             progressStart: progressStart + encodingSpan,
-            progressSpan: progressSpan - encodingSpan
+            progressSpan: progressSpan - encodingSpan,
+            runGeneration: runGeneration
         )
     }
 
@@ -369,7 +404,8 @@ final class VideoProcessor: ObservableObject {
         destination: URL,
         exportPreset: String,
         progressStart: Double,
-        progressSpan: Double
+        progressSpan: Double,
+        runGeneration: Int
     ) async throws {
         guard let session = AVAssetExportSession(
             asset: asset,
@@ -391,7 +427,8 @@ final class VideoProcessor: ObservableObject {
         try await run(
             session,
             progressStart: progressStart,
-            progressSpan: progressSpan
+            progressSpan: progressSpan,
+            runGeneration: runGeneration
         )
     }
 
@@ -399,7 +436,8 @@ final class VideoProcessor: ObservableObject {
         _ urls: [URL],
         destination: URL,
         progressStart: Double,
-        progressSpan: Double
+        progressSpan: Double,
+        runGeneration: Int
     ) async throws {
         let composition = AVMutableComposition()
         guard let videoTrack = composition.addMutableTrack(
@@ -452,27 +490,39 @@ final class VideoProcessor: ObservableObject {
         try await run(
             session,
             progressStart: progressStart,
-            progressSpan: progressSpan
+            progressSpan: progressSpan,
+            runGeneration: runGeneration
         )
     }
 
     private func run(
         _ session: AVAssetExportSession,
         progressStart: Double,
-        progressSpan: Double
+        progressSpan: Double,
+        runGeneration: Int
     ) async throws {
+        try ensureCurrentRun(runGeneration)
         exportSession = session
         progressTask?.cancel()
         progressTask = Task { [weak self, weak session] in
             while let session, !Task.isCancelled {
+                guard self?.processingGeneration == runGeneration else { return }
                 self?.progress = progressStart + Double(session.progress) * progressSpan
                 try? await Task.sleep(for: .milliseconds(150))
             }
         }
-        await session.export()
-        progressTask?.cancel()
-        progressTask = nil
-        exportSession = nil
+        let cancellation = VideoExportSessionCancellation(session)
+        await withTaskCancellationHandler {
+            await session.export()
+        } onCancel: {
+            cancellation.cancel()
+        }
+        if exportSession === session {
+            progressTask?.cancel()
+            progressTask = nil
+            exportSession = nil
+        }
+        try ensureCurrentRun(runGeneration)
 
         switch session.status {
         case .completed:
@@ -481,6 +531,13 @@ final class VideoProcessor: ObservableObject {
             throw CancellationError()
         default:
             throw session.error ?? ProcessorError.exportFailed
+        }
+    }
+
+    private func ensureCurrentRun(_ generation: Int) throws {
+        try Task.checkCancellation()
+        guard processingGeneration == generation else {
+            throw CancellationError()
         }
     }
 
@@ -634,6 +691,18 @@ final class VideoProcessor: ObservableObject {
             seconds: maximumDurationSeconds,
             preferredTimescale: max(sourceDuration.timescale, 600)
         )
+    }
+}
+
+private final class VideoExportSessionCancellation: @unchecked Sendable {
+    private let session: AVAssetExportSession
+
+    init(_ session: AVAssetExportSession) {
+        self.session = session
+    }
+
+    func cancel() {
+        session.cancelExport()
     }
 }
 

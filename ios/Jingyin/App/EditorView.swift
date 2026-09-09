@@ -56,6 +56,7 @@ struct EditorView: View {
     @State private var expandedParameters = false
     @State private var sourceDuration = 0.0
     @State private var selectedTool: VideoEditorTool = .subjects
+    @State private var hasHandledDemoLaunchAction = false
 
     init(videoURL: URL) {
         self.videoURL = videoURL
@@ -81,18 +82,20 @@ struct EditorView: View {
         }
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 4) {
-                Label(
-                    localization.t("editor.reviewBeforeExport"),
-                    systemImage: "exclamationmark.triangle"
-                )
-                .font(.caption)
-                .foregroundStyle(AppPalette.secondaryText)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                Text(configurationSummary)
-                    .font(.footnote)
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Label(
+                        localization.t("editor.reviewBeforeExport"),
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    .font(.caption)
                     .foregroundStyle(AppPalette.secondaryText)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    Text(configurationSummary)
+                        .font(.footnote)
+                        .foregroundStyle(AppPalette.secondaryText)
+                        .multilineTextAlignment(.center)
+                }
                 Button {
                     player.pause()
                     voicePreview.stop(unload: true)
@@ -102,6 +105,7 @@ struct EditorView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(PrimaryButtonStyle())
+                .accessibilityHint(localization.t("editor.reviewBeforeExport"))
                 .disabled(
                     hasTrackingInProgress
                         || (options.scope == .background && options.subjects.isEmpty
@@ -213,6 +217,10 @@ struct EditorView: View {
             // Simulator smoke-test hook. It keeps long-video verification
             // repeatable without affecting normal launches.
             let arguments = ProcessInfo.processInfo.arguments
+            let hasDemoAction = arguments.contains("-demoExportSettings")
+                || arguments.contains("-demoProcess")
+            guard hasDemoAction, !hasHandledDemoLaunchAction else { return }
+            hasHandledDemoLaunchAction = true
             while !entitlements.isReady, !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(25))
             }
@@ -318,8 +326,8 @@ struct EditorView: View {
         let display = sourceMetadata?.displaySize ?? CGSize(width: 16, height: 9)
         let aspect = max(display.width / max(display.height, 1), 0.1)
         let fittingHeight = max(0, size.width - 24) / aspect
-        let limit = size.height * (dynamicTypeSize.isAccessibilitySize ? 0.25 : 0.34)
-        return max(100, min(fittingHeight, limit))
+        let limit = size.height * (dynamicTypeSize.isAccessibilitySize ? 0.20 : 0.34)
+        return max(dynamicTypeSize.isAccessibilitySize ? 88 : 100, min(fittingHeight, limit))
     }
 
     private func videoPlayerSection(height: CGFloat) -> some View {
@@ -388,13 +396,24 @@ struct EditorView: View {
 
     private var settings: some View {
         return VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(localization.t(selectedTool.titleKey)).font(.headline)
-                Spacer()
-                if !expandedParameters {
-                    Button { expandedParameters = true } label: {
-                        Label(localization.t("editor.expandParameters"), systemImage: "chevron.up")
-                    }.buttonStyle(TextButtonStyle())
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(localization.t(selectedTool.titleKey)).font(.headline)
+                    if !expandedParameters {
+                        Button { expandedParameters = true } label: {
+                            Label(localization.t("editor.expandParameters"), systemImage: "chevron.up")
+                        }.buttonStyle(TextButtonStyle())
+                    }
+                }
+            } else {
+                HStack {
+                    Text(localization.t(selectedTool.titleKey)).font(.headline)
+                    Spacer()
+                    if !expandedParameters {
+                        Button { expandedParameters = true } label: {
+                            Label(localization.t("editor.expandParameters"), systemImage: "chevron.up")
+                        }.buttonStyle(TextButtonStyle())
+                    }
                 }
             }
             switch selectedTool {
@@ -402,6 +421,15 @@ struct EditorView: View {
             case .manual: manualPanel
             case .style: stylePanel
             case .audio: audioPanel
+            }
+            if dynamicTypeSize.isAccessibilitySize {
+                Label(
+                    localization.t("editor.reviewBeforeExport"),
+                    systemImage: "exclamationmark.triangle"
+                )
+                .font(.footnote)
+                .foregroundStyle(AppPalette.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -725,26 +753,42 @@ struct EditorView: View {
         ].joined(separator: " · ")
     }
 
-    private var toolBar: some View {
-        HStack(spacing: 8) {
-            ForEach(VideoEditorTool.allCases) { tool in
-                Button {
-                    selectedTool = tool
-                } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: tool.icon).font(.system(size: 18))
-                        Text(localization.t(tool.titleKey)).font(.caption.weight(.semibold))
-                            .multilineTextAlignment(.center)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                    .background(
-                        selectedTool == tool ? AppPalette.accent.softFill : AppPalette.surface,
-                        in: RoundedRectangle(cornerRadius: 8))
+    @ViewBuilder private var toolBar: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2),
+                spacing: 8
+            ) {
+                ForEach(VideoEditorTool.allCases) { tool in
+                    toolButton(tool)
                 }
-                .buttonStyle(TextButtonStyle())
-                .accessibilityAddTraits(selectedTool == tool ? .isSelected : [])
+            }
+        } else {
+            HStack(spacing: 8) {
+                ForEach(VideoEditorTool.allCases) { tool in
+                    toolButton(tool)
+                }
             }
         }
+    }
+
+    private func toolButton(_ tool: VideoEditorTool) -> some View {
+        Button {
+            selectedTool = tool
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: tool.icon).font(.system(size: 18))
+                Text(localization.t(tool.titleKey)).font(.caption.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(
+                selectedTool == tool ? AppPalette.accent.softFill : AppPalette.surface,
+                in: RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(TextButtonStyle())
+        .accessibilityAddTraits(selectedTool == tool ? .isSelected : [])
     }
 
     @ViewBuilder private var voicePreviewStatus: some View {

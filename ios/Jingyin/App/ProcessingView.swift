@@ -46,12 +46,36 @@ struct ProcessingView: View {
             )
         )
         .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(processor.isRunning)
-        .task { start() }
+        .navigationBarBackButtonHidden(processor.isRunning || isSaving)
+        .task {
+            start()
+#if DEBUG
+            if let delay = demoCancellationDelay {
+                try? await Task.sleep(for: .seconds(delay))
+                guard !Task.isCancelled, processor.isRunning else { return }
+                cancelAndDismiss()
+            } else if let delay = demoRetryDelay {
+                try? await Task.sleep(for: .seconds(delay))
+                guard !Task.isCancelled else { return }
+                if case .failed = processor.stage {
+                    start()
+                }
+            } else if let delay = demoRestartDelay {
+                try? await Task.sleep(for: .seconds(delay))
+                guard !Task.isCancelled, processor.isRunning else { return }
+                start()
+            }
+#endif
+        }
         .onAppear {
             MediaPlaybackSession.activate()
         }
         .onChange(of: processor.outputURL) { _, url in
+            if url != nil {
+                // Completion wins if it lands while the cancellation alert is
+                // open. Dismiss the stale alert so it cannot discard a valid result.
+                showCancelConfirmation = false
+            }
             previewPlayer?.pause()
             previewPlayer = url.map { AVPlayer(url: $0) }
             playConfetti = url != nil
@@ -281,6 +305,7 @@ struct ProcessingView: View {
                     dismiss()
                 }
             }
+            .disabled(isSaving)
         }
     }
 
@@ -314,12 +339,35 @@ struct ProcessingView: View {
     }
 
     private func cancelAndDismiss() {
-        // Leave the processing screen immediately; AVFoundation cancellation
-        // and temporary-file cleanup continue through the existing teardown.
-        dismiss()
         processingTask?.cancel()
         processor.cancel()
+        dismiss()
     }
+
+#if DEBUG
+    private var demoCancellationDelay: TimeInterval? {
+        demoDelay(for: "-demoCancelAfter")
+    }
+
+    private var demoRetryDelay: TimeInterval? {
+        demoDelay(for: "-demoRetryAfter")
+    }
+
+    private var demoRestartDelay: TimeInterval? {
+        demoDelay(for: "-demoRestartAfter")
+    }
+
+    private func demoDelay(for argument: String) -> TimeInterval? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: argument),
+              arguments.indices.contains(index + 1),
+              let seconds = TimeInterval(arguments[index + 1]),
+              seconds >= 0 else {
+            return nil
+        }
+        return seconds
+    }
+#endif
 
     private var remainingTimeText: String {
         guard let remaining = processor.estimatedRemainingSeconds else {

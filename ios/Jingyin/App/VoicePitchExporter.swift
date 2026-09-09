@@ -35,6 +35,12 @@ enum VoicePitchExporter {
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("jingyin-pitch-\(UUID().uuidString).m4a")
         try? FileManager.default.removeItem(at: outputURL)
+        var completed = false
+        defer {
+            if !completed {
+                try? FileManager.default.removeItem(at: outputURL)
+            }
+        }
 
         let engine = AVAudioEngine()
         let player = AVAudioPlayerNode()
@@ -51,6 +57,10 @@ enum VoicePitchExporter {
         let maxFrames: AVAudioFrameCount = 4096
         try engine.enableManualRenderingMode(.offline, format: format, maximumFrameCount: maxFrames)
         try engine.start()
+        defer {
+            player.stop()
+            engine.stop()
+        }
         // Passing no completion handler selects Swift's async overlay, which
         // waits for playback to finish. Playback only starts on the next line,
         // so awaiting it here deadlocks the export at 68%.
@@ -113,9 +123,8 @@ enum VoicePitchExporter {
             }
         }
 
-        player.stop()
-        engine.stop()
         progress?(1)
+        completed = true
         return outputURL
     }
 
@@ -165,8 +174,9 @@ enum VoicePitchExporter {
         session.outputURL = outputURL
         session.outputFileType = .mp4
         session.metadata = []
-        await session.export()
+        await cancellableExport(session)
         guard session.status == .completed else {
+            if session.status == .cancelled { throw CancellationError() }
             // Some source containers reject passthrough; fall back to re-encoding.
             guard let fallback = AVAssetExportSession(
                 asset: composition,
@@ -178,7 +188,8 @@ enum VoicePitchExporter {
             fallback.outputURL = outputURL
             fallback.outputFileType = .mp4
             fallback.metadata = []
-            await fallback.export()
+            await cancellableExport(fallback)
+            if fallback.status == .cancelled { throw CancellationError() }
             guard fallback.status == .completed else {
                 throw fallback.error ?? ExportError.muxFailed
             }
@@ -206,17 +217,46 @@ enum VoicePitchExporter {
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("jingyin-audio-extract-\(UUID().uuidString).m4a")
         try? FileManager.default.removeItem(at: outputURL)
+        var completed = false
+        defer {
+            if !completed {
+                try? FileManager.default.removeItem(at: outputURL)
+            }
+        }
         guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetAppleM4A) else {
             throw ExportError.renderFailed
         }
         session.outputURL = outputURL
         session.outputFileType = .m4a
         session.metadata = []
-        await session.export()
+        await cancellableExport(session)
+        if session.status == .cancelled { throw CancellationError() }
         try Task.checkCancellation()
         guard session.status == .completed else {
             throw session.error ?? ExportError.renderFailed
         }
+        completed = true
         return outputURL
+    }
+
+    private static func cancellableExport(_ session: AVAssetExportSession) async {
+        let cancellation = ExportSessionCancellation(session)
+        await withTaskCancellationHandler {
+            await session.export()
+        } onCancel: {
+            cancellation.cancel()
+        }
+    }
+}
+
+private final class ExportSessionCancellation: @unchecked Sendable {
+    private let session: AVAssetExportSession
+
+    init(_ session: AVAssetExportSession) {
+        self.session = session
+    }
+
+    func cancel() {
+        session.cancelExport()
     }
 }

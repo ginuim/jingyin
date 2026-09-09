@@ -62,6 +62,7 @@ struct ControlledVideoPlayer<Content: View>: View {
     @ViewBuilder private let content: Content
 
     @EnvironmentObject private var localization: LocalizationManager
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var thumbnails: [UIImage] = []
     @State private var seekGeneration = 0
     @State private var pendingSeekSeconds: Double?
@@ -164,34 +165,7 @@ struct ControlledVideoPlayer<Content: View>: View {
             if thumbnailURL != nil {
                 thumbnailStrip
             }
-            HStack(spacing: 9) {
-                Button(action: togglePlayback) {
-                    Image(systemName: playerIsPaused ? "play.fill" : "pause.fill")
-                        .font(.system(size: 14, weight: .bold))
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(AppPalette.accent.primary)
-                .accessibilityLabel(
-                    localization.t(playerIsPaused ? "player.play" : "player.pause")
-                )
-
-                Text(formatTime(displayedSeconds))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .frame(width: timeLabelWidth, alignment: .trailing)
-
-                timelineSlider
-
-                Text(formatTime(durationSeconds))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .frame(width: timeLabelWidth, alignment: .leading)
-            }
-            .font(.caption.monospacedDigit())
-            .foregroundStyle(AppPalette.secondaryText)
-            .padding(.horizontal, 4)
+            transportControls
         }
         .fixedSize(horizontal: false, vertical: true)
         .task(id: thumbnailURL) { await loadThumbnails() }
@@ -207,6 +181,52 @@ struct ControlledVideoPlayer<Content: View>: View {
         .onReceive(refreshTimer) { _ in
             refreshState()
         }
+    }
+
+    @ViewBuilder private var transportControls: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: 0) {
+                HStack(spacing: 8) {
+                    playButton
+                    Text("\(formatTime(displayedSeconds)) / \(formatTime(durationSeconds))")
+                        .font(.caption.monospacedDigit())
+                    Spacer(minLength: 0)
+                }
+                timelineSlider
+            }
+            .foregroundStyle(AppPalette.secondaryText)
+            .padding(.horizontal, 4)
+        } else {
+            HStack(spacing: 9) {
+                playButton
+                Text(formatTime(displayedSeconds))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .frame(width: timeLabelWidth, alignment: .trailing)
+                timelineSlider
+                Text(formatTime(durationSeconds))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .frame(width: timeLabelWidth, alignment: .leading)
+            }
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(AppPalette.secondaryText)
+            .padding(.horizontal, 4)
+        }
+    }
+
+    private var playButton: some View {
+        Button(action: togglePlayback) {
+            Image(systemName: playerIsPaused ? "play.fill" : "pause.fill")
+                .font(.system(size: 14, weight: .bold))
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(AppPalette.accent.primary)
+        .accessibilityLabel(
+            localization.t(playerIsPaused ? "player.play" : "player.pause")
+        )
     }
 
     private var thumbnailStrip: some View {
