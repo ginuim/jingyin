@@ -67,21 +67,20 @@ struct EditorView: View {
         GeometryReader { geometry in
             VStack(spacing: 8) {
                 videoPlayerSection(
-                    height: max(
-                        120, geometry.size.height * (dynamicTypeSize.isAccessibilitySize ? 0.25 : 0.40)))
+                    height: previewHeight(in: geometry.size))
                 toolBar
                 ScrollView {
                     settings
-                        .padding(16)
+                        .padding(12)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: 16))
+                .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: 10))
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
+            .padding(.horizontal, 12)
+            .padding(.top, 4)
         }
         .safeAreaInset(edge: .bottom) {
-            VStack(spacing: 8) {
+            VStack(spacing: 4) {
                 Text(configurationSummary)
                     .font(.footnote)
                     .foregroundStyle(AppPalette.secondaryText)
@@ -101,8 +100,8 @@ struct EditorView: View {
                             && options.maskTracks.isEmpty)
                 )
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
             .background(AppPalette.background)
         }
         .foregroundStyle(AppPalette.primaryText)
@@ -307,6 +306,14 @@ struct EditorView: View {
         return "\(options.quality.rawValue)|\(options.scope.rawValue)|\(options.style.rawValue)|\(options.strength)|\(options.stickerEmoji.rawValue)|\(subjects)|\(maskPreviewRevision)|\(fg.r),\(fg.g),\(fg.b),\(fg.a)|\(bg.r),\(bg.g),\(bg.b),\(bg.a)|\(entities)"
     }
 
+    private func previewHeight(in size: CGSize) -> CGFloat {
+        let display = sourceMetadata?.displaySize ?? CGSize(width: 16, height: 9)
+        let aspect = max(display.width / max(display.height, 1), 0.1)
+        let fittingHeight = max(0, size.width - 24) / aspect
+        let limit = size.height * (dynamicTypeSize.isAccessibilitySize ? 0.25 : 0.34)
+        return max(100, min(fittingHeight, limit))
+    }
+
     private func videoPlayerSection(height: CGFloat) -> some View {
         ControlledVideoPlayer(
             player: player,
@@ -320,7 +327,7 @@ struct EditorView: View {
         ) {
             BareVideoPlayer(player: player)
                 .frame(height: height)
-                .clipShape(RoundedRectangle(cornerRadius: 20))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
                 .overlay {
                     if selectedTool == .subjects && options.scope != .full && entitiesMatchPlayhead {
                         GeometryReader { proxy in
@@ -394,11 +401,6 @@ struct EditorView: View {
     private var subjectsPanel: some View {
         let bundle = localization.bundle
         return VStack(alignment: .leading, spacing: 12) {
-
-            HStack(spacing: 8) {
-                presetButton(.face)
-                presetButton(.person)
-            }
 
             Picker(localization.t("editor.scope"), selection: $options.scope) {
                 ForEach(MaskScope.allCases) {
@@ -582,23 +584,6 @@ struct EditorView: View {
         }
     }
 
-    private func presetButton(_ kind: SubjectKind) -> some View {
-        Button {
-            options.scope = .subjects
-            options.subjects = [kind]
-            options.maskEntities = []
-            selectedEntityID = nil
-            resetStickerIfUnavailable()
-        } label: {
-            Label(
-                kind.title(localization.bundle),
-                systemImage: options.scope == .subjects && options.subjects == [kind]
-                    ? "checkmark.circle.fill" : kind.icon
-            )
-            .frame(maxWidth: .infinity)
-        }.buttonStyle(TextButtonStyle())
-    }
-
     private var manualPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
             if options.scope == .full {
@@ -743,11 +728,10 @@ struct EditorView: View {
                         Text(localization.t(tool.titleKey)).font(.caption.weight(.semibold))
                             .multilineTextAlignment(.center)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 52)
-                    .padding(.vertical, 4)
+                    .frame(maxWidth: .infinity, minHeight: 44)
                     .background(
                         selectedTool == tool ? AppPalette.accent.softFill : AppPalette.surface,
-                        in: RoundedRectangle(cornerRadius: 12))
+                        in: RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(TextButtonStyle())
                 .accessibilityAddTraits(selectedTool == tool ? .isSelected : [])
@@ -1693,7 +1677,8 @@ struct EditorView: View {
             request.finish(
                 with: processor.render(
                     request.sourceImage,
-                    at: request.compositionTime
+                    at: request.compositionTime,
+                    refreshDetection: true
                 ),
                 context: nil
             )

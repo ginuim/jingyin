@@ -64,12 +64,14 @@ struct ControlledVideoPlayer<Content: View>: View {
     @EnvironmentObject private var localization: LocalizationManager
     @State private var thumbnails: [UIImage] = []
     @State private var seekGeneration = 0
+    @State private var pendingSeekSeconds: Double?
+    @State private var seekInFlight = false
+    @State private var endingScrub = false
     @State private var thumbnailGeneration = UUID()
     @State private var currentSeconds = 0.0
     @State private var durationSeconds = 0.0
     @State private var scrubSeconds = 0.0
     @State private var isScrubbing = false
-    @State private var resumeAfterScrubbing = false
     @State private var playerIsPaused = true
 
     private let refreshTimer = Timer.publish(
@@ -103,7 +105,7 @@ struct ControlledVideoPlayer<Content: View>: View {
     }
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: thumbnailURL == nil ? 10 : 4) {
             content
                 .overlay(alignment: .topTrailing) {
                     if let onPinToggle {
@@ -196,6 +198,10 @@ struct ControlledVideoPlayer<Content: View>: View {
         .onDisappear {
             thumbnailGeneration = UUID()
             thumbnails.removeAll()
+            seekGeneration += 1
+            pendingSeekSeconds = nil
+            seekInFlight = false
+            isScrubbing = false
         }
         .onAppear(perform: refreshState)
         .onReceive(refreshTimer) { _ in
@@ -229,9 +235,12 @@ struct ControlledVideoPlayer<Content: View>: View {
             .gesture(DragGesture(minimumDistance: 0)
                 .onChanged { value in
                     if !isScrubbing { scrubStateChanged(true) }
-                    scrubSeconds = min(max(Double(value.location.x / max(proxy.size.width, 1)), 0), 1) * durationSeconds
+                    queueScrub(to: min(max(Double(value.location.x / max(proxy.size.width, 1)), 0), 1) * durationSeconds)
                 }
-                .onEnded { _ in scrubStateChanged(false) })
+                .onEnded { value in
+                    queueScrub(to: min(max(Double(value.location.x / max(proxy.size.width, 1)), 0), 1) * durationSeconds)
+                    scrubStateChanged(false)
+                })
         }
         .frame(height: 44)
         .accessibilityHidden(true)
@@ -274,7 +283,7 @@ struct ControlledVideoPlayer<Content: View>: View {
         Slider(
             value: Binding(
                 get: { displayedSeconds },
-                set: { scrubSeconds = $0 }
+                set: { queueScrub(to: $0) }
             ),
             in: 0...max(durationSeconds, 0.01),
             onEditingChanged: scrubStateChanged
@@ -383,32 +392,57 @@ struct ControlledVideoPlayer<Content: View>: View {
 
     private func scrubStateChanged(_ editing: Bool) {
         if editing {
+            guard !isScrubbing else { endingScrub = false; return }
             isScrubbing = true
+            endingScrub = false
             scrubSeconds = currentSeconds
-            resumeAfterScrubbing = false
             player.pause()
-            refreshState()
-            return
+            playerIsPaused = true
+        } else {
+            endingScrub = true
+            queueScrub(to: scrubSeconds)
         }
+    }
 
-        seekGeneration += 1
+    /// Coalesce seeks instead of repeatedly cancelling AVFoundation work. The
+    /// latest requested frame wins; mask controls follow the frame actually shown.
+    private func queueScrub(to seconds: Double) {
+        // Accessibility can change a Slider without an editing-began event.
+        if !isScrubbing {
+            isScrubbing = true
+            endingScrub = true
+            player.pause()
+            playerIsPaused = true
+        }
+        let target = min(max(seconds, 0), durationSeconds)
+        scrubSeconds = target
+        pendingSeekSeconds = target
+        guard !seekInFlight else { return }
+        seekInFlight = true
         let generation = seekGeneration
-        let target = scrubSeconds
-        let destination = CMTime(seconds: target, preferredTimescale: 600)
         Task { @MainActor in
-            await player.seek(
-                to: destination,
-                toleranceBefore: .zero,
-                toleranceAfter: .zero
-            )
-            guard generation == seekGeneration else { return }
-            currentSeconds = target
-            isScrubbing = false
-            if resumeAfterScrubbing {
-                player.play()
+            while let target = pendingSeekSeconds {
+                pendingSeekSeconds = nil
+                let completed = await player.seek(
+                    to: CMTime(seconds: target, preferredTimescale: 600),
+                    toleranceBefore: .zero,
+                    toleranceAfter: .zero
+                )
+                guard generation == seekGeneration else { return }
+                if completed {
+                    let actual = player.currentTime().seconds
+                    if actual.isFinite {
+                        currentSeconds = actual
+                        onTimeChanged(actual)
+                    }
+                }
             }
-            resumeAfterScrubbing = false
-            refreshState()
+            seekInFlight = false
+            if endingScrub {
+                isScrubbing = false
+                endingScrub = false
+                refreshState()
+            }
         }
     }
 

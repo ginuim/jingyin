@@ -766,7 +766,8 @@ final class FrameEffectProcessor: @unchecked Sendable {
         _ sourceImage: CIImage,
         at compositionTime: CMTime = .zero,
         renderSize: CGSize? = nil,
-        externalMask: CIImage? = nil
+        externalMask: CIImage? = nil,
+        refreshDetection: Bool = false
     ) -> CIImage {
         let source = Self.scaledImage(sourceImage, to: renderSize)
         let extent = source.extent
@@ -797,7 +798,9 @@ final class FrameEffectProcessor: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         frameIndex += 1
-        if frameIndex == 1 || frameIndex.isMultiple(of: options.quality.frameInterval) {
+        if refreshDetection || frameIndex == 1 || frameIndex.isMultiple(of: options.quality.frameInterval) {
+            // A requested preview frame may follow an arbitrary seek. Never reuse
+            // a prior frame's detection just because the export cadence says so.
             // nil is intentional when every entity is disabled or nothing is found.
             cachedMask = subjectMask(for: source, extent: extent)
         }
