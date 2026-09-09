@@ -75,6 +75,8 @@ struct ControlledVideoPlayer<Content: View>: View {
     @State private var isScrubbing = false
     @State private var playerIsPaused = true
 
+    private let timelineSideInset: CGFloat = 16
+
     private let refreshTimer = Timer.publish(
         every: 0.2,
         on: .main,
@@ -231,6 +233,11 @@ struct ControlledVideoPlayer<Content: View>: View {
 
     private var thumbnailStrip: some View {
         GeometryReader { proxy in
+            let pointerWidth: CGFloat = 3
+            let trackWidth = max(proxy.size.width - timelineSideInset * 2, 0)
+            let progress = CGFloat(
+                min(max(displayedSeconds / max(durationSeconds, 0.01), 0), 1)
+            )
             ZStack(alignment: .leading) {
                 HStack(spacing: 0) {
                     ForEach(0..<8, id: \.self) { index in
@@ -246,24 +253,40 @@ struct ControlledVideoPlayer<Content: View>: View {
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 10))
-                Rectangle().fill(AppPalette.accent.primary).frame(width: 3)
+                Rectangle().fill(AppPalette.accent.primary).frame(width: pointerWidth)
                     .offset(
-                        x: CGFloat(min(max(displayedSeconds / max(durationSeconds, 0.01), 0), 1))
-                            * max(0, proxy.size.width - 3))
+                        x: timelineSideInset
+                            + progress * max(trackWidth - pointerWidth, 0)
+                    )
             }
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0)
                 .onChanged { value in
                     if !isScrubbing { scrubStateChanged(true) }
-                    queueScrub(to: min(max(Double(value.location.x / max(proxy.size.width, 1)), 0), 1) * durationSeconds)
+                    queueScrub(
+                        to: scrubProgress(
+                            at: value.location.x,
+                            width: proxy.size.width
+                        ) * durationSeconds
+                    )
                 }
                 .onEnded { value in
-                    queueScrub(to: min(max(Double(value.location.x / max(proxy.size.width, 1)), 0), 1) * durationSeconds)
+                    queueScrub(
+                        to: scrubProgress(
+                            at: value.location.x,
+                            width: proxy.size.width
+                        ) * durationSeconds
+                    )
                     scrubStateChanged(false)
                 })
         }
         .frame(height: 44)
         .accessibilityHidden(true)
+    }
+
+    private func scrubProgress(at x: CGFloat, width: CGFloat) -> Double {
+        let trackWidth = max(width - timelineSideInset * 2, 1)
+        return min(max(Double((x - timelineSideInset) / trackWidth), 0), 1)
     }
 
     @MainActor private func loadThumbnails() async {

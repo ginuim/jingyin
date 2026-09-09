@@ -72,7 +72,9 @@ struct EditorView: View {
                 toolBar
                 ScrollView {
                     settings
-                        .padding(12)
+                        .padding(.horizontal, 12)
+                        .padding(.top, 6)
+                        .padding(.bottom, 12)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: 10))
@@ -81,43 +83,40 @@ struct EditorView: View {
             .padding(.top, 4)
         }
         .safeAreaInset(edge: .bottom) {
-            VStack(spacing: 4) {
-                if !dynamicTypeSize.isAccessibilitySize {
-                    Label(
-                        localization.t("editor.reviewBeforeExport"),
-                        systemImage: "exclamationmark.triangle"
-                    )
-                    .font(.caption)
-                    .foregroundStyle(AppPalette.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    Text(configurationSummary)
-                        .font(.footnote)
-                        .foregroundStyle(AppPalette.secondaryText)
-                        .multilineTextAlignment(.center)
-                }
-                Button {
-                    player.pause()
-                    voicePreview.stop(unload: true)
-                    showExportSettings = true
-                } label: {
-                    Text(localization.t("editor.next"))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(PrimaryButtonStyle())
-                .accessibilityHint(localization.t("editor.reviewBeforeExport"))
-                .disabled(
-                    hasTrackingInProgress
-                        || (options.scope == .background && options.subjects.isEmpty
-                            && options.maskTracks.isEmpty)
-                )
+            Button {
+                player.pause()
+                voicePreview.stop(unload: true)
+                showExportSettings = true
+            } label: {
+                Text(localization.t("editor.next"))
+                    .frame(maxWidth: .infinity)
             }
+            .buttonStyle(PrimaryButtonStyle())
+            .accessibilityHint(localization.t("editor.reviewBeforeExport"))
+            .disabled(
+                hasTrackingInProgress
+                    || (options.scope == .background && options.subjects.isEmpty
+                        && options.maskTracks.isEmpty)
+            )
             .padding(.horizontal, 12)
             .padding(.vertical, 4)
             .background(AppPalette.background)
         }
         .foregroundStyle(AppPalette.primaryText)
         .background(AppPalette.background)
+        .overlay {
+            if inspectingEntities {
+                ProgressView(localization.t("editor.inspecting"))
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 14)
+                    .background(
+                        AppPalette.surface,
+                        in: RoundedRectangle(cornerRadius: 12)
+                    )
+                    .shadow(color: .black.opacity(0.2), radius: 12, y: 4)
+                    .allowsHitTesting(false)
+            }
+        }
         .navigationTitle(localization.t("editor.title"))
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showProcessing) {
@@ -395,7 +394,7 @@ struct EditorView: View {
     }
 
     private var settings: some View {
-        return VStack(alignment: .leading, spacing: 12) {
+        return VStack(alignment: .leading, spacing: 8) {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(localization.t(selectedTool.titleKey)).font(.headline)
@@ -436,7 +435,7 @@ struct EditorView: View {
 
     private var subjectsPanel: some View {
         let bundle = localization.bundle
-        return VStack(alignment: .leading, spacing: 12) {
+        return VStack(alignment: .leading, spacing: 10) {
 
             Picker(localization.t("editor.scope"), selection: $options.scope) {
                 ForEach(MaskScope.allCases) {
@@ -511,16 +510,14 @@ struct EditorView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                if inspectingEntities {
-                    ProgressView(localization.t("editor.inspecting"))
-                } else if entitiesMatchPlayhead {
+                if !inspectingEntities && entitiesMatchPlayhead {
                     if inspectedEntities.isEmpty {
                         Text(localization.t(inspectionFailed ? "editor.inspectionFailed" : "editor.noEntities"))
                             .font(.footnote)
                     } else {
                         entitySelector
                     }
-                } else {
+                } else if !inspectingEntities {
                     Text(localization.t("editor.pauseToInspect")).font(.footnote)
                 }
 
@@ -739,20 +736,6 @@ struct EditorView: View {
         }
     }
 
-    private var configurationSummary: String {
-        let subjects = SubjectKind.allCases.filter { options.subjects.contains($0) }
-            .map { $0.title(localization.bundle) }.joined(separator: " + ")
-        let target =
-            options.scope == .subjects
-            ? (subjects.isEmpty ? localization.t("editor.manualTool") : subjects)
-            : options.scope.title(localization.bundle)
-                + (options.scope == .background ? " · " + subjects : "")
-        return [
-            target, options.style.title(localization.bundle),
-            options.audioMeta(bundle: localization.bundle),
-        ].joined(separator: " · ")
-    }
-
     @ViewBuilder private var toolBar: some View {
         if dynamicTypeSize.isAccessibilitySize {
             LazyVGrid(
@@ -811,67 +794,73 @@ struct EditorView: View {
     }
 
     private var entitySelector: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(Array(inspectedEntities.enumerated()), id: \.element.id) { index, entity in
-                        Button {
-                            selectedEntityID = entity.id
-                        } label: {
-                            Label {
-                                Text(
-                                    localization.format(
-                                        "editor.entityItem",
-                                        Int64(index + 1)
-                                    ))
-                            } icon: {
-                                Image(systemName: entity.kind.icon)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Array(inspectedEntities.enumerated()), id: \.element.id) { index, entity in
+                    let isEnabled =
+                        options.maskEntities.first(where: { $0.id == entity.id })?.isEnabled
+                        ?? entity.isEnabled
+                    Toggle(
+                        isOn: Binding(
+                            get: {
+                                options.maskEntities.first(where: { $0.id == entity.id })?.isEnabled
+                                    ?? entity.isEnabled
+                            },
+                            set: { enabled in
+                                if let entityIndex = options.maskEntities.firstIndex(where: {
+                                    $0.id == entity.id
+                                }) {
+                                    options.maskEntities[entityIndex].isEnabled = enabled
+                                } else {
+                                    var changed = entity
+                                    changed.isEnabled = enabled
+                                    options.maskEntities.append(changed)
+                                }
+                                selectedEntityID = entity.id
                             }
-                            .font(.caption.weight(.semibold))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(
-                                selectedEntityID == entity.id
-                                    ? AppPalette.accent.primary
-                                    : AppPalette.elevatedSurface,
-                                in: Capsule()
-                            )
-                            .foregroundStyle(
-                                selectedEntityID == entity.id
-                                    ? AppPalette.accent.foreground
-                                    : (entity.isEnabled ? AppPalette.primaryText : AppPalette.secondaryText)
-                            )
-                            .opacity(entity.isEnabled ? 1 : 0.55)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityHint(
-                            localization.t(
-                                entity.isEnabled ? "editor.entityOn" : "editor.entityOff"
-                            )
                         )
+                    ) {
+                        Label {
+                            Text(
+                                localization.format(
+                                    "editor.entityItem",
+                                    Int64(index + 1)
+                                ))
+                        } icon: {
+                            Image(systemName: entity.kind.icon)
+                        }
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            isEnabled
+                                ? AppPalette.accent.primary
+                                : AppPalette.elevatedSurface,
+                            in: Capsule()
+                        )
+                        .foregroundStyle(
+                            isEnabled
+                                ? AppPalette.accent.foreground
+                                : AppPalette.secondaryText
+                        )
+                        .overlay {
+                            Capsule()
+                                .strokeBorder(
+                                    selectedEntityID == entity.id
+                                        ? AppPalette.maskOutline
+                                        : .clear,
+                                    lineWidth: 2
+                                )
+                        }
                     }
+                    .toggleStyle(.button)
+                    .buttonStyle(.plain)
+                    .accessibilityHint(
+                        localization.t(
+                            isEnabled ? "editor.entityOn" : "editor.entityOff"
+                        )
+                    )
                 }
-            }
-
-            if let selectedEntityID,
-                let entity = inspectedEntities.first(where: { $0.id == selectedEntityID })
-            {
-                let enabled =
-                    options.maskEntities.first(where: { $0.id == selectedEntityID })?.isEnabled
-                    ?? entity.isEnabled
-                Button {
-                    if let index = options.maskEntities.firstIndex(where: { $0.id == selectedEntityID }) {
-                        options.maskEntities[index].isEnabled.toggle()
-                    } else {
-                        var changed = entity
-                        changed.isEnabled = !enabled
-                        options.maskEntities.append(changed)
-                    }
-                } label: {
-                    Label(
-                        localization.t(enabled ? "editor.entityDisable" : "editor.entityEnable"),
-                        systemImage: enabled ? "eye.slash" : "eye")
-                }.buttonStyle(TextButtonStyle())
             }
         }
         .padding(.top, 4)
