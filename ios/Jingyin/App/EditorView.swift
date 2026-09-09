@@ -81,6 +81,14 @@ struct EditorView: View {
         }
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 4) {
+                Label(
+                    localization.t("editor.reviewBeforeExport"),
+                    systemImage: "exclamationmark.triangle"
+                )
+                .font(.caption)
+                .foregroundStyle(AppPalette.secondaryText)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
                 Text(configurationSummary)
                     .font(.footnote)
                     .foregroundStyle(AppPalette.secondaryText)

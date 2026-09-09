@@ -73,6 +73,17 @@ struct PhotoBatchEditorView: View {
             ZStack {
                 VStack(spacing: 0) {
                     photoStrip
+                    Label(
+                        localization.t("photo.reviewHint"),
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(AppPalette.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(AppPalette.surface)
                     Divider()
                         .overlay(AppPalette.divider)
 

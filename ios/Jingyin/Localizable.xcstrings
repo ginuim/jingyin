@@ -2209,6 +2209,34 @@
         }
       }
     },
+    "editor.reviewBeforeExport" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatic coverage may miss details. Review before exporting."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動処理では見落とす場合があります。書き出す前に確認してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动遮盖可能遗漏，请检查后再导出。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動遮蓋可能遺漏，請檢查後再匯出。"
+          }
+        }
+      }
+    },
     "editor.scope" : {
       "localizations" : {
         "en" : {
@@ -3667,6 +3695,35 @@
         }
       }
     },
+    "home.chooseTask" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose what to process"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "処理する素材を選ぶ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择要处理的内容"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇要處理的內容"
+          }
+        }
+      }
+    },
     "home.coverageDisclaimer" : {
       "localizations" : {
         "en" : {
@@ -3691,6 +3748,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "受演算法、光線、角度、姿勢與主體大小等影響，無法保證 100% 完美遮蓋；匯出前請仔細檢查，必要時手動補充。"
+          }
+        }
+      }
+    },
+    "home.coverageTitle" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About detection"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動検出について"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "识别说明"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辨識說明"
           }
         }
       }
@@ -3728,25 +3813,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Process Images"
+            "value" : "Process Photos"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "画像をまとめて処理"
+            "value" : "写真を処理"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "批量处理图片"
+            "value" : "处理图片"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "批次處理圖片"
+            "value" : "處理圖片"
           }
         }
       }
@@ -3784,25 +3869,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Original videos, photos, detection data, and results never leave the device"
+            "value" : "All processing happens on this device. Media and detection data are never uploaded."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "元の動画・写真・検出データ・結果は送信しません"
+            "value" : "すべて端末内で処理し、素材や検出データは送信しません"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "原视频、照片、识别数据和结果均不会上传"
+            "value" : "所有处理均在此设备完成，素材和识别数据不会上传"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "原始影片、照片、辨識資料與結果皆不會上傳"
+            "value" : "所有處理均在此裝置完成，素材和辨識資料不會上傳"
           }
         }
       }
@@ -3840,25 +3925,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Video and photo privacy, stays on your device"
+            "value" : "Hide private details in videos and photos"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "動画と写真のプライバシーは端末内だけに"
+            "value" : "動画や写真のプライバシーを隠す"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "视频与照片隐私，只留在你的设备里"
+            "value" : "为视频和照片遮盖隐私"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "影片與照片隱私，只留在你的裝置裡"
+            "value" : "為影片和照片遮蓋隱私"
           }
         }
       }
@@ -5414,7 +5499,6 @@
       }
     },
     "photo.reviewHint" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

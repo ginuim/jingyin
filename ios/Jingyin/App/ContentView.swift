@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var ownedInputURL: URL?
     @State private var ownedPhotoURLs: [URL] = []
     @State private var securityScopedInputURL: URL?
+    @AppStorage("jingyin.home.coverageExpanded") private var isCoverageExpanded = true
     @State private var showFileImporter = false
     @State private var loadingImport = false
     @State private var importFraction: Double?
@@ -121,9 +122,9 @@ struct ContentView: View {
                 Image("WelcomeLogo")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 128, height: 128)
-                    .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
-                    .shadow(color: AppPalette.accent.primary.opacity(0.20), radius: 20, y: 6)
+                    .frame(width: 104, height: 104)
+                    .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                    .shadow(color: AppPalette.accent.primary.opacity(0.20), radius: 16, y: 5)
                     .accessibilityLabel(localization.t("brand.name"))
 
                 VStack(spacing: 8) {
@@ -137,9 +138,9 @@ struct ContentView: View {
                         .padding(.horizontal, 20)
                 }
 
-                coverageDisclaimer
-
                 importButtons
+
+                coverageDisclaimer
 
                 if entitlements.isReady {
                     entitlementStatus
@@ -161,24 +162,63 @@ struct ContentView: View {
         }
     }
 
+    private var brandHeader: some View {
+        VStack(spacing: 12) {
+            Image("WelcomeLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 80, height: 80)
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .shadow(color: AppPalette.accent.primary.opacity(0.16), radius: 12, y: 4)
+                .accessibilityHidden(true)
+
+            VStack(spacing: 5) {
+                Text(localization.t("brand.name"))
+                    .font(.system(.title2, design: .rounded, weight: .bold))
+                Text(localization.t("home.tagline"))
+                    .font(.subheadline)
+                    .foregroundStyle(AppPalette.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
     private var coverageDisclaimer: some View {
-        Label(localization.t("home.coverageDisclaimer"), systemImage: "exclamationmark.triangle.fill")
-            .font(.footnote.weight(.medium))
+        DisclosureGroup(isExpanded: $isCoverageExpanded) {
+            Text(localization.t("home.coverageDisclaimer"))
+                .font(.footnote)
+                .foregroundStyle(AppPalette.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 8)
+        } label: {
+            Label(localization.t("home.coverageTitle"), systemImage: "info.circle")
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(AppPalette.secondaryText)
+        }
+        .tint(AppPalette.secondaryText)
+        .padding(14)
+        .background(
+            AppPalette.surface,
+            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(AppPalette.divider, lineWidth: 1)
+        }
+        .padding(.horizontal, 20)
+        .accessibilityElement(children: .contain)
+    }
+
+    private var privacyCommitment: some View {
+        Label(localization.t("home.privacy"), systemImage: "lock.shield.fill")
+            .font(.footnote)
             .foregroundStyle(AppPalette.secondaryText)
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
-            .background(
-                AppPalette.surface,
-                in: RoundedRectangle(cornerRadius: 16)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .strokeBorder(AppPalette.divider, lineWidth: 1)
-            )
-            .padding(.horizontal, 20)
-            .accessibilityLabel(localization.t("home.coverageDisclaimer"))
+            .padding(.horizontal, 4)
     }
 
     private var importButtons: some View {
@@ -213,12 +253,13 @@ struct ContentView: View {
             Button {
                 showFileImporter = true
             } label: {
-                Label(localization.t("home.pickFiles"), systemImage: "folder")
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.85)
+                    Label(localization.t("home.pickFiles"), systemImage: "folder")
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.85)
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(SecondaryButtonStyle())
+
         }
         .padding(.horizontal, 20)
         .disabled(loadingImport)
