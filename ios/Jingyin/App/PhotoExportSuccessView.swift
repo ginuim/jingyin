@@ -156,7 +156,7 @@ struct PhotoExportSuccessView: View {
                 ZStack {
                     Text(
                         saved
-                            ? localization.t("processing.saved")
+                            ? localization.t("processing.savedAndViewPhotos")
                             : localization.t("photo.save")
                     )
                     .opacity(isSaving ? 0 : 1)
@@ -170,7 +170,7 @@ struct PhotoExportSuccessView: View {
                 .frame(maxWidth: .infinity, minHeight: 56)
             }
             .buttonStyle(PrimaryButtonStyle())
-            .disabled(saved || isSaving || result.outputURLs.isEmpty)
+            .disabled(isSaving || result.outputURLs.isEmpty)
 
             Button {
                 showShare = true
@@ -241,6 +241,10 @@ struct PhotoExportSuccessView: View {
 
     private func saveOutputs() {
         guard !result.outputURLs.isEmpty, !isSaving else { return }
+        if saved {
+            PhotoLibraryNavigator.openPhotos()
+            return
+        }
         isSaving = true
         saveErrorMessage = nil
         Task {
@@ -280,7 +284,7 @@ private struct ExportInspectionPreview: View {
                 ZoomableExportPreview(url: urls[selectedIndex])
                     .id(urls[selectedIndex])
             } else {
-                AppPalette.mediaCanvas
+                ProgressView()
             }
 
             HStack(spacing: 18) {
@@ -327,11 +331,12 @@ private struct ZoomableExportPreview: View {
 
     var body: some View {
         GeometryReader { proxy in
+            let previewSize = fittedPreviewSize(in: proxy.size)
             Group {
                 if let thumbnail {
                     Image(uiImage: thumbnail)
                         .resizable()
-                        .scaledToFit()
+                        .frame(width: previewSize.width, height: previewSize.height)
                         .scaleEffect(displayScale)
                         .offset(displayOffset)
                         .gesture(zoomGesture.simultaneously(with: panGesture))
@@ -341,6 +346,8 @@ private struct ZoomableExportPreview: View {
                                 offset = .zero
                             }
                         }
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .shadow(color: Color.black.opacity(0.16), radius: 7, y: 3)
                 } else {
                     ProgressView()
                         .tint(AppPalette.secondaryText)
@@ -348,12 +355,7 @@ private struct ZoomableExportPreview: View {
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        .background(AppPalette.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(AppPalette.divider, lineWidth: 1)
-        }
+        .padding(6)
         .clipped()
         .task(id: url) {
             guard let source = UIImage(contentsOfFile: url.path) else { return }
@@ -365,6 +367,20 @@ private struct ZoomableExportPreview: View {
 
     private var displayScale: CGFloat {
         min(max(scale * gestureScale, 1), 4)
+    }
+
+    private func fittedPreviewSize(in container: CGSize) -> CGSize {
+        guard let thumbnail, thumbnail.size.width > 0, thumbnail.size.height > 0 else {
+            return container
+        }
+        let scale = min(
+            container.width / thumbnail.size.width,
+            container.height / thumbnail.size.height
+        )
+        return CGSize(
+            width: thumbnail.size.width * scale,
+            height: thumbnail.size.height * scale
+        )
     }
 
     private var displayOffset: CGSize {
@@ -397,6 +413,16 @@ private struct ZoomableExportPreview: View {
                 offset.width += value.translation.width
                 offset.height += value.translation.height
             }
+    }
+}
+
+/// Opens the system Photos app after a successful save. Photos does not offer a
+/// deep link to the individual asset that was just created.
+@MainActor
+enum PhotoLibraryNavigator {
+    static func openPhotos() {
+        guard let photosURL = URL(string: "photos-redirect://") else { return }
+        UIApplication.shared.open(photosURL)
     }
 }
 

@@ -273,9 +273,11 @@ struct ProcessingView: View {
                 ZStack {
                     Label(
                         saved
-                            ? localization.t("processing.saved")
+                            ? localization.t("processing.savedAndViewPhotos")
                             : localization.t("processing.save"),
-                        systemImage: saved ? "checkmark" : "square.and.arrow.down"
+                        systemImage: saved
+                            ? "photo.on.rectangle.angled"
+                            : "square.and.arrow.down"
                     )
                     .opacity(isSaving ? 0 : 1)
 
@@ -288,7 +290,7 @@ struct ProcessingView: View {
                 .frame(maxWidth: .infinity, minHeight: 58)
             }
             .buttonStyle(PrimaryButtonStyle())
-            .disabled(saved || isSaving)
+            .disabled(isSaving)
 
             HStack(spacing: 12) {
                 secondaryAction(
@@ -325,7 +327,11 @@ struct ProcessingView: View {
     }
 
     private func saveOutput() {
-        guard !saved, !isSaving else { return }
+        guard !isSaving else { return }
+        if saved {
+            PhotoLibraryNavigator.openPhotos()
+            return
+        }
         isSaving = true
         saveErrorMessage = nil
         Task {
