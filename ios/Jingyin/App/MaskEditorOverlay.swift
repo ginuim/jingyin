@@ -4,6 +4,10 @@ struct MaskEditorOverlay: View {
     @Binding var tracks: [MaskTrack]
     @Binding var selectedTrackID: MaskTrack.ID?
     let timeSeconds: TimeInterval
+    /// Exact time of the frame on screen, read at gesture start. `timeSeconds`
+    /// is timer-driven and can lag the visible frame by up to one refresh
+    /// interval, which would write keyframes at the wrong time.
+    let currentTimeSeconds: () -> TimeInterval
     let videoDisplaySize: CGSize?
     let onEditingBegan: () -> Void
     let onEditingEnded: () -> Void
@@ -25,6 +29,7 @@ struct MaskEditorOverlay: View {
                             normalizedRect: normalizedRect,
                             videoBounds: videoBounds,
                             timeSeconds: timeSeconds,
+                            currentTimeSeconds: currentTimeSeconds,
                             isSelected: selectedTrackID == track.id,
                             onSelect: {
                                 selectedTrackID = track.id
@@ -50,6 +55,7 @@ private struct MaskTrackLayer: View {
     let normalizedRect: NormalizedVideoRect
     let videoBounds: CGRect
     let timeSeconds: TimeInterval
+    let currentTimeSeconds: () -> TimeInterval
     let isSelected: Bool
     let onSelect: () -> Void
     let onEditingEnded: () -> Void
@@ -59,6 +65,9 @@ private struct MaskTrackLayer: View {
     @EnvironmentObject private var localization: LocalizationManager
     @State private var moveStartRect: NormalizedVideoRect?
     @State private var resizeStartRect: NormalizedVideoRect?
+    /// Time captured when the current gesture began; all keyframes written
+    /// during that gesture target exactly the frame the user was looking at.
+    @State private var gestureTimeSeconds: TimeInterval?
 
     var body: some View {
         let previewRect = normalizedRect.rect(inPreviewBounds: videoBounds)
@@ -78,9 +87,12 @@ private struct MaskTrackLayer: View {
                     .background(accentColor, in: Circle())
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
+                    // Float outside the corner when there is room so the
+                    // handle stops covering the mask's move area (small masks
+                    // otherwise resize when the user means to drag them).
                     .position(
-                        x: min(max(previewRect.maxX, videoBounds.minX + 22), videoBounds.maxX - 22),
-                        y: min(max(previewRect.maxY, videoBounds.minY + 22), videoBounds.maxY - 22)
+                        x: min(max(previewRect.maxX + 16, videoBounds.minX + 22), videoBounds.maxX - 14),
+                        y: min(max(previewRect.maxY + 16, videoBounds.minY + 22), videoBounds.maxY - 14)
                     )
                     .gesture(resizeGesture)
                     .accessibilityLabel(localization.t("editor.resizeMask"))
@@ -124,10 +136,11 @@ private struct MaskTrackLayer: View {
     }
 
     private var moveGesture: some Gesture {
-        DragGesture(minimumDistance: 2)
+        DragGesture(minimumDistance: 1)
             .onChanged { value in
                 if moveStartRect == nil {
                     moveStartRect = normalizedRect
+                    gestureTimeSeconds = currentTimeSeconds()
                     onSelect()
                 }
                 let start = moveStartRect ?? normalizedRect
@@ -146,6 +159,7 @@ private struct MaskTrackLayer: View {
             }
             .onEnded { _ in
                 moveStartRect = nil
+                gestureTimeSeconds = nil
                 onEditingEnded()
             }
     }
@@ -155,6 +169,7 @@ private struct MaskTrackLayer: View {
             .onChanged { value in
                 if resizeStartRect == nil {
                     resizeStartRect = normalizedRect
+                    gestureTimeSeconds = currentTimeSeconds()
                     onSelect()
                 }
                 let start = resizeStartRect ?? normalizedRect
@@ -173,13 +188,14 @@ private struct MaskTrackLayer: View {
             }
             .onEnded { _ in
                 resizeStartRect = nil
+                gestureTimeSeconds = nil
                 onEditingEnded()
             }
     }
 
     private func updateTrack(rect: NormalizedVideoRect) {
         var updated = track
-        updated.updateManualRect(rect, at: timeSeconds)
+        updated.updateManualRect(rect, at: gestureTimeSeconds ?? timeSeconds)
         track = updated
     }
 }

@@ -371,10 +371,15 @@ struct EditorView: View {
                             tracks: $options.maskTracks,
                             selectedTrackID: $selectedMaskTrackID,
                             timeSeconds: playheadSeconds,
+                            currentTimeSeconds: { editingTimeSeconds },
                             videoDisplaySize: sourceMetadata?.displaySize,
                             onEditingBegan: {
                                 player.pause()
                                 voicePreview.pause()
+                                // Snap the timer-driven playhead to the frame
+                                // actually on screen so the timeline, the
+                                // frozen frame and any new keyframe agree.
+                                playheadSeconds = editingTimeSeconds
                             },
                             onEditingEnded: finishMaskEditing,
                             onDeleteTrack: requestDeleteMask
@@ -884,6 +889,7 @@ struct EditorView: View {
     private func seekToKeyframe(_ time: TimeInterval) {
         player.pause()
         voicePreview.pause()
+        playheadSeconds = time
         player.seek(
             to: CMTime(seconds: time, preferredTimescale: 600),
             toleranceBefore: .zero,
@@ -1490,6 +1496,7 @@ struct EditorView: View {
                 ? times.first(where: { $0 > time + 0.12 }) : times.last(where: { $0 < time - 0.12 })
         else { return }
         player.pause()
+        playheadSeconds = target
         player.seek(
             to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero,
             toleranceAfter: .zero)

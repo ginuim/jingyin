@@ -420,6 +420,7 @@ struct PhotoBatchEditorView: View {
                         tracks: currentTracks,
                         selectedTrackID: $selectedTrackID,
                         timeSeconds: 0,
+                        currentTimeSeconds: { 0 },
                         videoDisplaySize: currentDraft?.displaySize,
                         onEditingBegan: {},
                         onEditingEnded: refreshPreview,
