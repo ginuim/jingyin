@@ -4,18 +4,6 @@ import CoreImage
 import SwiftUI
 import UIKit
 
-private enum EditorDestructiveAction: Identifiable {
-    case keyframe
-    case mask(MaskTrack.ID)
-
-    var id: String {
-        switch self {
-        case .keyframe: "keyframe"
-        case .mask(let id): "mask-\(id)"
-        }
-    }
-}
-
 struct EditorView: View {
     let videoURL: URL
     @EnvironmentObject private var localization: LocalizationManager
@@ -42,7 +30,7 @@ struct EditorView: View {
     @State private var showFullScreenMaskEditor = false
     @State private var faceDetectionSnapshot: FaceDetectionSnapshot?
     @State private var showFaceSelection = false
-    @State private var pendingDestructiveAction: EditorDestructiveAction?
+    @State private var pendingDeleteMaskID: MaskTrack.ID?
     @State private var isDetectingFaces = false
     @State private var faceDetectionMessage: String?
     @State private var faceTrackingTasks: [MaskTrack.ID: Task<Void, Never>] = [:]
@@ -177,22 +165,23 @@ struct EditorView: View {
                 .environmentObject(localization)
             }
         }
-        .confirmationDialog(
-            destructiveConfirmationTitle,
+        .alert(
+            localization.t("editor.confirmDeleteMaskTitle"),
             isPresented: Binding(
-                get: { pendingDestructiveAction != nil },
-                set: { if !$0 { pendingDestructiveAction = nil } }
-            ),
-            titleVisibility: .visible
+                get: { pendingDeleteMaskID != nil },
+                set: { if !$0 { pendingDeleteMaskID = nil } }
+            )
         ) {
             Button(localization.t("common.cancel"), role: .cancel) {
-                pendingDestructiveAction = nil
+                pendingDeleteMaskID = nil
             }
             Button(localization.t("common.delete"), role: .destructive) {
-                performPendingDestructiveAction()
+                guard let id = pendingDeleteMaskID else { return }
+                pendingDeleteMaskID = nil
+                deleteMask(id: id)
             }
         } message: {
-            Text(destructiveConfirmationMessage)
+            Text(localization.t("editor.confirmDeleteMaskMessage"))
         }
         .task(id: entityInspectionToken) { await inspectCurrentEntities() }
         .task(id: videoEffectToken) {
@@ -680,37 +669,18 @@ struct EditorView: View {
                                 Image(systemName: "trash").frame(width: 44, height: 44)
                             }.accessibilityLabel(localization.t("editor.deleteEntireMask"))
                         }.font(.caption)
-                        Picker(
-                            localization.t("editor.positionMode"),
-                            selection: Binding(
-                                get: {
-                                    options.maskTracks[selectedMaskIndex]
-                                        .effectivePositionMode
-                                },
-                                set: { setPositionMode($0 == .animated) }
-                            )
-                        ) {
-                            Text(localization.t("editor.positionFixed"))
-                                .tag(ManualPositionMode.fixed)
-                            Text(localization.t("editor.positionAnimated"))
-                                .tag(ManualPositionMode.animated)
-                        }
-                        .pickerStyle(.segmented)
-                        Text(localization.t(options.maskTracks[selectedMaskIndex].effectivePositionMode == .animated
-                            ? "editor.animatedHint" : "editor.fixedHint"))
+                        Text(localization.t("editor.animatedHint"))
                             .font(.caption).foregroundStyle(AppPalette.secondaryText)
-                        if options.maskTracks[selectedMaskIndex].effectivePositionMode == .animated {
+                        if options.maskTracks[selectedMaskIndex].keyframes.count > 1 {
                             HStack {
                                 Button { jumpToRecord(forward: false) } label: {
                                     Image(systemName: "backward.end")
                                 }.accessibilityLabel(localization.t("editor.previousRecord"))
-                                keyframeToggleButton
                                 Button { jumpToRecord(forward: true) } label: {
                                     Image(systemName: "forward.end")
                                 }.accessibilityLabel(localization.t("editor.nextRecord"))
                             }
                         }
-                        maskVisibilityMenu
                     } else {
                         Text(localization.t(options.scope == .background
                             ? "editor.backgroundManualHint" : "editor.manualHelp"))
@@ -876,14 +846,54 @@ struct EditorView: View {
                 durationSeconds: sourceDuration,
                 playheadSeconds: playheadSeconds,
                 onSeek: seekToKeyframe,
+                onDeleteKeyframe: deleteKeyframe,
                 onRangeEditBegan: { _ in
                     player.pause()
                     voicePreview.pause()
                 },
                 onRangeChanged: updateMaskActiveRange,
-                onRangeEditEnded: { _ in refreshMaskPreview() }
+                onRangeEditEnded: { _ in refreshMaskPreview() },
+                onRangeMenu: { rangeMenuTrackID = $0 }
             )
+            .confirmationDialog(
+                localization.t("editor.visibility"),
+                isPresented: Binding(
+                    get: { rangeMenuTrackID != nil },
+                    set: { if !$0 { rangeMenuTrackID = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button(localization.t("editor.startShowingHere")) {
+                    applyRangeMenuAction { setSelectedMaskStart() }
+                }
+                Button(localization.t("editor.stopShowingHere")) {
+                    applyRangeMenuAction { setSelectedMaskEnd() }
+                }
+                Button(localization.t("editor.showForEntireVideo")) {
+                    applyRangeMenuAction { showSelectedMaskForWholeTimeline() }
+                }
+                Button(localization.t("common.cancel"), role: .cancel) {}
+            }
         }
+    }
+
+    @State private var rangeMenuTrackID: MaskTrack.ID?
+
+    /// The visibility dialog was opened from a specific track's bar; select
+    /// that track first so the existing start/end helpers target it.
+    private func applyRangeMenuAction(_ action: () -> Void) {
+        guard let trackID = rangeMenuTrackID else { return }
+        selectedMaskTrackID = trackID
+        rangeMenuTrackID = nil
+        action()
+    }
+
+    private func deleteKeyframe(trackID: MaskTrack.ID, keyframeID: MaskKeyframe.ID) {
+        guard let index = options.maskTracks.firstIndex(where: { $0.id == trackID }),
+            options.maskTracks[index].keyframes.count > 1
+        else { return }
+        options.maskTracks[index].removeKeyframe(id: keyframeID)
+        refreshMaskPreview()
     }
 
     private func seekToKeyframe(_ time: TimeInterval) {
@@ -942,103 +952,6 @@ struct EditorView: View {
                     .buttonStyle(.plain)
                 }
             }
-        }
-    }
-
-    private var maskVisibilityMenu: some View {
-        Menu {
-            Button {
-                setSelectedMaskStart()
-            } label: {
-                Label(
-                    localization.t("editor.startShowingHere"),
-                    systemImage: "arrow.right.to.line"
-                )
-            }
-
-            Button {
-                setSelectedMaskEnd()
-            } label: {
-                Label(
-                    localization.t("editor.stopShowingHere"),
-                    systemImage: "arrow.left.to.line"
-                )
-            }
-
-            Divider()
-
-            Button {
-                showSelectedMaskForWholeTimeline()
-            } label: {
-                Label(
-                    localization.t("editor.showForEntireVideo"),
-                    systemImage: "arrow.left.and.right"
-                )
-            }
-        } label: {
-            VStack(spacing: 2) {
-                Label(
-                    localization.t("editor.visibility"),
-                    systemImage: "clock"
-                )
-                .font(.caption.bold())
-                Text(selectedMaskVisibilitySummary)
-                    .font(.caption2)
-                    .foregroundStyle(AppPalette.secondaryText)
-            }
-            .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(TextButtonStyle())
-    }
-
-    /// Mobile-editor-style diamond toggle: adds a keyframe at the playhead, or
-    /// deletes the keyframe under the playhead when one exists.
-    private var keyframeToggleButton: some View {
-        Button {
-            if currentKeyframe != nil {
-                requestDeleteCurrentKeyframe()
-            } else {
-                insertKeyframe()
-            }
-        } label: {
-            Label(
-                localization.t(
-                    currentKeyframe != nil
-                        ? "editor.deleteKeyframe" : "editor.addKeyframe"
-                ),
-                systemImage: currentKeyframe != nil ? "diamond.slash" : "diamond"
-            )
-            .font(.caption.bold())
-            .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(TextButtonStyle())
-        .disabled(currentKeyframe != nil && !canDeleteCurrentKeyframe)
-    }
-
-    private var selectedMaskVisibilitySummary: String {
-        guard let selectedMaskIndex else {
-            return localization.t("editor.showForEntireVideo")
-        }
-        let track = options.maskTracks[selectedMaskIndex]
-        switch (track.activeFromSeconds, track.activeUntilSeconds) {
-        case (let start?, let end?):
-            return localization.format(
-                "editor.visibilityRange",
-                formatTimestamp(start),
-                formatTimestamp(end)
-            )
-        case (let start?, nil):
-            return localization.format(
-                "editor.visibilityFrom",
-                formatTimestamp(start)
-            )
-        case (nil, let end?):
-            return localization.format(
-                "editor.visibilityUntil",
-                formatTimestamp(end)
-            )
-        case (nil, nil):
-            return localization.t("editor.showForEntireVideo")
         }
     }
 
@@ -1304,53 +1217,6 @@ struct EditorView: View {
         }
     }
 
-    private var currentKeyframe: MaskKeyframe? {
-        guard let selectedMaskIndex else { return nil }
-        let time = editingTimeSeconds
-        return options.maskTracks[selectedMaskIndex].keyframes.min {
-            abs($0.timeSeconds - time) < abs($1.timeSeconds - time)
-        }.flatMap {
-            abs($0.timeSeconds - time) <= 0.12 ? $0 : nil
-        }
-    }
-
-    private var canDeleteCurrentKeyframe: Bool {
-        guard let selectedMaskIndex else { return false }
-        return options.maskTracks[selectedMaskIndex].keyframes.count > 1
-            && currentKeyframe != nil
-    }
-
-    private func insertKeyframe() {
-        guard let selectedMaskIndex,
-            let rect = options.maskTracks[selectedMaskIndex]
-                .keyframedRect(at: editingTimeSeconds)
-        else {
-            return
-        }
-        player.pause()
-        voicePreview.pause()
-        guard options.maskTracks[selectedMaskIndex].effectivePositionMode == .animated else { return }
-        options.maskTracks[selectedMaskIndex].setKeyframe(
-            MaskKeyframe(timeSeconds: editingTimeSeconds, rect: rect)
-        )
-        refreshMaskPreview()
-    }
-
-    private func requestDeleteCurrentKeyframe() {
-        guard currentKeyframe != nil, canDeleteCurrentKeyframe else { return }
-        deleteCurrentKeyframe()
-    }
-
-    private func deleteCurrentKeyframe() {
-        guard let selectedMaskIndex,
-              options.maskTracks[selectedMaskIndex].keyframes.count > 1,
-              let keyframe = currentKeyframe else {
-            return
-        }
-        options.maskTracks[selectedMaskIndex].removeKeyframe(id: keyframe.id)
-        refreshMaskPreview()
-    }
-
     private func shrinkSelectedMask() {
         scaleSelectedMask(by: 0.9)
     }
@@ -1407,7 +1273,7 @@ struct EditorView: View {
     }
 
     private func requestDeleteMask(id: MaskTrack.ID) {
-        pendingDestructiveAction = .mask(id)
+        pendingDeleteMaskID = id
     }
 
     private func deleteMask(id: MaskTrack.ID) {
@@ -1429,39 +1295,6 @@ struct EditorView: View {
         refreshMaskPreview()
     }
 
-    private var destructiveConfirmationTitle: String {
-        switch pendingDestructiveAction {
-        case .keyframe:
-            localization.t("editor.confirmDeletePositionTitle")
-        case .mask:
-            localization.t("editor.confirmDeleteMaskTitle")
-        case nil:
-            ""
-        }
-    }
-
-    private var destructiveConfirmationMessage: String {
-        switch pendingDestructiveAction {
-        case .keyframe:
-            localization.t("editor.confirmDeletePositionMessage")
-        case .mask:
-            localization.t("editor.confirmDeleteMaskMessage")
-        case nil:
-            ""
-        }
-    }
-
-    private func performPendingDestructiveAction() {
-        guard let action = pendingDestructiveAction else { return }
-        pendingDestructiveAction = nil
-        switch action {
-        case .keyframe:
-            deleteCurrentKeyframe()
-        case .mask(let id):
-            deleteMask(id: id)
-        }
-    }
-
     private func refreshMaskPreview() {
         if options.maskTracks != committedMasks.tracks {
             maskHistory.append(committedMasks)
@@ -1478,13 +1311,6 @@ struct EditorView: View {
         committedMasks = previous
         maskPreviewRevision += 1
         editFeedback = nil
-    }
-
-    private func setPositionMode(_ moving: Bool) {
-        guard let selectedMaskIndex else { return }
-        options.maskTracks[selectedMaskIndex].setPositionMode(
-            moving ? .animated : .fixed, at: editingTimeSeconds)
-        refreshMaskPreview()
     }
 
     private func jumpToRecord(forward: Bool) {
@@ -1510,7 +1336,7 @@ struct EditorView: View {
         }
         refreshMaskPreview()
         if let selectedMaskIndex,
-            options.maskTracks[selectedMaskIndex].effectivePositionMode == .animated
+            options.maskTracks[selectedMaskIndex].source == .manual
         {
             editFeedback = localization.format(
                 "editor.positionSaved", formatTimestamp(editingTimeSeconds))

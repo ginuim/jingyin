@@ -17,40 +17,42 @@ struct MaskTrackValidation {
             NormalizedVideoRect(visionBoundingBox: first.visionBoundingBox).cgRect,
             equals: first.cgRect
         )
-        var fixed = MaskTrack(shape: .rectangle, keyframes: [.init(timeSeconds: 9, rect: first)])
-        fixed.updateManualRect(last, at: 15)
-        precondition(fixed.rect(at: 0) == last && fixed.rect(at: 100) == last)
-        precondition(fixed.keyframes.count == 1)
-        fixed.setPositionMode(.animated, at: 3)
-        fixed.updateManualRect(first, at: 9)
-        precondition(fixed.rect(at: 0) == last && fixed.rect(at: 20) == first)
-        precondition(fixed.rect(at: 6) == NormalizedVideoRect.interpolate(from: last, to: first, progress: 0.5))
-        let records = fixed.keyframes
-        fixed.activeFromSeconds = 2
-        fixed.activeUntilSeconds = 12
-        precondition(fixed.rect(at: 1) == nil && fixed.rect(at: 13) == nil)
-        precondition(fixed.keyframes == records)
-        let current = fixed.keyframedRect(at: 6)!
-        fixed.setPositionMode(.fixed, at: 6)
-        precondition(fixed.rect(at: 3) == current && fixed.rect(at: 11) == current)
-        var legacy = MaskTrack(shape: .ellipse, keyframes: [.init(timeSeconds: 0, rect: first), .init(timeSeconds: 10, rect: last)])
+        var track = MaskTrack(shape: .rectangle, keyframes: [.init(timeSeconds: 9, rect: first)])
+        precondition(track.rect(at: 0) == first && track.rect(at: 100) == first)
+        track.updateManualRect(last, at: 15)
+        precondition(track.keyframes.count == 2)
+        precondition(track.rect(at: 0) == first && track.rect(at: 100) == last)
+        precondition(
+            track.rect(at: 12)
+                == NormalizedVideoRect.interpolate(from: first, to: last, progress: 0.5)
+        )
+        track.updateManualRect(first, at: 15)
+        precondition(track.keyframes.count == 2 && track.rect(at: 15) == first)
+        let records = track.keyframes
+        track.activeFromSeconds = 2
+        track.activeUntilSeconds = 12
+        precondition(track.rect(at: 1) == nil && track.rect(at: 13) == nil)
+        precondition(track.keyframes == records)
+
+        var legacy = MaskTrack(
+            shape: .ellipse,
+            keyframes: [.init(timeSeconds: 0, rect: first), .init(timeSeconds: 10, rect: last)]
+        )
         let encoded = try JSONEncoder().encode(legacy)
         var json = try JSONSerialization.jsonObject(with: encoded) as! [String: Any]
-        json.removeValue(forKey: "manualPositionMode")
+        json["manualPositionMode"] = "fixed"
         legacy = try JSONDecoder().decode(MaskTrack.self, from: JSONSerialization.data(withJSONObject: json))
-        precondition(legacy.effectivePositionMode == .animated)
         precondition(legacy.rect(at: 5) == NormalizedVideoRect.interpolate(from: first, to: last, progress: 0.5))
         legacy.updateManualRect(last, at: 10)
         precondition(legacy.keyframes.count == 2)
-        let restored = try JSONDecoder().decode(MaskTrack.self, from: JSONEncoder().encode(fixed))
-        precondition(restored == fixed)
+        let restored = try JSONDecoder().decode(MaskTrack.self, from: JSONEncoder().encode(track))
+        precondition(restored == track)
         let original = legacy
         legacy.source = .detectedFace
-        let tracked = legacy
-        legacy.setPositionMode(.fixed, at: 5)
-        precondition(legacy == tracked)
+        legacy.updateManualRect(first, at: 5)
+        precondition(legacy.keyframes.count == 3)
         precondition(original.rect(at: 100) == last)
-        print("PASS: preview/export coordinates, Vision round trip, fixed interval, interpolation, active bounds, mode conversion, legacy decoding, same-time replacement, Codable round trip, tracking preservation")
+        print("PASS: preview/export coordinates, Vision round trip, single-position hold, automatic interpolation, active bounds, legacy decoding, same-time replacement, Codable round trip")
     }
 
     private static func assertRect(

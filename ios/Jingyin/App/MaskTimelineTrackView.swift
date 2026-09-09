@@ -4,8 +4,10 @@ import SwiftUI
 /// thumbnail strip's time→x mapping (same 16pt side inset) so keyframe
 /// diamonds and the active-range bar line up with the playhead above.
 ///
-/// Only the selected track is interactive: diamonds seek, and the range bar's
-/// end handles adjust `activeFromSeconds` / `activeUntilSeconds`. Other tracks
+/// Only the selected track is interactive: tapping a diamond seeks, long-
+/// pressing one deletes it; the range bar's end handles adjust
+/// `activeFromSeconds` / `activeUntilSeconds` with a live timestamp bubble,
+/// and tapping the bar itself opens the visibility actions. Other tracks
 /// render as faint context bars so multiple masks stay visible without each
 /// claiming its own row.
 struct MaskTimelineTrackView: View {
@@ -14,13 +16,17 @@ struct MaskTimelineTrackView: View {
     let durationSeconds: TimeInterval
     let playheadSeconds: TimeInterval
     let onSeek: (TimeInterval) -> Void
+    let onDeleteKeyframe: (MaskTrack.ID, MaskKeyframe.ID) -> Void
     let onRangeEditBegan: (MaskTrack.ID) -> Void
     let onRangeChanged: (MaskTrack.ID, TimeInterval?, TimeInterval?) -> Void
     let onRangeEditEnded: (MaskTrack.ID) -> Void
+    let onRangeMenu: (MaskTrack.ID) -> Void
 
     @EnvironmentObject private var localization: LocalizationManager
 
     @State private var isEditingRange = false
+    /// Live timestamp bubble shown above the range handle being dragged.
+    @State private var dragBubble: (isStart: Bool, time: TimeInterval)?
 
     private let sideInset: CGFloat = 16
     private let rowHeight: CGFloat = 40
@@ -43,6 +49,7 @@ struct MaskTimelineTrackView: View {
                     }
 
                     playheadLine(trackWidth: trackWidth)
+                    dragBubbleView(trackWidth: trackWidth)
                 }
                 .frame(width: proxy.size.width, height: rowHeight)
                 .coordinateSpace(name: "maskTimelineRow")
@@ -98,8 +105,11 @@ struct MaskTimelineTrackView: View {
             )
             .frame(width: barWidth, height: 16)
             .position(x: startX + barWidth / 2, y: rowHeight / 2)
+            .contentShape(Rectangle())
+            .onTapGesture { onRangeMenu(track.id) }
             .accessibilityLabel(localization.t("editor.visibility"))
             .accessibilityValue(selectedRangeSummary(track: track))
+            .accessibilityHint(localization.t("editor.rangeMenuHint"))
 
         rangeHandle(track: track, isStart: true, trackWidth: trackWidth)
             .position(x: startX, y: rowHeight / 2)
@@ -134,9 +144,11 @@ struct MaskTimelineTrackView: View {
                             time = max(time, min(start + 0.1, durationSeconds))
                             onRangeChanged(track.id, track.activeFromSeconds, time)
                         }
+                        dragBubble = (isStart, time)
                     }
                     .onEnded { _ in
                         isEditingRange = false
+                        dragBubble = nil
                         onRangeEditEnded(track.id)
                     }
             )
@@ -145,6 +157,25 @@ struct MaskTimelineTrackView: View {
                     isStart ? "editor.rangeStartHandle" : "editor.rangeEndHandle"
                 )
             )
+    }
+
+    @ViewBuilder
+    private func dragBubbleView(trackWidth: CGFloat) -> some View {
+        if let dragBubble {
+            let x = min(
+                max(xPosition(for: dragBubble.time, trackWidth: trackWidth), 30),
+                trackWidth + sideInset * 2 - 30
+            )
+            Text(formatTimestamp(dragBubble.time))
+                .font(.caption2.monospacedDigit().bold())
+                .foregroundStyle(AppPalette.accent.foreground)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(AppPalette.accent.primary, in: Capsule())
+                .position(x: x, y: 7)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 
     @ViewBuilder
@@ -169,6 +200,17 @@ struct MaskTimelineTrackView: View {
                 x: xPosition(for: keyframe.timeSeconds, trackWidth: trackWidth),
                 y: rowHeight / 2
             )
+            .contextMenu {
+                Button(role: .destructive) {
+                    onDeleteKeyframe(track.id, keyframe.id)
+                } label: {
+                    Label(
+                        localization.t("editor.deleteKeyframe"),
+                        systemImage: "diamond.slash"
+                    )
+                }
+                .disabled(track.keyframes.count <= 1)
+            }
             .accessibilityLabel(
                 localization.format(
                     "editor.keyframeAt",

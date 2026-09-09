@@ -223,8 +223,6 @@ struct MaskKeyframe: Codable, Equatable, Hashable, Identifiable, Sendable {
     }
 }
 
-enum ManualPositionMode: String, Codable, Sendable { case fixed, animated }
-
 struct MaskTrack: Codable, Equatable, Hashable, Identifiable, Sendable {
     let id: UUID
     var shape: MaskTrackShape
@@ -237,25 +235,9 @@ struct MaskTrack: Codable, Equatable, Hashable, Identifiable, Sendable {
     var trackingState: MaskTrackingState
     var trackingLostAtSeconds: TimeInterval?
     private(set) var keyframes: [MaskKeyframe]
-    private var manualPositionMode: ManualPositionMode?
-
-    var effectivePositionMode: ManualPositionMode {
-        manualPositionMode ?? (keyframes.count > 1 ? .animated : .fixed)
-    }
-
-    mutating func setPositionMode(_ mode: ManualPositionMode, at time: TimeInterval) {
-        guard source == .manual, let rect = keyframedRect(at: time) else { return }
-        manualPositionMode = mode
-        keyframes = [MaskKeyframe(timeSeconds: mode == .fixed ? 0 : time, rect: rect)]
-    }
 
     mutating func updateManualRect(_ rect: NormalizedVideoRect, at time: TimeInterval) {
-        if source == .manual && effectivePositionMode == .fixed {
-            manualPositionMode = .fixed
-            keyframes = [MaskKeyframe(timeSeconds: 0, rect: rect)]
-        } else {
-            setKeyframe(MaskKeyframe(timeSeconds: time, rect: rect))
-        }
+        setKeyframe(MaskKeyframe(timeSeconds: time, rect: rect))
     }
 
     init(
