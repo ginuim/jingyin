@@ -15,7 +15,7 @@ struct ContentView: View {
     @State private var ownedInputURL: URL?
     @State private var ownedPhotoURLs: [URL] = []
     @State private var securityScopedInputURL: URL?
-    @AppStorage("jingyin.home.coverageExpanded") private var isCoverageExpanded = true
+    @State private var showCoverageInfo = false
     @State private var showFileImporter = false
     @State private var loadingImport = false
     @State private var importFraction: Double?
@@ -31,6 +31,14 @@ struct ContentView: View {
         NavigationStack {
             landingWithImporters
         }
+        .overlay {
+            if showCoverageInfo {
+                CoverageInfoOverlay(isPresented: $showCoverageInfo)
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.22), value: showCoverageInfo)
     }
 
     private var landingWithNavigation: some View {
@@ -79,6 +87,7 @@ struct ContentView: View {
                 cleanupTemporaryFilesOnce()
                 presentDemoPaywallIfRequested()
                 presentDemoSettingsIfRequested()
+                presentDemoCoverageInfoIfRequested()
                 await loadDemoVideoIfRequested()
                 await loadDemoPhotosIfRequested()
             }
@@ -140,18 +149,32 @@ struct ContentView: View {
 
                 importButtons
 
-                coverageDisclaimer
-
                 if entitlements.isReady {
                     entitlementStatus
                 }
 
-                Label(localization.t("home.privacy"), systemImage: "lock.shield.fill")
-                    .font(.footnote)
-                    .foregroundStyle(AppPalette.disabledText)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    showCoverageInfo = true
+                } label: {
+                    Label {
+                        Text(localization.t("home.privacy"))
+                            .font(.footnote)
+                            .foregroundStyle(AppPalette.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } icon: {
+                        // Exclamation instead of the old shield: this line is the
+                        // entry point to the detection caveats now.
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(AppPalette.warning)
+                    }
                     .padding(.horizontal, 20)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(localization.t("home.privacy"))
                 Spacer()
             }
             .foregroundStyle(AppPalette.primaryText)
@@ -183,32 +206,6 @@ struct ContentView: View {
             }
         }
         .accessibilityElement(children: .combine)
-    }
-
-    private var coverageDisclaimer: some View {
-        DisclosureGroup(isExpanded: $isCoverageExpanded) {
-            Text(localization.t("home.coverageDisclaimer"))
-                .font(.footnote)
-                .foregroundStyle(AppPalette.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 8)
-        } label: {
-            Label(localization.t("home.coverageTitle"), systemImage: "info.circle")
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(AppPalette.secondaryText)
-        }
-        .tint(AppPalette.secondaryText)
-        .padding(14)
-        .background(
-            AppPalette.surface,
-            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(AppPalette.divider, lineWidth: 1)
-        }
-        .padding(.horizontal, 20)
-        .accessibilityElement(children: .contain)
     }
 
     private var privacyCommitment: some View {
@@ -444,6 +441,13 @@ struct ContentView: View {
         showPaywall = true
     }
 
+    /// Debug helper: `simctl launch … -demoCoverageInfo`
+    @MainActor
+    private func presentDemoCoverageInfoIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("-demoCoverageInfo") else { return }
+        showCoverageInfo = true
+    }
+
     /// Debug helper: `simctl launch … -demoSettings`
     @MainActor
     private func presentDemoSettingsIfRequested() {
@@ -654,6 +658,87 @@ struct ContentView: View {
             return "error.videoTooLong"
         }
         return nil
+    }
+}
+
+/// Bottom card for privacy + detection notes. A system sheet fights safe
+/// area and leaves a blank band under the button; this just sizes to copy.
+private struct CoverageInfoOverlay: View {
+    @Binding var isPresented: Bool
+    @EnvironmentObject private var localization: LocalizationManager
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            AppPalette.mediaScrim
+                .ignoresSafeArea()
+                .onTapGesture { isPresented = false }
+                .accessibilityLabel(localization.t("home.coverageDismiss"))
+
+            VStack(spacing: 0) {
+                Capsule()
+                    .fill(AppPalette.divider)
+                    .frame(width: 36, height: 5)
+                    .padding(.top, 8)
+                    .padding(.bottom, 16)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 16) {
+                    coverageSection(
+                        icon: "lock.shield.fill",
+                        title: localization.t("home.privacyDetailTitle"),
+                        body: localization.t("home.privacyDetail")
+                    )
+
+                    Rectangle()
+                        .fill(AppPalette.divider)
+                        .frame(height: 1)
+
+                    coverageSection(
+                        icon: "exclamationmark.circle.fill",
+                        title: localization.t("home.coverageTitle"),
+                        body: localization.t("home.coverageDisclaimer")
+                    )
+
+                    Button(localization.t("home.coverageDismiss")) {
+                        isPresented = false
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .padding(.top, 4)
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 16)
+            }
+            .frame(maxWidth: .infinity)
+            .background(AppPalette.surface)
+            .clipShape(
+                UnevenRoundedRectangle(
+                    topLeadingRadius: 24,
+                    bottomLeadingRadius: 0,
+                    bottomTrailingRadius: 0,
+                    topTrailingRadius: 24,
+                    style: .continuous
+                )
+            )
+            .ignoresSafeArea(edges: .bottom)
+        }
+    }
+
+    private func coverageSection(icon: String, title: String, body: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.headline)
+                Text(title)
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Text(body)
+                .font(.subheadline)
+                .foregroundStyle(AppPalette.secondaryText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .foregroundStyle(AppPalette.primaryText)
     }
 }
 

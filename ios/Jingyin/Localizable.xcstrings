@@ -778,34 +778,6 @@
         }
       }
     },
-    "editor.animatedHint" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Seek, then adjust the region. Positions are recorded automatically and interpolated. This does not track objects."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "再生位置を移動して領域を調整すると位置が記録され、記録間を滑らかに移動します。自動追跡ではありません。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "移动播放头，再调整区域；位置自动记录，记录之间平滑移动。不会自动跟随。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "移動播放頭，再調整區域；位置自動記錄，記錄之間平滑移動。不會自動跟隨。"
-          }
-        }
-      }
-    },
     "editor.audio" : {
       "localizations" : {
         "en" : {
@@ -1957,34 +1929,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "低"
-          }
-        }
-      }
-    },
-    "editor.positionSaved" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Position recorded at %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ の位置を記録しました"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已记录 %@ 的位置"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已記錄 %@ 的位置"
           }
         }
       }
@@ -3645,6 +3589,34 @@
         }
       }
     },
+    "home.coverageDismiss" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Got it"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "了解しました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "知道了"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "知道了"
+          }
+        }
+      }
+    },
     "home.coverageTitle" : {
       "localizations" : {
         "en" : {
@@ -3753,6 +3725,62 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "從相簿選擇影片"
+          }
+        }
+      }
+    },
+    "home.privacyDetail" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jingyin collects and reports nothing about you. Media, detection data, and exports are processed on this device, and detection uses Apple’s built-in Vision algorithms. Face data never leaves the device and is never uploaded to our servers."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鏡隠はユーザーのプライバシー情報を収集・送信しません。素材・検出データ・書き出し結果はすべて本機で処理し、検出には Apple 標準の Vision アルゴリズムを使用します。顔データは端末外に出ることも、当社サーバーに送信されることもありません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "镜隐不采集、不上报任何用户隐私信息。素材、识别数据和导出结果都在本机处理，识别使用 Apple 系统内置的 Vision 算法；人脸数据不会传出设备，也不会上传到我们的服务器。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鏡隱不蒐集、不上報任何使用者隱私資訊。素材、辨識資料與匯出結果都在本機處理，辨識使用 Apple 系統內建的 Vision 演算法；人臉資料不會傳出裝置，也不會上傳到我們的伺服器。"
+          }
+        }
+      }
+    },
+    "home.privacyDetailTitle" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Privacy"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プライバシー"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐私处理"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隱私處理"
           }
         }
       }

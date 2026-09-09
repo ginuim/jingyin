@@ -41,7 +41,6 @@ struct EditorView: View {
     @State private var showASCIIColorCustom = false
     @State private var maskHistory: [MaskEditSnapshot] = []
     @State private var committedMasks = MaskEditSnapshot(tracks: [], selection: nil)
-    @State private var editFeedback: String?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var expandedParameters = false
     @State private var sourceDuration = 0.0
@@ -639,9 +638,11 @@ struct EditorView: View {
                         Label(localization.t("photo.addMask"), systemImage: "plus")
                     }.buttonStyle(.bordered)
                     Spacer(minLength: 0)
-                    Button(action: undoMaskEdit) {
-                        Label(localization.t("editor.undo"), systemImage: "arrow.uturn.backward")
-                    }.disabled(maskHistory.isEmpty)
+                    if !maskHistory.isEmpty {
+                        Button(action: undoMaskEdit) {
+                            Label(localization.t("editor.undo"), systemImage: "arrow.uturn.backward")
+                        }
+                    }
                 }
                 if isDrawingFreehandMask {
                     HStack {
@@ -655,12 +656,32 @@ struct EditorView: View {
                 } else {
                     if !options.maskTracks.isEmpty { maskSelector }
                     if let selectedMaskIndex {
-                        HStack {
+                        HStack(spacing: 8) {
                             Button(action: shrinkSelectedMask) {
-                                Label(localization.t("editor.shrinkMask"), systemImage: "minus.magnifyingglass")
+                                Image(systemName: "minus.magnifyingglass")
+                                    .frame(width: 44, height: 44)
                             }
+                            .accessibilityLabel(localization.t("editor.shrinkMask"))
                             Button(action: enlargeSelectedMask) {
-                                Label(localization.t("editor.enlargeMask"), systemImage: "plus.magnifyingglass")
+                                Image(systemName: "plus.magnifyingglass")
+                                    .frame(width: 44, height: 44)
+                            }
+                            .accessibilityLabel(localization.t("editor.enlargeMask"))
+                            if options.maskTracks[selectedMaskIndex].keyframes.count > 1 {
+                                Divider().frame(height: 20)
+                                Button { jumpToRecord(forward: false) } label: {
+                                    Image(systemName: "backward.end")
+                                        .frame(width: 44, height: 44)
+                                }
+                                .accessibilityLabel(localization.t("editor.previousRecord"))
+                                .disabled(!canJumpToRecord(forward: false))
+
+                                Button { jumpToRecord(forward: true) } label: {
+                                    Image(systemName: "forward.end")
+                                        .frame(width: 44, height: 44)
+                                }
+                                .accessibilityLabel(localization.t("editor.nextRecord"))
+                                .disabled(!canJumpToRecord(forward: true))
                             }
                             Spacer(minLength: 0)
                             Button(role: .destructive) {
@@ -668,26 +689,14 @@ struct EditorView: View {
                             } label: {
                                 Image(systemName: "trash").frame(width: 44, height: 44)
                             }.accessibilityLabel(localization.t("editor.deleteEntireMask"))
-                        }.font(.caption)
-                        Text(localization.t("editor.animatedHint"))
-                            .font(.caption).foregroundStyle(AppPalette.secondaryText)
-                        if options.maskTracks[selectedMaskIndex].keyframes.count > 1 {
-                            HStack {
-                                Button { jumpToRecord(forward: false) } label: {
-                                    Image(systemName: "backward.end")
-                                }.accessibilityLabel(localization.t("editor.previousRecord"))
-                                Button { jumpToRecord(forward: true) } label: {
-                                    Image(systemName: "forward.end")
-                                }.accessibilityLabel(localization.t("editor.nextRecord"))
-                            }
                         }
+                        .font(.system(size: 18, weight: .semibold))
                     } else {
                         Text(localization.t(options.scope == .background
                             ? "editor.backgroundManualHint" : "editor.manualHelp"))
                             .font(.caption).foregroundStyle(AppPalette.secondaryText)
                     }
                 }
-                if let editFeedback { Text(editFeedback).font(.caption) }
             }
         }
         .tint(AppPalette.accent.primary)
@@ -1310,13 +1319,20 @@ struct EditorView: View {
         selectedMaskTrackID = previous.selection
         committedMasks = previous
         maskPreviewRevision += 1
-        editFeedback = nil
+    }
+
+    private func canJumpToRecord(forward: Bool) -> Bool {
+        guard let selectedMaskIndex else { return false }
+        let time = playheadSeconds
+        return options.maskTracks[selectedMaskIndex].keyframes.contains {
+            forward ? $0.timeSeconds > time + 0.12 : $0.timeSeconds < time - 0.12
+        }
     }
 
     private func jumpToRecord(forward: Bool) {
         guard let selectedMaskIndex else { return }
         let times = options.maskTracks[selectedMaskIndex].keyframes.map(\.timeSeconds).sorted()
-        let time = editingTimeSeconds
+        let time = playheadSeconds
         guard
             let target = forward
                 ? times.first(where: { $0 > time + 0.12 }) : times.last(where: { $0 < time - 0.12 })
@@ -1335,12 +1351,6 @@ struct EditorView: View {
             )
         }
         refreshMaskPreview()
-        if let selectedMaskIndex,
-            options.maskTracks[selectedMaskIndex].source == .manual
-        {
-            editFeedback = localization.format(
-                "editor.positionSaved", formatTimestamp(editingTimeSeconds))
-        }
     }
 
     private func formatTimestamp(_ seconds: TimeInterval) -> String {
