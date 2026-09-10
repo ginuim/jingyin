@@ -1,11 +1,13 @@
 # 镜隐 App Store 商店文案与审核备注草稿
 
-更新日期：2026-09-09
+更新日期：2026-09-10
 
 本文件是可直接复制到 App Store Connect 的文案草稿。实际填写、截图上传和随构建提交
 仍需在 App Store Connect 中完成。
 
-2026-09-09 本轮优化简体中文文案并补充中文审核备注与提交核对事项；贴纸与 Emoji 纳入当前商店表达，不再沿用旧方案的“人脸贴纸后置”表述。当天已在 App Store Connect 保存简中、繁中、英文、日文四种语言的推广文本；其余繁中、英文、日文字段及英文审核备注仍保留现有草稿，尚未按本轮简中调整同步。
+2026-09-09 优化简体中文文案并补充中文审核备注；贴纸与 Emoji 纳入当前商店表达，不再沿用旧方案的“人脸贴纸后置”表述。当天只在 App Store Connect 保存了四种语言的推广文本，其中繁中、英文、日文推广文本仍是旧稿。
+
+2026-09-10 仓库草稿已按简中结构同步繁中、英文、日文的名称、副标题、宣传文本、描述、关键词，以及英文审核备注。商店后台尚未按本稿回填。描述不再单列 ASCII（应用内仍保留该效果）；手动遮盖只写拖动、缩放和不同时间的位置，不写指定人脸跟踪。
 
 ## 字段约束与公共信息
 
@@ -111,161 +113,154 @@ Emoji 贴纸用于人脸遮盖；其他主体或手动区域可使用像素化�
 
 ### 名稱
 
-鏡隱
+鏡隱 - 影片照片打碼與遮臉
 
 ### 副標題
 
-本機影片與照片隱私遮蓋
+馬賽克與人臉模糊，照片批量，本機處理
 
 ### 宣傳文字
 
-影片與照片全程在裝置本機處理：像素化、模糊、手動遮蓋、照片批次與變聲，無需上傳原始素材。
+分享畫面，也留住隱私。為影片遮住人臉，為多張照片統一打碼，再逐張檢查調整。支援馬賽克、模糊和 Emoji 貼紙遮臉，辨識與處理都在 iPhone 本機完成，原始素材不上傳。免費編輯預覽，一次買斷解鎖完整影片與照片批量匯出。
 
 ### 描述
 
-鏡隱是一款端側影片與照片隱私處理工具。原始素材、辨識資料和匯出結果都在你的裝置上處理，
-無需上傳伺服器。
+鏡隱是一款在 iPhone 本機處理的影片與照片打碼工具。遮住不想公開的人臉和畫面，照片還能批量處理，原始素材無需上傳。
 
-主要功能：
+影片與照片均支援：
 
-• 從照片圖庫或「檔案」匯入影片；從圖庫多選照片批次處理  
-• 對人物、人臉、貓狗或手動橢圓／矩形區域加入遮蓋  
-• 支援隱私級像素化、視覺模糊和 ASCII 效果  
-• 影片可手動拖曳、縮放遮蓋並調整關鍵影格；照片可逐張覆核遮罩  
-• 保留原聲、靜音匯出或改變音高  
-• 匯出時清除位置、裝置和拍攝時間等來源中繼資料  
-• 儲存到照片圖庫或透過系統分享面板傳送
+• 像素化、模糊和 Emoji 貼紙遮臉
+• 自動偵測畫面中的人臉、人物和貓狗，並加入遮蓋
+• 手動加入橢圓或矩形遮蓋
+• 儲存到照片圖庫或透過系統分享
 
-免費版可以完整編輯和預覽：影片匯出前 30 秒、最高 720p、無浮水印；照片每次匯出 1 張。
-一次買斷永久版後可解除影片時長與解析度限制，並解鎖照片批次匯出。
+Emoji 貼紙用於人臉遮蓋；其他主體或手動區域可使用像素化、模糊等效果。
 
-首個版本專注於可靠處理短影片與照片批次，影片支援最長 5 分鐘、最大 1 GB。
+照片可以一次選擇多張，統一處理，再逐張覆核和調整。
 
-### 關鍵字（87 字節）
+影片中的手動遮蓋可拖曳、縮放，並設定它在不同時間的位置；聲音可以保留原聲、靜音或改變音高。
 
-影片隱私,照片遮蓋,批次打碼,像素化,人臉遮蓋,聲音變調,本機處理
+所有偵測和處理均在裝置本機完成。匯出時移除原始素材中的位置、裝置和拍攝時間等中繼資料，減少附帶資訊外洩。
+
+免費版可完整編輯和預覽：影片可匯出前 30 秒、最高 720p、無浮水印；照片每次可匯出 1 張。一次買斷永久版，即可解鎖完整影片匯出和照片批量匯出。無訂閱，無廣告。
+
+目前可匯入最長 5 分鐘、最大 1 GB 的影片；永久版可匯出所匯入影片的完整時長。
+
+### 關鍵字（85 UTF-8 字節）
+
+圖片,像素化,隱私,遮擋,貼紙,emoji,表情,路人,兒童,寵物,變音,離線
 
 ## English
 
 ### Name
 
-lenshide
+lenshide - Face Blur & Mosaic
 
 ### Subtitle
 
-On-device media privacy
+Mosaic, face blur, photo batch
 
 ### Promotional Text
 
-Process videos and photos on your device with pixelation, blur, manual masks, batch photos, mute, and pitch shift. Originals stay offline.
+Cover faces in video; batch photos, then check each. Mosaic, blur, emoji stickers on iPhone; no upload. Free edit/preview; buy once for full video and photo batch export.
 
 ### Description
 
-lenshide is an on-device video and photo privacy tool. Original media, recognition data, and
-exports are processed on your device and are never uploaded to a server.
+lenshide is an on-device video and photo redaction tool for iPhone. Cover faces and other areas you do not want public. Photos can be processed in a batch. Originals are not uploaded.
 
-Key features:
+Video and photos both support:
 
-• Import videos from Photos or Files; multi-select photos for batch processing  
-• Cover people, faces, cats and dogs, or manually placed ellipse and rectangle areas  
-• Choose privacy-focused pixelation, visual blur, or an ASCII effect  
-• Move and resize video masks with keyframes; review and adjust photo masks one by one  
-• Keep original audio, export silently, or shift voice pitch  
-• Remove source location, device, and capture-time metadata during export  
-• Save to Photos or share through the system share sheet
+• Pixelation, blur, and emoji stickers for covering faces
+• Automatic detection of faces, people, and cats or dogs, then adding covers
+• Manually added ellipse or rectangle covers
+• Save to Photos or share with the system share sheet
 
-The free version includes full editing and preview. Video exports are limited to the first 30
-seconds at up to 720p with no watermark; photo exports are limited to 1 image per run. A
-one-time Lifetime Access purchase unlocks full video exports and batch photo exports.
+Emoji stickers are for covering faces. Other subjects or manual areas can use pixelation, blur, and similar effects.
 
-The first version focuses on reliable short-video processing and photo batching, and supports
-videos up to 5 minutes and files up to 1 GB.
+Select multiple photos at once, apply the same treatment, then review and adjust each image.
 
-### Keywords (66 bytes)
+Manual covers in a video can be moved, resized, and placed at different times. Audio can stay original, be muted, or have its pitch shifted.
 
-video privacy,photo blur,batch,pixelate,face mask,offline,metadata
+All detection and processing run on the device. Export removes location, device, and capture-time metadata from the source, so less extra information leaves with the file.
+
+The free version includes full editing and preview: video export is limited to the first 30 seconds at up to 720p with no watermark; photos are limited to 1 image per export. A one-time Lifetime purchase unlocks full video export and batch photo export. No subscription. No ads.
+
+Imported videos can be up to 5 minutes and 1 GB. Lifetime can export the full duration of the imported video.
+
+### Keywords (80 characters)
+
+photo,pixelate,privacy,cover,sticker,emoji,face,bystander,kids,pet,pitch,offline
 
 ## 日本語
 
 ### 名前
 
-lenshide
+lenshide - 顔隠しとモザイク
 
 ### サブタイトル
 
-端末内で動画と写真を保護
+モザイクと顔ぼかし、写真一括、端末内
 
 ### プロモーションテキスト
 
-モザイク、ぼかし、手動マスク、写真一括、消音、声の高さ変更をすべて端末内で処理。元データはアップロードしません。
+画面は共有しても、プライバシーは残す。動画の顔を隠し、複数の写真をまとめて処理し、1枚ずつ確認・調整。モザイク、ぼかし、Emojiステッカーで顔を覆い、認識と処理はiPhone上で完結。元データはアップロードしません。無料で編集・プレビュー。買い切りでフル動画と写真一括書き出し。
 
 ### 説明
 
-lenshide は、端末内で動作する動画・写真プライバシー保護ツールです。元のメディア、認識データ、
-書き出し結果は端末内で処理され、サーバーへアップロードされません。
+lenshide は、iPhone 上で動作する動画・写真のモザイク／顔隠しツールです。公開したくない顔や画面を隠し、写真はまとめて処理できます。元データはアップロードしません。
 
-主な機能：
+動画と写真の両方で利用できます：
 
-• 写真または「ファイル」から動画を読み込み；写真の複数選択で一括処理  
-• 人物、顔、猫と犬、または手動で置いた楕円／長方形の範囲を隠す  
-• プライバシー向けモザイク、視覚的なぼかし、ASCII エフェクト  
-• 動画マスクの移動・サイズ変更とキーフレーム調整；写真は1枚ずつ確認  
-• 元の音声、消音書き出し、声の高さ変更  
-• 書き出し時に位置情報、端末、撮影日時などの元メタデータを削除  
-• 写真への保存、またはシステム共有シートから共有
+• モザイク、ぼかし、Emojiステッカーで顔を隠す
+• 画面内の顔、人物、猫と犬を自動検出して覆う
+• 楕円または長方形の手動マスクを追加
+• 写真アプリに保存、またはシステムの共有シートから共有
 
-無料版では、すべての編集とプレビューを利用できます。動画の書き出しは先頭 30 秒・最大 720p・
-透かしなし；写真は1回につき1枚までです。買い切りの永久版で動画制限を解除し、写真の一括
-書き出しも利用できます。
+Emojiステッカーは顔を隠す用途です。他の対象や手動範囲にはモザイク、ぼかしなどを使えます。
 
-初版は短い動画と写真一括の確実な処理を重視し、最長 5 分、最大 1 GB の動画ファイルに対応します。
+写真は一度に複数枚を選び、同じ設定で処理し、1枚ずつ確認・調整できます。
 
-### キーワード（80 バイト）
+動画の手動マスクは移動・サイズ変更でき、時間ごとの位置も設定できます。音声は元のまま、消音、または音高の変更が可能です。
 
-動画保護,写真モザイク,一括処理,ぼかし,顔隠し,オフライン
+検出と処理はすべて端末内で行います。書き出し時に、元データに含まれる位置情報、端末、撮影日時などのメタデータを削除し、付随情報の持ち出しを減らします。
+
+無料版ではすべての編集とプレビューが利用できます。動画の書き出しは先頭 30 秒・最大 720p・透かしなし、写真は1回につき1枚までです。買い切りの永久版で、フル動画書き出しと写真の一括書き出しを解除します。サブスクリプションなし、広告なし。
+
+読み込める動画は最長 5 分、最大 1 GB です。永久版は、読み込んだ動画の全長を書き出せます。
+
+### キーワード（42 文字 / 98 UTF-8 バイト）
+
+写真,モザイク,ステッカー,emoji,顔,通行人,子ども,ペット,変声,オフライン
 
 ## App Review Notes（英文，可直接粘贴）
 
-lenshide does not require an account or sign-in.
+lenshide does not require an account or sign-in. No demo account is needed.
 
-All video frames, photo pixels, recognition data, audio processing, and exports are processed
-locally on the device. The app does not upload the user's original media or export to a server.
+All video frames, photo pixels, face detection, audio processing, and exports run locally on the device. Original media, recognition data, and exports are not uploaded to the developer’s servers.
 
-Free users can use the complete editor and preview. Export limits are enforced inside the
-processing pipeline: videos are limited to the first 30 seconds at up to 720p with no watermark;
-photos are limited to 1 image per export run.
+Face data use, retention, and deletion:
 
-The app offers one Non-Consumable in-app purchase:
+• Photo processing enables face covering by default. After Face is selected as the video cover subject, Apple Vision detects face locations on-device and temporarily creates bounding boxes, normalized coordinates, masks, or keyframes to place pixelation, blur, or emoji sticker effects.
+• The app does not identify or confirm a person’s identity and does not create face embeddings, biometric templates, or identity labels. Face data is not used for authentication, advertising, marketing, analytics, or profiling. It is not uploaded or shared with third parties. The developer cannot access it.
+• Face coordinates, masks, and keyframes stay in volatile memory for the current edit and export session and are discarded when the session ends or the app terminates. They are not written to a persistent database or user defaults. Video timeline thumbnails and region-edit undo state are also session-only, are not written to disk or preferences, and are released when the editor is closed or the app terminates.
+• Input copies, intermediate files, and export temp files are kept only while editing, previewing, exporting, or showing results. Leaving a project, canceling, failing, or leaving the result screen cleans up the matching temp files. Later launches clean recognized leftover files. Deleting the app removes remaining sandbox data. Copies the user saves to Photos or Files are managed by the user.
 
-- Product ID: `com.reaidea.jingyin.lifetime`
-- Display name: Lifetime Access
-- One-time unlock for full video exports and batch photo exports (not a subscription).
+Free users can fully edit and preview. The processor enforces video export of the first 30 seconds at up to 720p with no watermark, and at most 1 photo per export.
 
-To test the purchase:
+The only in-app purchase is Non-Consumable Lifetime Access, Product ID: com.reaidea.jingyin.lifetime. One purchase unlocks full video export and batch photo export. Not a subscription. Video import remains limited to 5 minutes and 1 GB.
 
-1. Import a video from Photos or Files, or select photos for batch processing.
-2. Complete editing and proceed to Export.
-3. Tap Unlock on the export screen.
-4. On the Lifetime Access screen, tap the purchase button showing the localized App Store price.
-5. Use an App Review Sandbox account to complete or cancel the purchase.
+Purchase path: open Settings, go to the Lifetime Access section, tap Unlock, then tap the purchase button that shows the localized App Store price. In App Review, complete or cancel the purchase.
 
-To test Restore Purchases:
+Restore path: open Settings, go to the Lifetime Access section, tap Restore Purchases. Production entitlement comes from current StoreKit 2 transactions. Do not treat development unlock arguments as purchase verification.
 
-1. Open Settings.
-2. Under Lifetime Access, tap Restore Purchases.
-
-The editor supports original audio, silent export, and offline pitch shifting. The first release
-accepts video files up to 5 minutes and 1 GB, plus on-device photo batch processing. No demo
-account is required.
-
-The development-only `-storekitUnlocked` launch argument is not part of the Release/App Review
-workflow and does not grant production entitlement. Release entitlement is determined from
-current StoreKit 2 transactions.
+Privacy policy: https://lenshide.reaidea.com/privacy
 
 ## 提交前人工核对
 
-- [x] 2026-09-09：已在 App Store Connect 保存四种语言的推广文本，并核对剩余字符数：简中 60、繁中 126、英文 32、日文 114；此次不触发新的 App 审核。
-- [ ] 本轮简中描述、关键词和中文审核备注，以及其他语言的名称、副标题、描述、关键词和英文审核备注，仍须在可编辑的下一版本中按本稿核对并同步
+- [x] 2026-09-09：已在 App Store Connect 保存四种语言的推广文本，并核对剩余字符数：简中 60、繁中 126、英文 32、日文 114；此次不触发新的 App 审核。后台这四条推广文本仍是旧稿，与 2026-09-10 仓库草稿不一致。
+- [x] 2026-09-10：仓库内繁中 / 英文 / 日文名称、副标题、宣传文本、描述、关键词，以及英文审核备注，已按简中事实同步（Emoji 贴纸、去掉商店描述中的 ASCII、手动位置而非指定人脸跟踪、设置页购买与恢复、人脸数据用途与保留删除）。
+- [x] 2026-09-10：已在 App Store Connect 的 iOS `1.0.2`（准备提交）按本稿保存简中 / 繁中 / 英文 / 日文的名称、副标题、宣传文本、描述、关键词、此版本新增内容，以及英文审核备注。四种语言 iPhone 6.9 英寸截屏顺序已改为原 3、4、1、2。未点「添加以供审核」；`1.0.2` 尚无新构建。`1.0.1` 仍为可分发，检查前不要手动发布旧版。
+- [x] 2026-09-10 19:50：已提交 iOS `1.0.2 (7)` 审核（状态：正在等待审核）。本次提交内容为 1 个项目（App 版本）；未把 IAP 一并加入该草稿。构建由本机归档上传。`1.0.1` 仍为可分发。
 - [ ] 确认营销 URL、隐私政策 URL 和支持 URL 在公网可访问
 - [ ] 确认支持 URL 直达镜隐帮助与联系页面，并提供实际联系信息（例如支持邮箱）
 - [ ] 确认审核备注包含无需登录、人脸数据用途与保留删除方式、免费限制、永久版 Product ID、购买与恢复入口
