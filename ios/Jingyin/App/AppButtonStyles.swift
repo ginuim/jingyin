@@ -43,3 +43,15 @@ struct TextButtonStyle: ButtonStyle {
             .opacity(configuration.isPressed ? 0.62 : 1)
     }
 }
+
+/// Both editors use color for the active tool and neutral text for inactive tools.
+struct EditorToolButtonStyle: ButtonStyle {
+    let isSelected: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(minHeight: 44)
+            .foregroundStyle(isSelected ? AppPalette.accent.primary : AppPalette.secondaryText)
+            .opacity(configuration.isPressed ? 0.62 : 1)
+    }
+}

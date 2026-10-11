@@ -19,6 +19,9 @@ struct ProcessingView: View {
     /// Must outlive body redraws. Creating AVPlayer inside `body` tears the
     /// previous player down on every state change (e.g. tapping Save) and crashes.
     @State private var previewPlayer: AVPlayer?
+    @State private var resultDisplaySize: CGSize?
+    @State private var showResultInspection = false
+    @State private var resultPlayheadSeconds = 0.0
 
     var body: some View {
         ZStack {
@@ -48,6 +51,7 @@ struct ProcessingView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(processor.isRunning || isSaving)
         .task {
+            guard previewPlayer == nil else { return }
             start()
 #if DEBUG
             if let delay = demoCancellationDelay {
@@ -82,7 +86,20 @@ struct ProcessingView: View {
             saved = false
             isSaving = false
         }
+        .task(id: processor.outputURL) {
+            resultDisplaySize = nil
+            guard let url = processor.outputURL,
+                  let metadata = try? await SourceVideoMetadata.load(from: url),
+                  !Task.isCancelled, processor.outputURL == url else { return }
+            resultDisplaySize = metadata.displaySize
+        }
+        .fullScreenCover(isPresented: $showResultInspection) {
+            if let previewPlayer {
+                FullScreenMaskEditorView(player: previewPlayer, playheadSeconds: $resultPlayheadSeconds)
+            }
+        }
         .onDisappear {
+            guard !showResultInspection else { return }
             processingTask?.cancel()
             processor.discardOutput()
             previewPlayer?.pause()
@@ -215,29 +232,39 @@ struct ProcessingView: View {
     }
 
     private func resultContent(player: AVPlayer) -> some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                resultHeader
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: 24) {
+                    resultHeader
 
-                ControlledVideoPlayer(
-                    player: player,
-                    showsCentralPlayButton: true
-                ) {
-                    BareVideoPlayer(player: player)
-                        .aspectRatio(16 / 9, contentMode: .fit)
-                        .frame(maxWidth: .infinity)
-                        .background(AppPalette.mediaCanvas)
-                        .clipShape(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        )
+                    ControlledVideoPlayer(
+                        player: player,
+                        showsCentralPlayButton: true,
+                        onTimeChanged: { resultPlayheadSeconds = $0 },
+                        onFullScreen: { showResultInspection = true }
+                    ) {
+                        BareVideoPlayer(player: player)
+                            .frame(height: resultPreviewHeight(in: geometry.size))
+                            .frame(maxWidth: .infinity)
+                            .background(AppPalette.mediaCanvas)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    }
+
+                    resultActions
                 }
-
-                resultActions
+                .padding(.horizontal, 20)
+                .padding(.top, 24)
+                .padding(.bottom, 24)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 28)
-            .padding(.bottom, 36)
         }
+    }
+
+    private func resultPreviewHeight(in available: CGSize) -> CGFloat {
+        let size = resultDisplaySize ?? processor.previewImage?.size ?? CGSize(width: 16, height: 9)
+        let fitted = VideoCoordinateSpace.aspectFitBounds(
+            displaySize: size,
+            in: CGSize(width: max(1, available.width - 40), height: max(120, available.height * 0.55)))
+        return fitted.height
     }
 
     private var resultHeader: some View {

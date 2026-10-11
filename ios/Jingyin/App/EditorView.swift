@@ -736,7 +736,7 @@ struct EditorView: View {
                 selectedTool == tool ? AppPalette.accent.softFill : AppPalette.surface,
                 in: RoundedRectangle(cornerRadius: 8))
         }
-        .buttonStyle(TextButtonStyle())
+        .buttonStyle(EditorToolButtonStyle(isSelected: selectedTool == tool))
         .accessibilityAddTraits(selectedTool == tool ? .isSelected : [])
     }
 

@@ -42,6 +42,10 @@ struct PhotoBatchEditorView: View {
     @State private var brushWidth = 0.08
     @State private var options: ProcessingOptions
     @State private var renderedPreview: UIImage?
+    @State private var renderedPreviewDraftID: UUID?
+    @State private var previewRequestID: UUID?
+    @State private var previewFailed = false
+    @State private var showPhotoInspection = false
     @State private var isAnalyzing = false
     @State private var isRenderingPreview = false
     @State private var isExporting = false
@@ -210,6 +214,22 @@ struct PhotoBatchEditorView: View {
         .onChange(of: options) { _, options in
             ProcessingOptionsPreferenceStore.savePhoto(options)
         }
+        .fullScreenCover(isPresented: $showPhotoInspection) {
+            NavigationStack {
+                if let renderedPreview {
+                    ZoomablePhotoPreview(image: renderedPreview)
+                        .padding(12)
+                        .background(AppPalette.background)
+                        .navigationTitle(localization.t("photo.inspect"))
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button(localization.t("editor.done")) { showPhotoInspection = false }
+                            }
+                        }
+                }
+            }
+        }
         .sheet(isPresented: $showPaywall) {
             PaywallView()
                 .environmentObject(localization)
@@ -295,6 +315,9 @@ struct PhotoBatchEditorView: View {
     }
 
     private func handleDisappear() {
+        // Inspection temporarily covers the editor; it is not leaving the project.
+        guard !showPhotoInspection else { return }
+        previewRequestID = nil
         analysisTask?.cancel()
         previewTask?.cancel()
         exportTask?.cancel()
@@ -402,7 +425,7 @@ struct PhotoBatchEditorView: View {
             RoundedRectangle(cornerRadius: 18)
                 .fill(AppPalette.mediaCanvas)
 
-            if let image = renderedPreview ?? currentDraft?.previewImage {
+            if let image = renderedPreview, renderedPreviewDraftID == currentDraft?.id {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
@@ -415,7 +438,7 @@ struct PhotoBatchEditorView: View {
                     }
                     .allowsHitTesting(!isDrawingFreehandMask)
 
-                if options.scope != .full {
+                if options.scope != .full && !isRenderingPreview && !isAnalyzing && !previewFailed {
                     MaskEditorOverlay(
                         tracks: currentTracks,
                         selectedTrackID: $selectedTrackID,
@@ -464,16 +487,48 @@ struct PhotoBatchEditorView: View {
                     localization.t("photo.invalid"),
                     systemImage: "photo.badge.exclamationmark"
                 )
-            } else {
+            } else if !previewFailed {
                 ProgressView(localization.t("photo.analyzing"))
             }
 
-            if isRenderingPreview {
-                ProgressView()
-                    .tint(AppPalette.accent.primary)
+            VStack {
+                if previewFailed {
+                    VStack(spacing: 4) {
+                        Text(localization.t("photo.previewFailed"))
+                            .font(.footnote)
+                            .multilineTextAlignment(.center)
+                        Button(localization.t("processing.retry")) { refreshPreview() }
+                            .buttonStyle(TextButtonStyle())
+                    }
                     .padding(12)
-                    .background(AppPalette.elevatedSurface, in: Circle())
+                    .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: 12))
+                } else if isRenderingPreview || isAnalyzing, renderedPreview != nil {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                        Text(localization.t("photo.previewUpdating"))
+                            .font(.footnote)
+                    }
+                    .padding(12)
+                    .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: 12))
+                    .allowsHitTesting(false)
+                }
+                Spacer()
+                if renderedPreview != nil && !isRenderingPreview && !previewFailed
+                    && !isAnalyzing && !isDrawingFreehandMask {
+                    HStack {
+                        Spacer()
+                        Button { showPhotoInspection = true } label: {
+                            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                .frame(width: 44, height: 44)
+                                .foregroundStyle(AppPalette.maskOutline)
+                                .background(AppPalette.mediaScrim, in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(localization.t("photo.inspect"))
+                    }
+                }
             }
+            .padding(10)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .frame(minHeight: 160)
@@ -562,7 +617,7 @@ struct PhotoBatchEditorView: View {
                     .frame(maxWidth: .infinity)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(EditorToolButtonStyle(isSelected: isSelected))
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
         }
@@ -1062,14 +1117,17 @@ struct PhotoBatchEditorView: View {
     private func analyzeAll() {
         analysisTask?.cancel()
         previewTask?.cancel()
+        previewRequestID = nil
+        isRenderingPreview = false
+        previewFailed = false
         invalidateOutputs(at: Array(drafts.indices))
         for index in drafts.indices {
             drafts[index].maskGroups.removeAll {
                 $0.track.source != .manual
             }
             drafts[index].maskPlanes = []
+            drafts[index].status = .pending
         }
-        renderedPreview = nil
         isAnalyzing = true
         let subjects = options.subjects
         analysisTask = Task {
@@ -1107,8 +1165,17 @@ struct PhotoBatchEditorView: View {
 
     private func refreshPreview() {
         previewTask?.cancel()
-        renderedPreview = nil
-        guard let currentDraft, currentDraft.status != .failed else { return }
+        let requestID = UUID()
+        previewRequestID = requestID
+        previewFailed = false
+        isRenderingPreview = false
+        // Keep the last rendered image only while updating the same photo.
+        if renderedPreviewDraftID != currentDraft?.id {
+            renderedPreview = nil
+            renderedPreviewDraftID = nil
+        }
+        guard let currentDraft, currentDraft.status != .failed,
+              currentDraft.status != .pending, currentDraft.status != .analyzing else { return }
         let expectedID = currentDraft.id
         let renderOptions = PhotoProcessor.optionsForPhoto(
             options,
@@ -1116,19 +1183,26 @@ struct PhotoBatchEditorView: View {
         )
         isRenderingPreview = true
         previewTask = Task {
-            defer { isRenderingPreview = false }
-            guard let rendered = try? await PhotoProcessor.renderPreview(
-                url: currentDraft.inputURL,
-                options: renderOptions,
-                maskGroups: currentDraft.maskGroups,
-                maskPlanes: currentDraft.maskPlanes
-            ), !Task.isCancelled,
-               drafts.indices.contains(currentIndex),
-               drafts[currentIndex].id == expectedID else {
-                return
+            do {
+                let rendered = try await PhotoProcessor.renderPreview(
+                    url: currentDraft.inputURL,
+                    options: renderOptions,
+                    maskGroups: currentDraft.maskGroups,
+                    maskPlanes: currentDraft.maskPlanes
+                )
+                guard !Task.isCancelled, previewRequestID == requestID,
+                      drafts.indices.contains(currentIndex),
+                      drafts[currentIndex].id == expectedID else { return }
+                renderedPreview = rendered.image
+                renderedPreviewDraftID = expectedID
+                drafts[currentIndex].isReviewed = true
+                isRenderingPreview = false
+            } catch {
+                guard !Task.isCancelled, previewRequestID == requestID,
+                      self.currentDraft?.id == expectedID else { return }
+                isRenderingPreview = false
+                previewFailed = true
             }
-            renderedPreview = rendered.image
-            drafts[currentIndex].isReviewed = true
         }
     }
 

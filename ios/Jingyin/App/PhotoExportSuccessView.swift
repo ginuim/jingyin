@@ -316,97 +316,21 @@ private struct ZoomableExportPreview: View {
     let url: URL
 
     @State private var thumbnail: UIImage?
-    @State private var scale: CGFloat = 1
-    @State private var offset: CGSize = .zero
-    @GestureState private var gestureScale: CGFloat = 1
-    @GestureState private var gestureOffset: CGSize = .zero
-
     var body: some View {
-        GeometryReader { proxy in
-            let previewSize = fittedPreviewSize(in: proxy.size)
-            Group {
-                if let thumbnail {
-                    Image(uiImage: thumbnail)
-                        .resizable()
-                        .frame(width: previewSize.width, height: previewSize.height)
-                        .scaleEffect(displayScale)
-                        .offset(displayOffset)
-                        .gesture(zoomGesture.simultaneously(with: panGesture))
-                        .onTapGesture(count: 2) {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                scale = 1
-                                offset = .zero
-                            }
-                        }
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .shadow(color: Color.black.opacity(0.16), radius: 7, y: 3)
-                } else {
-                    ProgressView()
-                        .tint(AppPalette.secondaryText)
-                }
+        Group {
+            if let thumbnail {
+                ZoomablePhotoPreview(image: thumbnail)
+            } else {
+                ProgressView().tint(AppPalette.secondaryText)
             }
-            .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        // Leave enough breathing room for the drop shadow, including below
-        // the image. The previous 6pt inset clipped the lower blur edge.
         .padding(10)
-        .clipped()
         .task(id: url) {
             guard let source = UIImage(contentsOfFile: url.path) else { return }
             thumbnail = await source.byPreparingThumbnail(
                 ofSize: CGSize(width: 1_600, height: 1_600)
             ) ?? source
         }
-    }
-
-    private var displayScale: CGFloat {
-        min(max(scale * gestureScale, 1), 4)
-    }
-
-    private func fittedPreviewSize(in container: CGSize) -> CGSize {
-        guard let thumbnail, thumbnail.size.width > 0, thumbnail.size.height > 0 else {
-            return container
-        }
-        let scale = min(
-            container.width / thumbnail.size.width,
-            container.height / thumbnail.size.height
-        )
-        return CGSize(
-            width: thumbnail.size.width * scale,
-            height: thumbnail.size.height * scale
-        )
-    }
-
-    private var displayOffset: CGSize {
-        guard displayScale > 1 else { return .zero }
-        return CGSize(
-            width: offset.width + gestureOffset.width,
-            height: offset.height + gestureOffset.height
-        )
-    }
-
-    private var zoomGesture: some Gesture {
-        MagnificationGesture()
-            .updating($gestureScale) { value, state, _ in
-                state = value
-            }
-            .onEnded { value in
-                scale = min(max(scale * value, 1), 4)
-                if scale == 1 { offset = .zero }
-            }
-    }
-
-    private var panGesture: some Gesture {
-        DragGesture()
-            .updating($gestureOffset) { value, state, _ in
-                guard displayScale > 1 else { return }
-                state = value.translation
-            }
-            .onEnded { value in
-                guard displayScale > 1 else { return }
-                offset.width += value.translation.width
-                offset.height += value.translation.height
-            }
     }
 }
 

@@ -6,7 +6,9 @@
 
 ## 结论
 
-付费闭环在 Connect 侧的前置条件已齐：Paid Apps Agreement **有效**、银行 **可用**、美国税表 **使用中**、Family Sharing **已开**、IAP 与 App 定价已配好，DSA 交易商信息 **有效**。2026-09-02，iOS `1.0 (3)` 因 Guideline 2.1 要求补充人脸数据处理说明而被拒；不是功能或 IAP 故障。2026-09-03 已发布四语隐私政策的独立「人脸数据」章节并完成上一轮回复。2026-09-07 已撤回原提审的 `1.0.1 (5)`，上传当前工程归档 `1.0.1 (6)` 并重新提交；该版已通过审核，状态为**可分发**（尚未手动发布）。2026-09-10 已创建 `1.0.2`、回填四语商店文案并调整截屏顺序，上传构建 `1.0.2 (7)` 后提交审核；当前 **1.0.2 正在等待审核**。真机 Sandbox 购买与 TestFlight 商店价格验证仍待完成。
+2026-10-11 最新状态：`1.0.2` 可分发；`1.0.3 (8)` 已提交，正在等待审核，审核通过后自动发布。最新四语截图与关键词见 [1.0.3 发布记录](./ios-release-1.0.3.md)。下段为此前配置和提交历史。
+
+付费闭环在 Connect 侧的前置条件已齐：Paid Apps Agreement **有效**、银行 **可用**、美国税表 **使用中**、Family Sharing **已开**、IAP 与 App 定价已配好，DSA 交易商信息 **有效**。2026-09-02，iOS `1.0 (3)` 因 Guideline 2.1 要求补充人脸数据处理说明而被拒；不是功能或 IAP 故障。2026-09-03 已发布四语隐私政策的独立「人脸数据」章节并完成上一轮回复。2026-09-07 已撤回原提审的 `1.0.1 (5)`，上传当前工程归档 `1.0.1 (6)` 并重新提交；该版已通过审核，状态为**可分发**（尚未手动发布）。2026-09-10 已创建 `1.0.2`、回填四语商店文案并调整截屏顺序，上传构建 `1.0.2 (7)` 后提交审核；当日 **1.0.2 正在等待审核**。真机 Sandbox 购买与 TestFlight 商店价格验证仍待完成。
 
 ## 账号与标识
 
@@ -215,3 +217,9 @@ Best regards
 Video timeline navigation derives at most eight reduced full-frame thumbnails from the selected original video. The editor also retains at most forty region-edit undo states in session memory. They may contain visible faces or region coordinates. They are not uploaded, shared, or persisted to disk or preferences, and are released when the editor closes or the app terminates. They are used solely for local editing and do not identify people. Timeline thumbnails are source frames, not evidence of completed masking.
 
 四语政策源码同次补充；上线部署与 App Store Connect 审核备注尚需同步，不能以本地文档更新视为已提交。
+
+## 2026-10-11 1.0.3 (8) 新截图与界面优化提审
+
+当前 `1.0.2` 已可分发。`1.0.3 (8)` 已于 23:18（Asia/Shanghai）提交，后台显示「正在等待审核」与「已提交 1 个项目」，提交 ID `c9af2561-9852-4a33-abf6-4402044bf163`。沿用审核通过后自动发布，保留评分；价格、IAP 和数据处理方式没有变更。
+
+本次纳入 2026-09-21 未发版的界面优化，四语各 5 张新截图及关键词、更新说明；详情和真机待验边界见 [1.0.3 发布记录](./ios-release-1.0.3.md)。本文开头及其他章节里的「当前」状态是各次历史记录，最新状态以本节为准。
