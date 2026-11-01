@@ -72,6 +72,25 @@ class MainActivity : ComponentActivity() {
                 finally { busy = false }
             }
         }
+        LaunchedEffect(uri) {
+            val selected = uri
+            if (selected != null && !isVideo) {
+                launchJob {
+                    val result = withContext(Dispatchers.Default) {
+                        val source = decodePhoto(selected)
+                        try {
+                            FaceDetector(this@MainActivity).use { detector ->
+                                val detection = detector.detect(source)
+                                ensureActive()
+                                FaceDetector.pixelate(source, detection.faces)
+                            }
+                        } finally { source.recycle() }
+                    }
+                    outputBitmap = result
+                    photo = result
+                }
+            }
+        }
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.safeDrawingPadding().verticalScroll(rememberScrollState()).padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -83,7 +102,15 @@ class MainActivity : ComponentActivity() {
                 }
                 if (uri != null && isVideo) {
                     Row { Checkbox(mute, { mute = it }, enabled = !busy); Text(stringResource(R.string.mute)) }
-                    Button(enabled = !busy, onClick = { play = uri!! to true }) { Text(stringResource(R.string.preview)) }
+                    Button(enabled = !busy, onClick = {
+                        launchJob {
+                            outputFile?.delete(); outputFile = null
+                            val result = VideoExporter(this@MainActivity).export(uri!!, mute) { progress = it }
+                            outputFile = result.file
+                            report = result.report
+                            play = Uri.fromFile(result.file) to false
+                        }
+                    }) { Text(stringResource(R.string.preview)) }
                     Button(enabled = !busy, onClick = {
                         launchJob {
                             outputFile?.delete(); outputFile = null
@@ -148,6 +175,7 @@ class MainActivity : ComponentActivity() {
                 setMediaItem(MediaItem.fromUri(uri))
                 repeatMode = ExoPlayer.REPEAT_MODE_ONE
                 prepare()
+                playWhenReady = true
             }
         }
         LaunchedEffect(mute) { player.volume = if (mute) 0f else 1f }
