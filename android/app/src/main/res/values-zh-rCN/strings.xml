@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LensHide 实验版</string>
+    <string name="lab_notice">安卓性能原型 · 全程本地处理。自动检测可能漏脸，请检查结果。本版只导出前 30 秒 / 720p 与单张照片；不含购买。</string>
+    <string name="pick_photo">选择照片</string>
+    <string name="pick_video">选择视频</string>
+    <string name="mute">静音</string>
+    <string name="preview">预览人脸打码</string>
+    <string name="export_video">导出并测量性能</string>
+    <string name="benchmark_photo">打码并测试 20 次</string>
+    <string name="cancel">取消</string>
+    <string name="cancelled">已取消，临时输出已清理</string>
+    <string name="failed">处理失败，可重试</string>
+    <string name="result">处理结果</string>
+    <string name="save">保存到相册</string>
+    <string name="saved">已保存到相册</string>
+    <string name="device">设备能力</string>
+    <string name="sdr_only">实验版暂不支持 HDR 视频，请选择 SDR 素材</string>
+</resources>

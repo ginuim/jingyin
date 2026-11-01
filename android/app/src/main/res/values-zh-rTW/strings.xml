@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LensHide 實驗版</string>
+    <string name="lab_notice">Android 效能原型 · 全程本機處理。自動偵測可能漏臉，請檢查結果。本版只匯出前 30 秒 / 720p 與單張照片；不含購買。</string>
+    <string name="pick_photo">選擇照片</string>
+    <string name="pick_video">選擇影片</string>
+    <string name="mute">靜音</string>
+    <string name="preview">預覽臉部遮蔽</string>
+    <string name="export_video">匯出並測量效能</string>
+    <string name="benchmark_photo">遮蔽並測試 20 次</string>
+    <string name="cancel">取消</string>
+    <string name="cancelled">已取消，暫存輸出已清理</string>
+    <string name="failed">處理失敗，可重試</string>
+    <string name="result">處理結果</string>
+    <string name="save">儲存至相簿</string>
+    <string name="saved">已儲存至相簿</string>
+    <string name="device">裝置能力</string>
+    <string name="sdr_only">實驗版暫不支援 HDR 影片，請選擇 SDR 素材</string>
+</resources>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LensHide Lab</string>
+    <string name="lab_notice">Android performance prototype. Processing stays on this device. Face detection can miss faces; inspect results. Exports: first 30 seconds / 720p and one photo. No purchases.</string>
+    <string name="pick_photo">Choose photo</string>
+    <string name="pick_video">Choose video</string>
+    <string name="mute">Mute</string>
+    <string name="preview">Preview face masking</string>
+    <string name="export_video">Export and measure</string>
+    <string name="benchmark_photo">Mask and benchmark 20 runs</string>
+    <string name="cancel">Cancel</string>
+    <string name="cancelled">Cancelled; temporary output cleared</string>
+    <string name="failed">Processing failed; retry available</string>
+    <string name="result">Processed result</string>
+    <string name="save">Save to gallery</string>
+    <string name="saved">Saved to gallery</string>
+    <string name="device">Device capabilities</string>
+    <string name="sdr_only">The lab supports SDR video only. Choose an SDR source.</string>
+</resources>
