@@ -270,3 +270,33 @@ Privacy policy: https://lenshide.reaidea.com/privacy
 - [ ] IAP 显示名称与 App Store Connect 当前本地化一致（含「视频 + 照片批量」描述）
 - [ ] 确认照片批量及人脸 Emoji 贴纸在送审构建的预览与导出中均可用
 - [ ] 将 `com.reaidea.jingyin.lifetime` 和该 App 版本一起提交审核
+
+## 2026-10-21 英文元数据更新（1.0.4 草稿）
+
+已在 App Store Connect 创建 `1.0.4`（准备提交），按用户指定保存并重新读取核对英语（美国）字段：
+
+- 名称：`LensHide: Face & Video Blur`（27 字符）
+- 副标题：`Offline AI, Batch Photo Mosaic`（30 字符）
+- 关键词：`redact,censor,pixelate,anonymize,strangers,privacy,emoji,pets,body,metadata,local,social media,exif`（99 ASCII 字符 / 字节）
+
+仅变更以上三个英文字段；未调整截图、其他语言、价格和付费边界。尚未选择/上传 1.0.4 构建或提交审核，线上仍为 1.0.3，文字更新尚未上线。
+
+已通过 ego 核对 [Apple PPO 官方说明](https://developer.apple.com/app-store/product-page-optimization/)：产品页面优化只能测试图标、截图和 App 预览，不能测试名称、副标题或关键词。因此没有为本次文字变更创建无效的 PPO 测试；这些字段随新版本审核发布。
+
+### 其他语言同步（2026-10-21）
+
+以下字段均已在 1.0.4 草稿保存并重新读取核对，尚未上线；简繁中文名称沿用现有表述，副标题与关键词同步新定位，日文名称调整如下。截图、描述、推广文本及付费边界未变。
+
+| 语言 | 名称 | 副标题 |
+| --- | --- | --- |
+| 简中 | 镜隐 - 视频照片打码与遮脸 | 离线AI识别，照片批量马赛克 |
+| 繁中 | 鏡隱 - 影片照片打碼與遮臉 | 離線AI辨識，照片批次馬賽克 |
+| 日文 | LensHide: 動画・写真の顔ぼかし | オフラインAI検出・写真を一括モザイク |
+
+关键词：
+
+- 简中：`像素化,匿名,路人,隐私,贴纸,emoji,宠物,人体,元数据,本地,社交,exif`
+- 繁中：`像素化,匿名,路人,隱私,貼紙,emoji,寵物,人體,中繼資料,本機,社群,exif`
+- 日文：`墨消し,匿名,通行人,プライバシー,絵文字,ペット,全身,メタデータ,SNS,exif`
+
+这里的 AI 识别指在设备本地检测遮盖主体，不改变身份识别、人脸数据处理或隐私政策边界。名称/副标题均小于等于 30 字符，关键词分别为 86/89/97 UTF-8 字节。
