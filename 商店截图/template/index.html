@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>镜隐商店截图</title>
+  <style>
+    :root {
+      --tool-bg: #1c1614;
+      --tool-surface: #2a211e;
+      --tool-elevated: #3a2c27;
+      --tool-text: #fff4ee;
+      --tool-muted: #c2a89c;
+      --tool-line: #5a433a;
+      --accent: #d06432;
+      --accent-fg: #fff7f2;
+      --danger: #cf6863;
+      --cream: #f4efe8;
+      --ink: #111111;
+      --ink-soft: #1a1a1a;
+      --sidebar: 340px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      display: flex;
+      background: var(--tool-bg);
+      color: var(--tool-text);
+      font: 13px/1.45 "PingFang SC", "Hiragino Sans GB", "Hiragino Sans", "Noto Sans JP", sans-serif;
+    }
+
+    button, input, select, textarea {
+      font: inherit;
+      color: inherit;
+    }
+
+    .sidebar {
+      width: var(--sidebar);
+      flex: none;
+      height: 100%;
+      overflow: auto;
+      padding: 20px 18px 28px;
+      border-right: 1px solid var(--tool-line);
+      background: var(--tool-bg);
+    }
+
+    .sidebar h1 {
+      font-size: 16px;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+    }
+
+    .sidebar .lead {
+      color: var(--tool-muted);
+      margin: 6px 0 18px;
+    }
+
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .stack { display: grid; gap: 8px; }
+    .block { margin-bottom: 18px; }
+    .label {
+      display: block;
+      color: var(--tool-muted);
+      margin-bottom: 6px;
+      font-size: 12px;
+    }
+
+    .field, select.field, textarea.field {
+      width: 100%;
+      background: var(--tool-surface);
+      border: 1px solid var(--tool-line);
+      border-radius: 10px;
+      padding: 8px 10px;
+      outline: none;
+    }
+    textarea.field { min-height: 64px; resize: vertical; }
+    .field:focus { border-color: var(--accent); }
+
+    .btn {
+      border: 0;
+      border-radius: 10px;
+      padding: 8px 12px;
+      background: var(--tool-elevated);
+      cursor: pointer;
+    }
+    .btn:hover { filter: brightness(1.08); }
+    .btn.primary {
+      background: var(--accent);
+      color: var(--accent-fg);
+      font-weight: 600;
+    }
+    .btn.ghost { background: transparent; border: 1px solid var(--tool-line); }
+    .btn.danger { background: transparent; color: var(--danger); border: 1px solid var(--tool-line); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn.full { width: 100%; }
+    .btn.sm { padding: 6px 8px; font-size: 12px; }
+    .btn.active { background: var(--accent); color: var(--accent-fg); }
+
+    .slides { display: grid; gap: 6px; }
+    .slide-item {
+      display: grid;
+      grid-template-columns: 28px 1fr auto;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: var(--tool-surface);
+      border: 1px solid transparent;
+      cursor: pointer;
+      text-align: left;
+    }
+    .slide-item.active { border-color: var(--accent); }
+    .slide-item .n {
+      color: var(--tool-muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .slide-item .t {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .thumb {
+      width: 22px;
+      height: 22px;
+      border-radius: 5px;
+      background: #3a2c27;
+      object-fit: cover;
+    }
+
+    .hint { color: var(--tool-muted); font-size: 12px; }
+    .status {
+      min-height: 18px;
+      margin-top: 10px;
+      color: var(--tool-muted);
+    }
+
+    .stage {
+      flex: 1;
+      min-width: 0;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background:
+        radial-gradient(1200px 600px at 70% 0%, rgba(208,100,50,0.12), transparent 55%),
+        #140f0e;
+    }
+
+    .preview-wrap {
+      position: relative;
+      transform-origin: center center;
+    }
+
+    .shot {
+      width: var(--cw);
+      height: var(--ch);
+      background: var(--cream);
+      overflow: hidden;
+      position: relative;
+      color: var(--ink);
+      font-family: "SF Pro Display", "PingFang SC", "Hiragino Sans", "Hiragino Sans GB", "Noto Sans JP", sans-serif;
+      user-select: none;
+    }
+
+    .copy {
+      position: relative;
+      z-index: 2;
+      text-align: center;
+      padding: calc(var(--ch) * 0.072) calc(var(--cw) * 0.08) 0;
+    }
+
+    .title {
+      font-size: calc(var(--cw) * 0.054);
+      font-weight: 700;
+      line-height: 1.26;
+      letter-spacing: 0.01em;
+      white-space: pre-line;
+      text-wrap: pretty;
+    }
+
+    .subtitle {
+      margin-top: calc(var(--ch) * 0.011);
+      font-size: calc(var(--cw) * 0.0335);
+      font-weight: 400;
+      line-height: 1.42;
+      color: var(--ink-soft);
+      white-space: pre-line;
+      text-wrap: pretty;
+    }
+
+    .device-wrap {
+      position: absolute;
+      left: 50%;
+      top: 0;
+      z-index: 1;
+      transform-origin: var(--origin, 50% 40%);
+      will-change: transform;
+      cursor: grab;
+      touch-action: none;
+    }
+    .device-wrap:active { cursor: grabbing; }
+
+    .device {
+      width: var(--phone-w);
+      aspect-ratio: 77.6 / 163;
+      position: relative;
+      border-radius: calc(var(--phone-w) * 0.128);
+      background: #111113;
+      padding: calc(var(--phone-w) * 0.0138);
+      box-shadow:
+        inset 0 0 0 1px rgba(255,255,255,0.16),
+        28px 48px 70px rgba(0,0,0,0.28);
+    }
+
+    .device-edge {
+      position: absolute;
+      left: calc(var(--phone-w) * -0.012);
+      top: 7%;
+      bottom: 7%;
+      width: calc(var(--phone-w) * 0.018);
+      background: #0b0b0d;
+      border-radius: 10px 0 0 10px;
+      box-shadow: inset -1px 0 0 rgba(255,255,255,0.08);
+    }
+
+    .btns i {
+      position: absolute;
+      background: #0a0a0c;
+      border-radius: 2px;
+    }
+    .btns .silent {
+      left: calc(var(--phone-w) * -0.014);
+      top: 16.5%;
+      width: calc(var(--phone-w) * 0.012);
+      height: calc(var(--phone-w) * 0.038);
+      border-radius: 2px;
+    }
+    .btns .vol-up {
+      left: calc(var(--phone-w) * -0.016);
+      top: 23%;
+      width: calc(var(--phone-w) * 0.014);
+      height: calc(var(--phone-w) * 0.07);
+    }
+    .btns .vol-down {
+      left: calc(var(--phone-w) * -0.016);
+      top: 32%;
+      width: calc(var(--phone-w) * 0.014);
+      height: calc(var(--phone-w) * 0.07);
+    }
+    .btns .power {
+      right: calc(var(--phone-w) * -0.016);
+      top: 27%;
+      width: calc(var(--phone-w) * 0.014);
+      height: calc(var(--phone-w) * 0.11);
+    }
+
+    .screen {
+      width: 100%;
+      height: 100%;
+      border-radius: calc(var(--phone-w) * 0.112);
+      overflow: hidden;
+      background: #111;
+      position: relative;
+    }
+
+    .screen img, .screen .ph {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+      object-position: center top;
+    }
+
+    .screen .ph {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #8a7368;
+      background: #2a211e;
+      font-size: calc(var(--phone-w) * 0.045);
+      text-align: center;
+      padding: 8%;
+    }
+
+    .island {
+      position: absolute;
+      top: calc(var(--phone-w) * 0.016);
+      left: 50%;
+      width: 31.5%;
+      height: calc(var(--phone-w) * 0.048);
+      transform: translateX(-50%);
+      background: #000;
+      border-radius: 999px;
+      z-index: 3;
+    }
+    .island::after {
+      content: "";
+      position: absolute;
+      right: 14%;
+      top: 50%;
+      width: 22%;
+      aspect-ratio: 1;
+      transform: translateY(-50%);
+      border-radius: 50%;
+      background: #151515;
+      box-shadow: inset 0 0 0 1px #2a2a2a;
+    }
+
+    .guide {
+      position: absolute;
+      inset: 0;
+      z-index: 4;
+      pointer-events: none;
+      opacity: 0.42;
+    }
+
+    .pose-front .device-edge,
+    .pose-front .btns { display: none; }
+
+    input[type="range"] { width: 100%; accent-color: var(--accent); }
+    .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <h1>镜隐商店截图</h1>
+    <p class="lead">上传应用截图，套上文字和机模，批量导出 6.9 寸图。</p>
+
+    <div class="block">
+      <span class="label">画布</span>
+      <select id="size" class="field">
+        <option value="1320x2868" selected>6.9 寸 · 1320 × 2868</option>
+        <option value="1290x2796">6.7 寸 · 1290 × 2796</option>
+        <option value="1284x2778">6.5 寸 · 1284 × 2778</option>
+      </select>
+    </div>
+
+    <div class="block">
+      <span class="label">填入文案</span>
+      <div class="row" id="locales"></div>
+    </div>
+
+    <div class="block">
+      <span class="label">截图</span>
+      <div class="stack">
+        <label class="btn ghost full" for="batchFiles">按顺序批量导入</label>
+        <input id="batchFiles" type="file" accept="image/*" multiple hidden />
+        <p class="hint">顺序对应第 1 到第 N 张。也可在下方单张替换。</p>
+      </div>
+    </div>
+
+    <div class="block">
+      <span class="label">页面</span>
+      <div class="slides" id="slides"></div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn sm" id="addSlide">加一页</button>
+        <button class="btn sm danger" id="removeSlide">删当前页</button>
+      </div>
+    </div>
+
+    <div class="block" id="editor"></div>
+
+    <div class="block stack">
+      <button class="btn primary full" id="exportAll">批量导出 ZIP</button>
+      <button class="btn ghost full" id="exportOne">只导出当前页</button>
+      <p class="status" id="status"></p>
+    </div>
+  </aside>
+
+  <main class="stage">
+    <div class="preview-wrap" id="previewWrap"></div>
+  </main>
+
+  <script src="./vendor/html2canvas.min.js"></script>
+  <script src="./vendor/jszip.min.js"></script>
+  <script src="./vendor/FileSaver.min.js"></script>
+  <script>
+    const COPY = {
+      "zh-Hans": [
+        { title: "分享生活，不必分享隐私", subtitle: "视频与照片，遮住不想公开的部分", pose: "tilt-hero" },
+        { title: "原素材不上传，处理只在本机", subtitle: "识别、编辑与导出，全程在手机上完成", pose: "tilt-cta" },
+        { title: "多张照片，一次处理", subtitle: "统一设置，逐张复核后再导出", pose: "front" },
+        { title: "画面、声音、来源信息一起保护", subtitle: "静音或变调，导出时清除位置与拍摄信息", pose: "front" },
+      ],
+      "zh-Hant": [
+        { title: "分享生活，不必分享隱私", subtitle: "影片與照片，遮住不想公開的部分", pose: "tilt-hero" },
+        { title: "原始素材不上傳，只在裝置內處理", subtitle: "辨識、編輯與輸出，全程在裝置上完成", pose: "tilt-mid" },
+        { title: "多張照片，一次處理", subtitle: "統一設定，逐張確認後再輸出", pose: "front" },
+        { title: "從畫面到聲音，保護更完整", subtitle: "靜音或變調，輸出時清除位置與拍攝資訊", pose: "front" },
+      ],
+      en: [
+        { title: "Share the moment.\nNot your privacy.", subtitle: "Hide what you don't want seen\nin videos and photos.", pose: "tilt-hero" },
+        { title: "Your media stays on your device", subtitle: "Detection, editing,\nand export all happen on-device.", pose: "tilt-mid" },
+        { title: "Process multiple photos at once", subtitle: "Apply settings in bulk,\nreview each photo, then export.", pose: "front" },
+        { title: "Protect more than the picture", subtitle: "Mute or shift voices,\nand remove location and capture details.", pose: "front" },
+      ],
+      ja: [
+        { title: "思い出だけをシェア。\nプライバシーは守る", subtitle: "動画や写真で見せたくない部分を\nしっかり隠せます", pose: "tilt-hero" },
+        { title: "素材はアップロード不要。\n処理は端末内で", subtitle: "認識・編集・書き出しまで\nすべて端末内で完結", pose: "tilt-mid" },
+        { title: "複数の写真を\nまとめて処理", subtitle: "設定を一括適用し、\n1枚ずつ確認して書き出し", pose: "front" },
+        { title: "映像も音声も、\nまとめて保護", subtitle: "消音・声の高さ変更に加え、\n位置情報や撮影情報も削除", pose: "front" },
+      ],
+    };
+
+    const LOCALE_LABEL = {
+      "zh-Hans": "简中",
+      "zh-Hant": "繁中",
+      en: "English",
+      ja: "日本語",
+    };
+
+    const POSES = {
+      "tilt-hero": {
+        label: "斜切 · 首页上部",
+        width: 1.06,
+        rotate: 33.2,
+        x: 0.145,
+        y: 0.286,
+        origin: "46% 16%",
+      },
+      "tilt-cta": {
+        label: "斜切 · 按钮特写",
+        width: 1.55,
+        rotate: 32.8,
+        x: -0.41,
+        y: 0.108,
+        origin: "74% 80%",
+      },
+      "tilt-mid": {
+        label: "斜切 · 首页中部",
+        width: 1.22,
+        rotate: 28.8,
+        x: -0.04,
+        y: 0.148,
+        origin: "52% 42%",
+      },
+      front: {
+        label: "正面 · 编辑页",
+        width: 0.842,
+        rotate: 0,
+        x: 0,
+        y: 0.27,
+        origin: "50% 0%",
+      },
+    };
+
+    const GUIDE_FILES = {
+      "zh-Hans": ["简中-1.png", "简中2.png", "简中3.png", "简中4.png"],
+      "zh-Hant": ["繁中1.png", "繁中2.png", "繁中3.png", "繁中4.png"],
+      en: ["英文1.png", "英文2.png", "英文3.png", "英文4.png"],
+      ja: ["日语1.png", "日语2.png", "日语3.png", "日语4.png"],
+    };
+
+    let locale = "zh-Hans";
+    let canvas = { w: 1320, h: 2868 };
+    let current = 0;
+    let exporting = false;
+    let showGuide = false;
+
+    const slides = COPY["zh-Hans"].map((item, i) => makeSlide(item, i));
+
+    function makeSlide(item, i) {
+      return {
+        id: crypto.randomUUID(),
+        title: item.title,
+        subtitle: item.subtitle,
+        pose: item.pose,
+        src: "",
+        dx: 0,
+        dy: 0,
+        dRotate: 0,
+        scale: 1,
+        guide: GUIDE_FILES[locale] ? "../" + GUIDE_FILES[locale][i] : "",
+      };
+    }
+
+    const $ = (id) => document.getElementById(id);
+
+    function applySize() {
+      const [w, h] = $("size").value.split("x").map(Number);
+      canvas = { w, h };
+      document.documentElement.style.setProperty("--cw", w + "px");
+      document.documentElement.style.setProperty("--ch", h + "px");
+      fitPreview();
+      renderShot();
+    }
+
+    function fitPreview() {
+      const stage = document.querySelector(".stage");
+      const pad = 48;
+      const sx = (stage.clientWidth - pad) / canvas.w;
+      const sy = (stage.clientHeight - pad) / canvas.h;
+      const scale = Math.min(sx, sy);
+      $("previewWrap").style.transform = "scale(" + scale + ")";
+    }
+
+    function poseOf(slide) {
+      return POSES[slide.pose] || POSES.front;
+    }
+
+    function deviceTransform(slide) {
+      const pose = poseOf(slide);
+      const x = pose.x * canvas.w + slide.dx;
+      const y = pose.y * canvas.h + slide.dy;
+      const rotate = pose.rotate + slide.dRotate;
+      const scale = slide.scale;
+      return {
+        width: pose.width * canvas.w,
+        origin: pose.origin,
+        css: "translate(calc(-50% + " + x + "px), " + y + "px) rotate(" + rotate + "deg) scale(" + scale + ")",
+        height: pose.width * canvas.w * (163 / 77.6),
+      };
+    }
+
+    function renderLocales() {
+      $("locales").innerHTML = Object.keys(COPY).map((key) => {
+        const on = key === locale ? " active" : "";
+        return '<button class="btn sm' + on + '" data-locale="' + key + '">' + LOCALE_LABEL[key] + "</button>";
+      }).join("");
+    }
+
+    function renderSlides() {
+      $("slides").innerHTML = slides.map((slide, i) => {
+        const on = i === current ? " active" : "";
+        const thumb = slide.src
+          ? '<img class="thumb" src="' + slide.src + '" alt="">'
+          : '<span class="thumb"></span>';
+        return '<button class="slide-item' + on + '" data-i="' + i + '">' +
+          '<span class="n">' + String(i + 1).padStart(2, "0") + "</span>" +
+          '<span class="t">' + (slide.title.replace(/\n/g, " ") || "未命名") + "</span>" +
+          thumb +
+          "</button>";
+      }).join("");
+    }
+
+    function renderEditor() {
+      const slide = slides[current];
+      if (!slide) {
+        $("editor").innerHTML = "";
+        return;
+      }
+      const poseOptions = Object.keys(POSES).map((key) => {
+        const sel = key === slide.pose ? " selected" : "";
+        return '<option value="' + key + '"' + sel + ">" + POSES[key].label + "</option>";
+      }).join("");
+      $("editor").innerHTML =
+        '<span class="label">当前页</span>' +
+        '<div class="stack">' +
+          '<textarea class="field" id="title">' + escapeHtml(slide.title) + "</textarea>" +
+          '<textarea class="field" id="subtitle">' + escapeHtml(slide.subtitle) + "</textarea>" +
+          '<select class="field" id="pose">' + poseOptions + "</select>" +
+          '<label class="btn ghost full" for="oneFile">替换这张应用截图</label>' +
+          '<input id="oneFile" type="file" accept="image/*" hidden>' +
+          '<label class="hint"><input type="checkbox" id="guideToggle"' + (showGuide ? " checked" : "") + '> 叠参考图调姿态（导出不含）</label>' +
+          '<div class="pair">' +
+            '<label class="hint">旋转 ' + (poseOf(slide).rotate + slide.dRotate).toFixed(1) +
+              '<input type="range" id="rot" min="-20" max="20" step="0.1" value="' + slide.dRotate + '"></label>' +
+            '<label class="hint">缩放 ' + slide.scale.toFixed(2) +
+              '<input type="range" id="zoom" min="0.7" max="1.6" step="0.01" value="' + slide.scale + '"></label>' +
+          "</div>" +
+          '<button class="btn sm ghost" id="resetPose">复位这页微调</button>' +
+          '<p class="hint">预览里拖动手机改位置，滚轮缩放。</p>' +
+        "</div>";
+    }
+
+    function escapeHtml(text) {
+      return text.replace(/[&<>"']/g, (ch) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      }[ch]));
+    }
+
+    function renderShot() {
+      const slide = slides[current];
+      const wrap = $("previewWrap");
+      if (!slide) {
+        wrap.innerHTML = "";
+        return;
+      }
+      const tf = deviceTransform(slide);
+      const img = slide.src
+        ? '<img src="' + slide.src + '" alt="app screenshot" />'
+        : '<div class="ph">放入对应的应用截图</div>';
+      const guide = showGuide && slide.guide
+        ? '<img class="guide" src="' + slide.guide + '" alt="" data-html2canvas-ignore="true" />'
+        : "";
+      wrap.innerHTML =
+        '<article class="shot pose-' + slide.pose + '" id="shot">' +
+          '<div class="copy"><div class="title">' + escapeHtml(slide.title) + '</div>' +
+          '<div class="subtitle">' + escapeHtml(slide.subtitle) + "</div></div>" +
+          '<div class="device-wrap" style="width:' + tf.width + "px;transform:" + tf.css + ";transform-origin:" + tf.origin + '">' +
+            '<div class="device" style="--phone-w:' + tf.width + "px;width:" + tf.width + "px;height:" + tf.height + 'px">' +
+              '<span class="device-edge"></span>' +
+              '<span class="btns"><i class="silent"></i><i class="vol-up"></i><i class="vol-down"></i><i class="power"></i></span>' +
+              '<div class="screen">' + img + '<span class="island"></span></div>' +
+            "</div>" +
+          "</div>" +
+          guide +
+        "</article>";
+      bindDeviceDrag();
+    }
+
+    function refresh() {
+      renderLocales();
+      renderSlides();
+      renderEditor();
+      renderShot();
+    }
+
+    function bindDeviceDrag() {
+      const node = document.querySelector(".device-wrap");
+      if (!node) return;
+      let dragging = false;
+      let last = null;
+      node.addEventListener("pointerdown", (e) => {
+        dragging = true;
+        last = { x: e.clientX, y: e.clientY };
+        node.setPointerCapture(e.pointerId);
+      });
+      node.addEventListener("pointermove", (e) => {
+        if (!dragging) return;
+        const stage = document.querySelector(".stage");
+        const scale = Math.min(
+          (stage.clientWidth - 48) / canvas.w,
+          (stage.clientHeight - 48) / canvas.h
+        );
+        slides[current].dx += (e.clientX - last.x) / scale;
+        slides[current].dy += (e.clientY - last.y) / scale;
+        last = { x: e.clientX, y: e.clientY };
+        const tf = deviceTransform(slides[current]);
+        node.style.transform = tf.css;
+      });
+      node.addEventListener("pointerup", () => { dragging = false; });
+    }
+
+    $("previewWrap").addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const slide = slides[current];
+      if (!slide) return;
+      slide.scale = Math.min(1.6, Math.max(0.7, slide.scale + (e.deltaY < 0 ? 0.02 : -0.02)));
+      renderEditor();
+      renderShot();
+    }, { passive: false });
+
+    $("locales").addEventListener("click", (e) => {
+      const key = e.target.dataset.locale;
+      if (!key) return;
+      locale = key;
+      COPY[key].forEach((item, i) => {
+        if (!slides[i]) slides[i] = makeSlide(item, i);
+        slides[i].title = item.title;
+        slides[i].subtitle = item.subtitle;
+        slides[i].pose = item.pose;
+        slides[i].dx = 0;
+        slides[i].dy = 0;
+        slides[i].dRotate = 0;
+        slides[i].scale = 1;
+        slides[i].guide = GUIDE_FILES[key] && GUIDE_FILES[key][i] ? "../" + GUIDE_FILES[key][i] : "";
+      });
+      current = Math.min(current, slides.length - 1);
+      refresh();
+    });
+
+    $("slides").addEventListener("click", (e) => {
+      const item = e.target.closest("[data-i]");
+      if (!item) return;
+      current = Number(item.dataset.i);
+      refresh();
+    });
+
+    $("editor").addEventListener("input", (e) => {
+      const slide = slides[current];
+      if (!slide) return;
+      if (e.target.id === "title") slide.title = e.target.value;
+      if (e.target.id === "subtitle") slide.subtitle = e.target.value;
+      if (e.target.id === "pose") {
+        slide.pose = e.target.value;
+        slide.dx = 0;
+        slide.dy = 0;
+        slide.dRotate = 0;
+        slide.scale = 1;
+      }
+      if (e.target.id === "rot") slide.dRotate = Number(e.target.value);
+      if (e.target.id === "zoom") slide.scale = Number(e.target.value);
+      if (e.target.id === "guideToggle") showGuide = e.target.checked;
+      if (e.target.id === "title" || e.target.id === "subtitle") renderSlides();
+      else refresh();
+    });
+
+    $("editor").addEventListener("change", (e) => {
+      if (e.target.id !== "oneFile" || !e.target.files[0]) return;
+      setSlideImage(current, e.target.files[0]);
+    });
+
+    $("editor").addEventListener("click", (e) => {
+      if (e.target.id !== "resetPose") return;
+      const slide = slides[current];
+      slide.dx = 0;
+      slide.dy = 0;
+      slide.dRotate = 0;
+      slide.scale = 1;
+      refresh();
+    });
+
+    $("addSlide").addEventListener("click", () => {
+      slides.push(makeSlide({ title: "标题", subtitle: "副标题", pose: "front" }, slides.length));
+      current = slides.length - 1;
+      refresh();
+    });
+
+    $("removeSlide").addEventListener("click", () => {
+      if (slides.length <= 1) return;
+      slides.splice(current, 1);
+      current = Math.min(current, slides.length - 1);
+      refresh();
+    });
+
+    $("batchFiles").addEventListener("change", (e) => {
+      const files = Array.from(e.target.files || []);
+      files.forEach((file, i) => {
+        if (!slides[i]) {
+          slides.push(makeSlide({ title: "标题", subtitle: "副标题", pose: "front" }, i));
+        }
+        setSlideImage(i, file);
+      });
+      e.target.value = "";
+      refresh();
+    });
+
+    $("size").addEventListener("change", applySize);
+
+    function setSlideImage(index, file) {
+      const url = URL.createObjectURL(file);
+      const prev = slides[index].src;
+      if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+      slides[index].src = url;
+      renderSlides();
+      if (index === current) renderShot();
+    }
+
+    function setStatus(text) {
+      $("status").textContent = text || "";
+    }
+
+    async function captureSlide(index) {
+      const prev = current;
+      const prevGuide = showGuide;
+      current = index;
+      showGuide = false;
+      refresh();
+      const shot = $("shot");
+      await waitImages(shot);
+      const sandbox = document.createElement("div");
+      sandbox.style.cssText = "position:fixed;left:-16000px;top:0;width:" + canvas.w + "px;height:" + canvas.h + "px;overflow:hidden;";
+      const clone = shot.cloneNode(true);
+      clone.querySelectorAll("[data-html2canvas-ignore]").forEach((el) => el.remove());
+      sandbox.appendChild(clone);
+      document.body.appendChild(sandbox);
+      try {
+        await waitImages(clone);
+        const canvasEl = await html2canvas(clone, {
+          scale: 1,
+          width: canvas.w,
+          height: canvas.h,
+          windowWidth: canvas.w,
+          windowHeight: canvas.h,
+          backgroundColor: "#f4efe8",
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+          imageTimeout: 0,
+        });
+        return await new Promise((resolve, reject) => {
+          canvasEl.toBlob((blob) => blob ? resolve(blob) : reject(new Error("PNG 编码失败")), "image/png");
+        });
+      } finally {
+        sandbox.remove();
+        current = prev;
+        showGuide = prevGuide;
+      }
+    }
+
+    function waitImages(root) {
+      const images = Array.from(root.querySelectorAll("img"));
+      return Promise.all(images.map((img) => {
+        if (img.complete) return Promise.resolve();
+        return new Promise((resolve) => {
+          img.onload = resolve;
+          img.onerror = resolve;
+        });
+      }));
+    }
+
+    function filePrefix() {
+      return LOCALE_LABEL[locale] || locale;
+    }
+
+    async function exportOne() {
+      if (exporting) return;
+      exporting = true;
+      setStatus("正在导出当前页…");
+      try {
+        const blob = await captureSlide(current);
+        saveAs(blob, filePrefix() + "-" + (current + 1) + ".png");
+        setStatus("已导出当前页");
+      } catch (err) {
+        setStatus(String(err.message || err));
+      } finally {
+        exporting = false;
+        refresh();
+      }
+    }
+
+    async function exportAll() {
+      if (exporting) return;
+      const missing = slides.filter((s) => !s.src).length;
+      exporting = true;
+      try {
+        const zip = new JSZip();
+        for (let i = 0; i < slides.length; i++) {
+          setStatus("正在导出 " + (i + 1) + " / " + slides.length);
+          const blob = await captureSlide(i);
+          zip.file(filePrefix() + "-" + (i + 1) + ".png", blob);
+        }
+        const pack = await zip.generateAsync({ type: "blob" });
+        saveAs(pack, "jingyin-store-screenshots-" + locale + ".zip");
+        setStatus("已导出 " + slides.length + " 张" + (missing ? "（其中 " + missing + " 页还没放截图）" : ""));
+      } catch (err) {
+        setStatus(String(err.message || err));
+      } finally {
+        exporting = false;
+        refresh();
+      }
+    }
+
+    $("exportOne").addEventListener("click", exportOne);
+    $("exportAll").addEventListener("click", exportAll);
+
+    window.addEventListener("resize", fitPreview);
+    applySize();
+    refresh();
+  </script>
+</body>
+</html>

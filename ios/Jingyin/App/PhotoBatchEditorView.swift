@@ -1,6 +1,12 @@
 import SwiftUI
 import UIKit
 
+private struct PhotoExportFailure: Identifiable {
+    let id = UUID()
+    let succeededCount: Int
+    let failedCount: Int
+}
+
 private enum PhotoEditorTool: String, CaseIterable, Identifiable {
     case subjects
     case scope
@@ -50,6 +56,7 @@ struct PhotoBatchEditorView: View {
     @State private var isRenderingPreview = false
     @State private var isExporting = false
     @State private var exportResult: PhotoExportResult?
+    @State private var exportFailure: PhotoExportFailure?
     @State private var showPaywall = false
     @State private var analysisTask: Task<Void, Never>?
     @State private var previewTask: Task<Void, Never>?
@@ -261,6 +268,21 @@ struct PhotoBatchEditorView: View {
         } message: {
             Text(localization.t("processing.confirmCancelMessage"))
         }
+        .alert(
+            localization.t("photo.exportFailedTitle"),
+            isPresented: exportFailureIsPresented,
+            presenting: exportFailure
+        ) { failure in
+            Button(localization.t("photo.retryFailed")) {
+                exportPhotos(retryFailedOnly: true)
+            }
+            if failure.succeededCount > 0 {
+                Button(localization.t("photo.viewExported")) { openExportResults() }
+            }
+            Button(localization.t("common.cancel"), role: .cancel) {}
+        } message: { failure in
+            Text(exportFailureMessage(for: failure))
+        }
         .navigationDestination(item: $exportResult) { result in
             PhotoExportSuccessView(result: result, onReturnHome: onReturnHome)
                 .environmentObject(localization)
@@ -372,7 +394,11 @@ struct PhotoBatchEditorView: View {
                             .frame(width: 58, height: 58)
                             .clipShape(RoundedRectangle(cornerRadius: 6))
 
-                            statusBadge(draft.status, isReviewed: draft.isReviewed)
+                            statusBadge(
+                                draft.status,
+                                isReviewed: draft.isReviewed,
+                                exportFailed: draft.exportFailed
+                            )
                         }
                         .overlay {
                             RoundedRectangle(cornerRadius: 7)
@@ -393,10 +419,16 @@ struct PhotoBatchEditorView: View {
         .background(AppPalette.surface)
     }
 
-    private func statusBadge(_ status: PhotoWorkStatus, isReviewed: Bool) -> some View {
+    private func statusBadge(
+        _ status: PhotoWorkStatus,
+        isReviewed: Bool,
+        exportFailed: Bool
+    ) -> some View {
         let symbol: String
         let color: Color
-        switch status {
+        // A failed export shows the same warning as a broken photo, but the photo
+        // remains re-exportable.
+        switch exportFailed ? PhotoWorkStatus.failed : status {
         case .pending, .analyzing:
             symbol = "clock.fill"
             color = AppPalette.secondaryText
@@ -498,6 +530,19 @@ struct PhotoBatchEditorView: View {
                             .font(.footnote)
                             .multilineTextAlignment(.center)
                         Button(localization.t("processing.retry")) { refreshPreview() }
+                            .buttonStyle(TextButtonStyle())
+                    }
+                    .padding(12)
+                    .background(AppPalette.surface, in: RoundedRectangle(cornerRadius: 12))
+                } else if currentDraft?.exportFailed == true && !isExporting {
+                    HStack(spacing: 8) {
+                        Label(
+                            localization.t("photo.exportFailedItem"),
+                            systemImage: "exclamationmark.triangle.fill"
+                        )
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(AppPalette.destructive)
+                        Button(localization.t("photo.retryFailed")) { exportPhotos(retryFailedOnly: true) }
                             .buttonStyle(TextButtonStyle())
                     }
                     .padding(12)
@@ -1282,22 +1327,30 @@ struct PhotoBatchEditorView: View {
             }
             drafts[index].outputURL = nil
             drafts[index].isReviewed = false
+            drafts[index].exportFailed = false
             if drafts[index].status == .completed {
                 drafts[index].status = .ready
             }
         }
     }
 
-    private func exportPhotos() {
+    /// `retryFailedOnly` re-exports only photos whose last export failed, so
+    /// completed photos are not rebuilt. Free users still get at most one photo
+    /// per request; `PhotoProcessor.export` enforces the same limit.
+    private func exportPhotos(retryFailedOnly: Bool = false) {
         exportTask?.cancel()
         let targets: [PhotoDraft]
         if entitlements.isUnlocked {
-            targets = drafts.filter { $0.status != .failed }
-        } else if let currentDraft, currentDraft.status != .failed {
+            targets = drafts.filter {
+                $0.status != .failed && (!retryFailedOnly || $0.exportFailed)
+            }
+        } else if let currentDraft, currentDraft.status != .failed,
+                  !retryFailedOnly || currentDraft.exportFailed {
             targets = [currentDraft]
         } else {
             return
         }
+        guard !targets.isEmpty else { return }
         for target in targets {
             if let index = drafts.firstIndex(where: { $0.id == target.id }) {
                 if let oldOutput = drafts[index].outputURL {
@@ -1335,7 +1388,7 @@ struct PhotoBatchEditorView: View {
                 return
             }
             var successCount = 0
-            var successfulURLs: [URL] = []
+            var failedCount = 0
             for target in targets {
                 guard let index = drafts.firstIndex(where: { $0.id == target.id }) else {
                     continue
@@ -1344,10 +1397,13 @@ struct PhotoBatchEditorView: View {
                 case let .success(url):
                     drafts[index].outputURL = url
                     drafts[index].status = .completed
+                    drafts[index].exportFailed = false
                     successCount += 1
-                    successfulURLs.append(url)
                 case .failure, .none:
-                    drafts[index].status = .failed
+                    // Not an analysis failure: the photo stays editable and can be retried.
+                    drafts[index].status = .ready
+                    drafts[index].exportFailed = true
+                    failedCount += 1
                 }
             }
             activeExportID = nil
@@ -1355,14 +1411,44 @@ struct PhotoBatchEditorView: View {
             isExporting = false
             exportCompletedCount = 0
             exportTotalCount = 0
-            if successCount > 0 {
-                exportResult = PhotoExportResult(
-                    outputURLs: successfulURLs,
-                    totalDraftCount: drafts.count,
-                    limitedToCurrentPhoto: !entitlements.isUnlocked
+            if failedCount == 0 {
+                openExportResults()
+            } else {
+                exportFailure = PhotoExportFailure(
+                    succeededCount: successCount,
+                    failedCount: failedCount
                 )
             }
         }
+    }
+
+    private var exportFailureIsPresented: Binding<Bool> {
+        Binding(
+            get: { exportFailure != nil },
+            set: { if !$0 { exportFailure = nil } }
+        )
+    }
+
+    private func exportFailureMessage(for failure: PhotoExportFailure) -> String {
+        if failure.succeededCount > 0 {
+            return localization.format(
+                "photo.exportPartialMessage",
+                Int64(failure.succeededCount),
+                Int64(failure.failedCount)
+            )
+        }
+        return localization.format("photo.exportAllFailedMessage", Int64(failure.failedCount))
+    }
+
+    /// Every completed output in the batch, including photos exported earlier.
+    private func openExportResults() {
+        let urls = drafts.compactMap { $0.status == .completed ? $0.outputURL : nil }
+        guard !urls.isEmpty else { return }
+        exportResult = PhotoExportResult(
+            outputURLs: urls,
+            totalDraftCount: drafts.count,
+            limitedToCurrentPhoto: !entitlements.isUnlocked
+        )
     }
 
     private func cancelPhotoExport() {

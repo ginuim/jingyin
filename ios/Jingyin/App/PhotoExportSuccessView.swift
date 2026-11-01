@@ -264,73 +264,109 @@ struct PhotoExportSuccessView: View {
     }
 }
 
+/// Inspects the exported photos one at a time. The previous page stays on
+/// screen until the next one is decoded, and page turns never animate.
 private struct ExportInspectionPreview: View {
     let urls: [URL]
 
     @EnvironmentObject private var localization: LocalizationManager
     @State private var selectedIndex = 0
+    @State private var displayed: DisplayedPage?
+    @State private var loadFailed = false
+
+    private struct DisplayedPage {
+        let index: Int
+        let image: UIImage
+    }
 
     var body: some View {
         VStack(spacing: 10) {
-            if urls.indices.contains(selectedIndex) {
-                ZoomableExportPreview(url: urls[selectedIndex])
-                    .id(urls[selectedIndex])
-            } else {
-                ProgressView()
-            }
-
-            HStack(spacing: 18) {
-                Button {
-                    selectedIndex = max(selectedIndex - 1, 0)
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .frame(width: 36, height: 36)
+            ZStack {
+                if let displayed {
+                    ZoomablePhotoPreview(image: displayed.image)
+                        .id(displayed.index)
+                } else if loadFailed {
+                    Text(localization.t("photo.previewFailed"))
+                        .font(.footnote)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(AppPalette.secondaryText)
+                        .padding(24)
+                } else {
+                    ProgressView().tint(AppPalette.secondaryText)
                 }
-                .buttonStyle(.bordered)
-                .disabled(selectedIndex == 0)
-
-                Text(localization.format(
-                    "photo.exportProgress",
-                    Int64(selectedIndex + 1),
-                    Int64(urls.count)
-                ))
-                .font(.subheadline.weight(.semibold))
-                .monospacedDigit()
-                .frame(minWidth: 64)
-
-                Button {
-                    selectedIndex = min(selectedIndex + 1, urls.count - 1)
-                } label: {
-                    Image(systemName: "chevron.right")
-                        .frame(width: 36, height: 36)
-                }
-                .buttonStyle(.bordered)
-                .disabled(selectedIndex >= urls.count - 1)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(10)
+            .transaction { $0.animation = nil }
+
+            pager
         }
         .accessibilityElement(children: .contain)
+        .task(id: selectedIndex) {
+            await loadSelectedPage()
+        }
     }
-}
 
-private struct ZoomableExportPreview: View {
-    let url: URL
+    private var pager: some View {
+        HStack(spacing: 18) {
+            pagerButton(systemName: "chevron.left", disabled: selectedIndex == 0) {
+                turnPage(to: selectedIndex - 1)
+            }
 
-    @State private var thumbnail: UIImage?
-    var body: some View {
-        Group {
-            if let thumbnail {
-                ZoomablePhotoPreview(image: thumbnail)
-            } else {
-                ProgressView().tint(AppPalette.secondaryText)
+            Text(localization.format(
+                "photo.exportProgress",
+                Int64(selectedIndex + 1),
+                Int64(urls.count)
+            ))
+            .font(.subheadline.weight(.semibold))
+            .monospacedDigit()
+            .frame(minWidth: 64)
+
+            pagerButton(systemName: "chevron.right", disabled: selectedIndex >= urls.count - 1) {
+                turnPage(to: selectedIndex + 1)
             }
         }
-        .padding(10)
-        .task(id: url) {
-            guard let source = UIImage(contentsOfFile: url.path) else { return }
-            thumbnail = await source.byPreparingThumbnail(
-                ofSize: CGSize(width: 1_600, height: 1_600)
-            ) ?? source
+    }
+
+    private func pagerButton(
+        systemName: String,
+        disabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .frame(width: 36, height: 36)
+                .background(AppPalette.surface, in: Circle())
+                .foregroundStyle(disabled ? AppPalette.secondaryText : AppPalette.primaryText)
         }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+    }
+
+    private func turnPage(to index: Int) {
+        guard urls.indices.contains(index) else { return }
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            selectedIndex = index
+        }
+    }
+
+    private func loadSelectedPage() async {
+        let index = selectedIndex
+        guard urls.indices.contains(index) else { return }
+        guard let source = UIImage(contentsOfFile: urls[index].path) else {
+            guard !Task.isCancelled, selectedIndex == index else { return }
+            displayed = nil
+            loadFailed = true
+            return
+        }
+        let image = await source.byPreparingThumbnail(
+            ofSize: CGSize(width: 1_600, height: 1_600)
+        ) ?? source
+        guard !Task.isCancelled, selectedIndex == index else { return }
+        displayed = DisplayedPage(index: index, image: image)
+        loadFailed = false
     }
 }
 

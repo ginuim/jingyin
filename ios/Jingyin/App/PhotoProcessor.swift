@@ -162,6 +162,9 @@ struct PhotoDraft: Identifiable {
     var status: PhotoWorkStatus
     var isReviewed: Bool
     var outputURL: URL?
+    /// Set when the last export attempt for this photo failed. The photo stays
+    /// editable and re-exportable; `.failed` is reserved for unreadable photos.
+    var exportFailed: Bool
 
     init(id: UUID = UUID(), inputURL: URL) {
         self.id = id
@@ -173,6 +176,7 @@ struct PhotoDraft: Identifiable {
         status = .pending
         isReviewed = false
         outputURL = nil
+        exportFailed = false
     }
 }
 
@@ -442,6 +446,23 @@ enum PhotoProcessor {
         }.value
     }
 
+#if DEBUG
+    /// Debug-only fault injection for export retry checks:
+    /// `-demoFailAllPhotoExports` fails every photo; `-demoFailPhotoExportOnce`
+    /// fails the first photo of the first export run only.
+    nonisolated(unsafe) private static var injectedExportFailure = false
+
+    private static func shouldInjectExportFailure(index: Int) -> Bool {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-demoFailAllPhotoExports") { return true }
+        guard arguments.contains("-demoFailPhotoExportOnce"),
+              index == 0,
+              !injectedExportFailure else { return false }
+        injectedExportFailure = true
+        return true
+    }
+#endif
+
     /// Enforces the free single-photo boundary in the processing layer, even
     /// when a caller accidentally supplies a larger batch.
     static func export(
@@ -454,6 +475,13 @@ enum PhotoProcessor {
         var results: [PhotoDraft.ID: Result<URL, Error>] = [:]
         for (index, draft) in allowed.enumerated() {
             if Task.isCancelled { break }
+#if DEBUG
+            if shouldInjectExportFailure(index: index) {
+                results[draft.id] = .failure(ProcessingError.renderFailed)
+                await progress?(index + 1, allowed.count)
+                continue
+            }
+#endif
             do {
                 let output = try await exportOne(
                     inputURL: draft.inputURL,
