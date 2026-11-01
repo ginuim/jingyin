@@ -53,6 +53,21 @@ npx vercel --prod
 
 首访按 localStorage → 浏览器语言跳转；语言切换会写入 localStorage。
 
+## 统计
+
+Google Analytics 4，数据流 `lenshide`（`https://lenshide.reaidea.com`，测量 ID `G-CXFVF8WSKD`），
+属于 vantvox 账号下的 reaidea 媒体资源。实现见 `src/analytics.ts`：
+
+- 只在生产构建里加载 gtag，`pnpm dev` 和 Vercel preview 部署不发送任何数据。
+- `send_page_view` 关闭，首屏和语言/隐私页切换统一由 `router.afterEach` 上报一次 `page_view`，
+  路径会带上语言前缀（`/en`、`/ja`、`/zh-Hant`），所以语言版本可以分开看。
+
+## Hero 布局
+
+首屏机器大图按 hero 自身高度（`height: 152%`）缩放、按图片自身宽度（`translateX(34%)`）横移，
+hero 高度夹在 640–1200px，所以 1280×800、1440×900、1536×864、1680×1050、1920×1080、2560×1440
+的构图一致：手机始终从左侧溢出、被首屏底部裁切，不会在大屏上下沉或缩到屏幕中间。
+
 ## App Store 链接
 
 当前已连接到正式 App Store 页面：

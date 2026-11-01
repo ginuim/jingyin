@@ -1,0 +1,12 @@
+.git
+.pnpm-store
+node_modules
+**/node_modules
+ios
+app
+outputs
+work
+.derived-data
+.device-derived-data
+.wrangler
+.env*

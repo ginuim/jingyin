@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { trackPageView } from '../analytics'
 import { SITE_URL } from '../config'
 import {
   LOCALES,
@@ -131,4 +132,9 @@ router.beforeEach((to) => {
     )
   }
   return true
+})
+
+// 首屏和语言切换都会走一次导航，page_view 只在这里发，index.html 里不再重复上报
+router.afterEach((to) => {
+  trackPageView(to.fullPath)
 })

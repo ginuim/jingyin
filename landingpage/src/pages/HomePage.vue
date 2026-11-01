@@ -154,8 +154,8 @@ useLandingMotion(pageEl, locale)
   align-items: center;
   gap: 32px;
   padding: 24px max(20px, calc((100% - var(--max)) / 2)) 56px;
-  min-height: calc(100vh - 68px);
-  min-height: calc(100svh - 68px);
+  /* 首屏高度跟着视口走，但夹在 640–1200px：矮屏不挤，2K/4K 屏也不会拉成一张空画布 */
+  min-height: clamp(640px, calc(100svh - 68px), 1200px);
 }
 
 .hero-copy {
@@ -230,17 +230,20 @@ useLandingMotion(pageEl, locale)
   pointer-events: none;
 }
 
-/* 素材是 4424×2956、带透明边距的斜置渲染图；放大并下沉，底部超出一屏被裁 */
+/* 素材是 4424×2956、带透明边距的斜置渲染图。
+   高度按 hero 自身高度取百分比、横向位移按图片自身宽度取百分比，
+   两者都跟着 hero 缩放：从 1280×800 到 2560×1440 构图保持一致，
+   放大后只会往左/下溢出被裁，不会把手机推到屏幕中央或压到文案上。 */
 .hero-device {
   position: absolute;
   z-index: 1;
-  left: -100%;
-  bottom: -68%;
+  top: -6%;
+  right: 0;
   display: block;
-  width: 302%;
+  width: auto;
+  height: 152%;
   max-width: none;
-  height: auto;
-  transform: rotate(10deg);
+  transform: translateX(34%) rotate(10deg);
   filter: drop-shadow(0 28px 48px rgba(0, 0, 0, 0.5));
 }
 
@@ -548,6 +551,7 @@ useLandingMotion(pageEl, locale)
   .hero-device {
     position: static;
     width: 116%;
+    height: auto;
     margin: -2% -8% -8%;
   }
 
