@@ -38,7 +38,7 @@
     <string name="editor_batch_hint">效果套用到整批照片，可逐張檢查和調整遮蓋。</string>
     <string name="editor_preparing_preview">正在準備預覽…</string>
     <string name="editor_video_hint">影片自動遮蓋人臉。點畫面可新增或移除手動遮罩。</string>
-    <string name="editor_save_batch">儲存全部 %1$d 張照片</string>
+    <string name="editor_save_batch">儲存所有 %1$d 張圖片</string>
     <string name="editor_batch_result">已儲存 %1$d 張 · 失敗 %2$d 張</string>
     <string name="editor_retry_failed">重試 %1$d 張失敗照片</string>
     <string name="editor_no_faces">未偵測到人臉，請檢查預覽，並手動補遮。</string>

@@ -38,7 +38,7 @@
     <string name="editor_batch_hint">效果应用于整批照片，可逐张检查和调整遮盖。</string>
     <string name="editor_preparing_preview">正在准备预览…</string>
     <string name="editor_video_hint">视频自动遮盖人脸。点画面可添加或移除手动蒙版。</string>
-    <string name="editor_save_batch">保存全部 %1$d 张照片</string>
+    <string name="editor_save_batch">保存所有 %1$d 张图片</string>
     <string name="editor_batch_result">已保存 %1$d 张 · 失败 %2$d 张</string>
     <string name="editor_retry_failed">重试 %1$d 张失败照片</string>
     <string name="editor_no_faces">未检测到人脸，请检查预览，并手动补遮。</string>

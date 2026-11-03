@@ -15,7 +15,9 @@ import android.view.LayoutInflater
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
@@ -122,6 +124,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Draw behind the system bars so the status-bar strip matches the app
+        // background instead of showing an empty theme-colored band.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
+        )
         WindowCompat.getInsetsController(window, window.decorView).apply {
             isAppearanceLightStatusBars = true
             isAppearanceLightNavigationBars = true
@@ -494,7 +502,14 @@ class MainActivity : ComponentActivity() {
         }
 
         Surface(Modifier.fillMaxSize(), color = Color(0xFFF4E6E0)) {
-            BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding(), contentAlignment = Alignment.TopCenter) {
+            // Keep the horizontal and navigation-bar insets, but drop the top
+            // inset: the app surface then reaches up under the status bar and
+            // the content clears the clock via statusBarsPadding() below.
+            BoxWithConstraints(
+                Modifier.fillMaxSize()
+                    .windowInsetsPadding(WindowInsets(0, 0, 0, 0).only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)),
+                contentAlignment = Alignment.TopCenter,
+            ) {
                 val framed = maxWidth >= 640.dp
                 Surface(
                     Modifier.widthIn(max = 400.dp).fillMaxWidth()
@@ -504,7 +519,8 @@ class MainActivity : ComponentActivity() {
                     shadowElevation = if (framed) 16.dp else 0.dp,
                     color = paper,
                 ) {
-                    Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 20.dp),
+                    Column(Modifier.verticalScroll(rememberScrollState()).statusBarsPadding()
+                        .padding(horizontal = 20.dp, vertical = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         // Header: title and privacy hint on the left; plan entry and settings on the right.
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
@@ -747,6 +763,16 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                 }
+                                if (!isVideo) {
+                                    // Download just the current photo, independent of the batch button below.
+                                    Surface(onClick = { export(false) }, enabled = canExport, shape = CircleShape,
+                                        color = Color.Black.copy(alpha = 0.4f), contentColor = Color.White,
+                                        modifier = Modifier.align(Alignment.TopEnd).padding(end = 10.dp, top = 10.dp)) {
+                                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(32.dp)) {
+                                            TapIcon(R.drawable.tap_download, stringResource(R.string.save), Modifier.size(14.dp))
+                                        }
+                                    }
+                                }
                                 Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp),
                                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                                     verticalAlignment = Alignment.CenterVertically) {
@@ -874,20 +900,33 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Button(onClick = { export(false) }, enabled = canExport, shape = pill,
-                                modifier = Modifier.weight(1f).heightIn(min = 50.dp)) {
-                                IconLabel(R.drawable.tap_download, stringResource(R.string.save))
+                        if (isVideo) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Button(onClick = { export(false) }, enabled = canExport, shape = pill,
+                                    modifier = Modifier.weight(1f).heightIn(min = 50.dp)) {
+                                    IconLabel(R.drawable.tap_download, stringResource(R.string.save))
+                                }
+                                Button(onClick = { export(true) }, enabled = canExport, colors = secondary, shape = pill,
+                                    modifier = Modifier.heightIn(min = 50.dp)) {
+                                    IconLabel(R.drawable.tap_share, stringResource(R.string.editor_share))
+                                }
                             }
-                            Button(onClick = { export(true) }, enabled = canExport, colors = secondary, shape = pill,
-                                modifier = Modifier.heightIn(min = 50.dp)) {
-                                IconLabel(R.drawable.tap_share, stringResource(R.string.editor_share))
-                            }
-                        }
-                        if (hasProject && !isVideo && photos.size > 1) {
-                            Button(onClick = { export(false, photos) }, enabled = !busy, shape = pill, colors = secondary,
-                                modifier = Modifier.fillMaxWidth()) {
-                                Text(stringResource(R.string.editor_save_batch, photos.size))
+                        } else {
+                            // Photos: the primary button saves the whole batch;
+                            // the current photo has its own download icon on the
+                            // preview canvas, so the separate batch button is gone.
+                            val saveAll = photos.size > 1
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Button(onClick = { export(false, if (saveAll) photos else null) }, enabled = canExport, shape = pill,
+                                    modifier = Modifier.weight(1f).heightIn(min = 50.dp)) {
+                                    IconLabel(R.drawable.tap_download, if (saveAll) {
+                                        stringResource(R.string.editor_save_batch, photos.size)
+                                    } else stringResource(R.string.save))
+                                }
+                                Button(onClick = { export(true) }, enabled = canExport, colors = secondary, shape = pill,
+                                    modifier = Modifier.heightIn(min = 50.dp)) {
+                                    IconLabel(R.drawable.tap_share, stringResource(R.string.editor_share))
+                                }
                             }
                             batchResult?.let { (saved, failures) ->
                                 Text(stringResource(R.string.editor_batch_result, saved, failures), color = brown, fontSize = 12.sp)
