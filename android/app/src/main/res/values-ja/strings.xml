@@ -104,4 +104,15 @@
     <string name="editor_done_clean">完了して戻る（離れると一時ファイルを削除）</string>
     <string name="editor_delete_mask">選択したマスクを削除</string>
     <string name="editor_invert_mask">マスクを反転</string>
+    <string name="editor_subjects">処理する対象</string>
+    <string name="editor_subject_face">顔</string>
+    <string name="editor_subject_person">人物</string>
+    <string name="editor_subject_pet">ペット（猫と犬）</string>
+    <string name="editor_subject_apply">適用</string>
+    <string name="editor_subject_confirm_title">処理する対象を変更しますか？</string>
+    <string name="editor_subject_confirm_body">すべての素材を再検出し、手動マスク、個別のステッカー、反転設定をリセットします。</string>
+    <string name="editor_remove_media">取り除く</string>
+    <string name="editor_remove_media_title">現在の素材を取り除きますか？</string>
+    <string name="editor_remove_media_body">現在の素材と編集内容をプロジェクトから取り除きます。元のファイルはライブラリに残ります。</string>
+    <string name="editor_subject_unavailable">%1$s（デバッグ版のみ）</string>
 </resources>

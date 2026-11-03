@@ -105,4 +105,15 @@
     <string name="editor_done_clean">Done · temporary files are cleared when you leave</string>
     <string name="editor_delete_mask">Delete selected mask</string>
     <string name="editor_invert_mask">Invert mask</string>
+    <string name="editor_subjects">Subjects</string>
+    <string name="editor_subject_face">Faces</string>
+    <string name="editor_subject_person">People</string>
+    <string name="editor_subject_pet">Pets (cats and dogs)</string>
+    <string name="editor_subject_apply">Apply</string>
+    <string name="editor_subject_confirm_title">Change subjects?</string>
+    <string name="editor_subject_confirm_body">This will re-detect subjects for the whole batch and reset manual masks, individual stickers, and inverted masks.</string>
+    <string name="editor_remove_media">Remove</string>
+    <string name="editor_remove_media_title">Remove this item?</string>
+    <string name="editor_remove_media_body">This removes the current item from the editor and discards its edits. The original stays in your library.</string>
+    <string name="editor_subject_unavailable">%1$s (Debug only)</string>
 </resources>

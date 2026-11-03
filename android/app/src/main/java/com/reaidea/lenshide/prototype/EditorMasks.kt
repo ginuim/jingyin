@@ -3,13 +3,22 @@ package com.reaidea.lenshide.prototype
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
-import android.graphics.Path
-import android.graphics.Rect
 import android.graphics.RectF
 import kotlin.math.min
 
 internal enum class MaskStyle { Mosaic, Blur, Sticker }
 enum class EditorAudio { Original, Mute, Voice }
+
+internal enum class SubjectTarget { Face, Person, Pet }
+
+internal fun Set<SubjectTarget>.toggle(target: SubjectTarget): Set<SubjectTarget> {
+    if (target in this) return this - target
+    return when (target) {
+        SubjectTarget.Face -> this - SubjectTarget.Person + target
+        SubjectTarget.Person -> this - SubjectTarget.Face + target
+        SubjectTarget.Pet -> this + target
+    }
+}
 
 internal sealed interface MaskSelection {
     data class Automatic(val id: Int) : MaskSelection
@@ -74,40 +83,38 @@ internal fun renderEditorPhoto(
     source: Bitmap, masks: List<FaceBox>, style: MaskStyle, emoji: String,
     overrides: Map<FaceBox, String> = emptyMap(),
     inverted: Boolean = false,
+    silhouette: PersonMask? = null,
 ): Bitmap {
-    if (style == MaskStyle.Mosaic || inverted) {
-        return PhotoMasking.render(source, Detection(masks, null, 0.0), inverted)
+    val detection = Detection(masks, silhouette, 0.0)
+    if (style == MaskStyle.Mosaic || (inverted && style == MaskStyle.Sticker)) {
+        return PhotoMasking.render(source, detection, inverted)
     }
-    val output = source.copy(Bitmap.Config.ARGB_8888, true)
+    if (style == MaskStyle.Blur) {
+        val blurred = softBlur(source)
+        try {
+            return PhotoMasking.render(source, detection, inverted, blurred)
+        } finally { blurred.recycle() }
+    }
+    val output = if (silhouette != null) {
+        val masked = PhotoMasking.render(source, detection.copy(faces = emptyList()))
+        try { masked.copy(Bitmap.Config.ARGB_8888, true) } finally { masked.recycle() }
+    } else source.copy(Bitmap.Config.ARGB_8888, true)
     val canvas = Canvas(output)
     val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     val w = source.width
     val h = source.height
-    val effect = if (style == MaskStyle.Blur) softBlur(source) else null
     val renderedStickers = mutableMapOf<String, Bitmap>()
     try {
         for (mask in masks) {
             val rect = RectF((mask.cx - mask.rx) * w, (mask.cy - mask.ry) * h, (mask.cx + mask.rx) * w, (mask.cy + mask.ry) * h)
-            when (style) {
-                MaskStyle.Mosaic -> error("Mosaic is rendered by PhotoMasking")
-                MaskStyle.Blur -> {
-                    canvas.save()
-                    canvas.clipPath(Path().apply { addOval(rect, Path.Direction.CW) })
-                    canvas.drawBitmap(checkNotNull(effect), null, Rect(0, 0, w, h), paint)
-                    canvas.restore()
-                }
-                MaskStyle.Sticker -> {
-                    val radius = min(rect.width(), rect.height()) / 2
-                    val symbol = overrides[mask] ?: emoji
-                    val sticker = renderedStickers.getOrPut(symbol) { stickerBitmap(symbol) }
-                    canvas.drawBitmap(sticker, null,
-                        RectF(rect.centerX() - radius, rect.centerY() - radius, rect.centerX() + radius, rect.centerY() + radius), paint)
-                }
-            }
+            val radius = min(rect.width(), rect.height()) / 2
+            val symbol = overrides[mask] ?: emoji
+            val sticker = renderedStickers.getOrPut(symbol) { stickerBitmap(symbol) }
+            canvas.drawBitmap(sticker, null,
+                RectF(rect.centerX() - radius, rect.centerY() - radius, rect.centerX() + radius, rect.centerY() + radius), paint)
         }
         return output
     } finally {
-        if (effect !== source) effect?.recycle()
         renderedStickers.values.forEach(Bitmap::recycle)
     }
 }
@@ -151,4 +158,5 @@ internal data class VideoMaskOptions(
     val sticker: String,
     val manual: List<FaceBox>,
     val inverted: Boolean = false,
+    val targets: Set<SubjectTarget> = setOf(SubjectTarget.Face),
 )

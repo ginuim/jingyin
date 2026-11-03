@@ -40,4 +40,13 @@ class EditorMasksTest {
         assertEquals(selection, edits.hitTest(moved.cx, moved.cy, faces))
         assertEquals(listOf(moved), edits.masks(faces))
     }
+
+    @Test fun facesAndPeopleAreExclusiveAndPetsCanCombineWithEither() {
+        val faceAndPet = setOf(SubjectTarget.Face).toggle(SubjectTarget.Pet)
+        assertEquals(setOf(SubjectTarget.Face, SubjectTarget.Pet), faceAndPet)
+        val personAndPet = faceAndPet.toggle(SubjectTarget.Person)
+        assertEquals(setOf(SubjectTarget.Person, SubjectTarget.Pet), personAndPet)
+        assertEquals(faceAndPet, personAndPet.toggle(SubjectTarget.Face))
+        assertEquals(setOf(SubjectTarget.Pet), personAndPet.toggle(SubjectTarget.Person))
+    }
 }

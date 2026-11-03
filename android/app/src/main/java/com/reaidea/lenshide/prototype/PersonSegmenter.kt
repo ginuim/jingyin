@@ -45,7 +45,7 @@ class PersonSegmenter(context: Context, private val analysisSize: Int) : AutoClo
     }
 
     /** [rgba] is top-first RGBA8 of exactly analysisSize². Returns a dilated person mask on the same grid. */
-    fun segment(rgba: ByteArray): PersonMask {
+    fun segment(rgba: ByteArray, person: Boolean = true, pets: Boolean = false): PersonMask {
         require(rgba.size == analysisSize * analysisSize * 4) { "Unexpected analysis size" }
         fillInput(rgba)
         input.rewind(); output.clear()
@@ -58,13 +58,15 @@ class PersonSegmenter(context: Context, private val analysisSize: Int) : AutoClo
         val margin = FloatArray(modelSize * modelSize)
         for (index in margin.indices) {
             val base = index * classes
+            var strongestTarget = Float.NEGATIVE_INFINITY
             var strongestOther = Float.NEGATIVE_INFINITY
             for (c in 0 until classes) {
-                if (c == PERSON_CLASS) continue
                 val value = floats.get(base + c)
-                if (value > strongestOther) strongestOther = value
+                if ((person && c == PERSON_CLASS) || (pets && (c == CAT_CLASS || c == DOG_CLASS))) {
+                    strongestTarget = maxOf(strongestTarget, value)
+                } else strongestOther = maxOf(strongestOther, value)
             }
-            margin[index] = floats.get(base + PERSON_CLASS) - strongestOther
+            margin[index] = strongestTarget - strongestOther
         }
 
         // Bilinear resample of the margin to the analysis grid, then threshold at zero.
@@ -114,5 +116,7 @@ class PersonSegmenter(context: Context, private val analysisSize: Int) : AutoClo
     companion object {
         const val MODEL = "deeplab_v3.tflite"
         const val PERSON_CLASS = 15
+        private const val CAT_CLASS = 8
+        private const val DOG_CLASS = 12
     }
 }

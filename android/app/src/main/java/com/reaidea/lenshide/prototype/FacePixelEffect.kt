@@ -105,6 +105,8 @@ private class SubjectPixelShader(
         val oldFbo = IntArray(1)
         GLES20.glGetIntegerv(GLES20.GL_FRAMEBUFFER_BINDING, oldFbo, 0)
         try {
+            val options = currentOptions()
+            val targets = options?.targets
             val fit = SubjectMask.letterboxFit(width, height)
             val detection = run {
                 GlUtil.focusFramebufferUsingCurrentContext(fbo, 320, 320)
@@ -117,9 +119,10 @@ private class SubjectPixelShader(
                 GLES20.glReadPixels(0, 0, 320, 320, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixels)
                 GlUtil.checkGlError()
                 pixels.rewind(); pixels.get(bytes)
-                detector.detectGl(bytes, width, height)
+                if (targets == null) detector.detectGl(bytes, width, height)
+                else detector.detectGl(bytes, width, height,
+                    SubjectTarget.Face in targets, SubjectTarget.Person in targets, SubjectTarget.Pet in targets)
             }
-            val options = currentOptions()
             if (options?.style == MaskStyle.Sticker && !options.inverted && options.sticker != uploadedSticker) {
                 val bitmap = stickerBitmap(options.sticker)
                 try {
@@ -130,7 +133,7 @@ private class SubjectPixelShader(
             }
             val masks = detection.faces + options?.manual.orEmpty()
             check(masks.size <= 64) { "Too many masks; processing stopped" }
-            if (options == null || !maskAllocated) uploadPersonMask(detection.person)
+            if (detection.person != null || !maskAllocated) uploadPersonMask(detection.person)
             GlUtil.focusFramebufferUsingCurrentContext(oldFbo[0], width, height)
 
             render.use()
@@ -142,6 +145,7 @@ private class SubjectPixelShader(
             render.setSamplerTexIdUniform("uSticker", stickerTexture, 2)
             render.setIntUniform("uStyle", options?.style?.let { it.ordinal + 1 } ?: 0)
             render.setIntUniform("uCount", masks.size)
+            render.setIntUniform("uHasSilhouette", if (detection.person != null) 1 else 0)
             render.setIntUniform("uInverted", if (options?.inverted == true) 1 else 0)
             render.bindAttributesAndUniforms()
             ellipses.fill(0f)
@@ -222,11 +226,12 @@ private class SubjectPixelShader(
             uniform vec4 uFaces[64];
             uniform int uCount;
             uniform int uInverted;
+            uniform int uHasSilhouette;
             varying vec2 vTex;
             void main() {
                 vec2 p = vec2(vTex.x, 1.0 - vTex.y);
                 vec2 maskUv = (p - 0.5) * uFit + 0.5;
-                float person = uStyle == 0 ? smoothstep(0.35, 0.65, texture2D(uMask, maskUv).r) : 0.0;
+                float person = uHasSilhouette == 1 ? smoothstep(0.35, 0.65, texture2D(uMask, maskUv).r) : 0.0;
                 float face = 0.0;
                 for (int i = 0; i < 64; i++) {
                     if (i >= uCount) break;
@@ -239,31 +244,35 @@ private class SubjectPixelShader(
                 cellCentre = clamp(cellCentre, vec2(0.0), vec2(1.0));
                 vec4 source = texture2D(uTex, vTex);
                 vec4 mosaic = texture2D(uTex, vec2(cellCentre.x, 1.0 - cellCentre.y));
-                if (uStyle <= 1 || uInverted == 1) {
-                    gl_FragColor = mix(source, mosaic, uInverted == 1 ? 1.0 - coverage : coverage);
+                float effectAlpha = uInverted == 1 ? 1.0 - coverage : coverage;
+                if (uStyle <= 1 || (uStyle == 3 && uInverted == 1)) {
+                    gl_FragColor = mix(source, mosaic, effectAlpha);
                     return;
                 }
-                vec4 result = source;
+                if (uStyle == 2) {
+                    if (effectAlpha <= 0.0) {
+                        gl_FragColor = source;
+                        return;
+                    }
+                    vec4 blurred = vec4(0.0);
+                    float stepPx = min(uSize.x, uSize.y) / 120.0;
+                    for (int y = -3; y <= 3; y++) {
+                        for (int x = -3; x <= 3; x++) {
+                            blurred += texture2D(uTex, vTex + vec2(float(x), float(y)) * stepPx / uSize);
+                        }
+                    }
+                    gl_FragColor = mix(source, blurred / 49.0, effectAlpha);
+                    return;
+                }
+                vec4 result = mix(source, mosaic, person);
                 for (int i = 0; i < 64; i++) {
                     if (i >= uCount) break;
                     vec4 e = uFaces[i];
-                    vec2 uv = (p - e.xy) / (2.0 * e.zw) + 0.5;
-                    if (uStyle == 2 && length(uv - 0.5) < 0.5) {
-                        vec4 blurred = vec4(0.0);
-                        float stepPx = min(uSize.x, uSize.y) / 120.0;
-                        for (int y = -3; y <= 3; y++) {
-                            for (int x = -3; x <= 3; x++) {
-                                blurred += texture2D(uTex, vTex + vec2(float(x), float(y)) * stepPx / uSize);
-                            }
-                        }
-                        result = blurred / 49.0;
-                    } else if (uStyle == 3) {
-                        float radius = min(e.z * uSize.x, e.w * uSize.y);
-                        vec2 stickerUv = (p - e.xy) * uSize / (2.0 * radius) + 0.5;
-                        if (all(greaterThanEqual(stickerUv, vec2(0.0))) && all(lessThanEqual(stickerUv, vec2(1.0)))) {
-                            vec4 sticker = texture2D(uSticker, stickerUv);
-                            result = vec4(sticker.rgb + result.rgb * (1.0 - sticker.a), 1.0);
-                        }
+                    float radius = min(e.z * uSize.x, e.w * uSize.y);
+                    vec2 stickerUv = (p - e.xy) * uSize / (2.0 * radius) + 0.5;
+                    if (all(greaterThanEqual(stickerUv, vec2(0.0))) && all(lessThanEqual(stickerUv, vec2(1.0)))) {
+                        vec4 sticker = texture2D(uSticker, stickerUv);
+                        result = vec4(sticker.rgb + result.rgb * (1.0 - sticker.a), 1.0);
                     }
                 }
                 gl_FragColor = result;

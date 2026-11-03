@@ -104,4 +104,15 @@
     <string name="editor_done_clean">完成并返回（离开后自动清理临时文件）</string>
     <string name="editor_delete_mask">删除选中的遮盖</string>
     <string name="editor_invert_mask">反选</string>
+    <string name="editor_subjects">处理主体</string>
+    <string name="editor_subject_face">人脸</string>
+    <string name="editor_subject_person">人物</string>
+    <string name="editor_subject_pet">宠物（猫和狗）</string>
+    <string name="editor_subject_apply">应用</string>
+    <string name="editor_subject_confirm_title">更改处理主体？</string>
+    <string name="editor_subject_confirm_body">这会重新检测整批素材，并重置所有手动遮盖、单独设置的贴纸和反选。</string>
+    <string name="editor_remove_media">移除</string>
+    <string name="editor_remove_media_title">移除当前素材？</string>
+    <string name="editor_remove_media_body">当前素材及其编辑将从项目移除，原文件会保留在相册中。</string>
+    <string name="editor_subject_unavailable">%1$s（仅调试版）</string>
 </resources>

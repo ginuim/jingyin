@@ -189,10 +189,12 @@ internal const val batchLimit = 20
 
 private data class PhotoDraft(
     val uri: Uri,
-    val faces: List<PhotoFace>? = null,
+    val analysis: Detection? = null,
     val edits: MaskEdits = MaskEdits(),
     val faceStickers: Map<Int, String> = emptyMap(),
 )
+
+private val PhotoDraft.faces get() = analysis?.faces?.mapIndexed(::PhotoFace)
 
 private data class PhotoExport(val saved: List<Uri>, val failed: Set<Uri>)
 
@@ -237,6 +239,11 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun Editor() {
+        var targets by remember { mutableStateOf(setOf(SubjectTarget.Face)) }
+        var menuTargets by remember { mutableStateOf<Set<SubjectTarget>?>(null) }
+        var pendingTargets by remember { mutableStateOf<Set<SubjectTarget>?>(null) }
+        var confirmRemove by remember { mutableStateOf(false) }
+        val silhouettesAvailable = applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
         var photos by remember { mutableStateOf(emptyList<PhotoDraft>()) }
         var photoIndex by remember { mutableIntStateOf(0) }
         var pendingPhoto by remember { mutableStateOf<Int?>(null) }
@@ -419,7 +426,7 @@ class MainActivity : ComponentActivity() {
                 previewFailed = true
             }
         }
-        val videoOptions = video?.let { VideoMaskOptions(style, emoji, it.edits.manual, it.edits.inverted) }
+        val videoOptions = video?.let { VideoMaskOptions(style, emoji, it.edits.manual, it.edits.inverted, targets) }
         val previewEffect = remember(sourceUri, videoRetry) {
             FacePixelEffect(FrameMetrics(), videoOptions)
         }
@@ -493,12 +500,12 @@ class MainActivity : ComponentActivity() {
                     for ((index, item) in batch.withIndex()) {
                         try {
                             if (item.uri == currentPhoto.uri) {
-                                val (bitmap, faces) = renderPhoto(item, style, emoji)
-                                updatePhoto(item.copy(faces = faces))
+                                val (bitmap, analysis) = renderPhoto(item, style, emoji, targets)
+                                updatePhoto(item.copy(analysis = analysis))
                                 photo = bitmap
                                 renderedCurrent = true
                             } else {
-                                updatePhoto(item.copy(faces = detectPhoto(item.uri)))
+                                updatePhoto(item.copy(analysis = detectPhoto(item.uri, targets)))
                             }
                         } catch (cancelled: CancellationException) {
                             throw cancelled
@@ -533,7 +540,7 @@ class MainActivity : ComponentActivity() {
                 when {
                     currentVideo != null -> {
                         val file = videoOutput ?: VideoExporter(this@MainActivity).exportEditor(currentVideo.uri, audio,
-                            VideoMaskOptions(style, emoji, currentVideo.edits.manual, currentVideo.edits.inverted),
+                            VideoMaskOptions(style, emoji, currentVideo.edits.manual, currentVideo.edits.inverted, targets),
                             VideoPurpose.FullExport) { progress = it }.file.also {
                             position = player?.currentPosition ?: position
                             videoOutput = it
@@ -548,14 +555,14 @@ class MainActivity : ComponentActivity() {
                     }
                     batch != null -> {
                         val retrying = batch.size < photos.size
-                        val result = savePhotos(batch, style, emoji) { progress = it }
+                        val result = savePhotos(batch, style, emoji, targets) { progress = it }
                         batchItems = (if (retrying) batchItems else emptyList()) + result.saved
                         failedExports = result.failed
                         batchResult = batchItems.size to result.failed.size
                         savedExport = SavedExport(batchItems, video = false, failures = result.failed.size)
                     }
                     else -> {
-                        val result = savePhotos(listOf(checkNotNull(draft)), style, emoji) { progress = it }
+                        val result = savePhotos(listOf(checkNotNull(draft)), style, emoji, targets) { progress = it }
                         check(result.failed.isEmpty())
                         savedExport = SavedExport(result.saved, video = false)
                     }
@@ -567,11 +574,33 @@ class MainActivity : ComponentActivity() {
         val mediaReady = !busy && (!isVideo || videoReady)
         val swipeEnabled = hasProject && !isVideo && photos.size > 1 && !busy
         val canExport = !busy && !failed && (if (isVideo) videoReady else photo != null)
-        val pickLabel = when {
-            !hasProject -> stringResource(R.string.editor_pick_media)
-            isVideo -> stringResource(R.string.editor_reselect_video)
-            else -> stringResource(R.string.editor_reselect_photos, photos.size, batchLimit)
+        fun applyTargets(next: Set<SubjectTarget>) {
+            pendingPhoto = null
+            selection = null
+            targets = next
+            failedExports = emptySet()
+            batchResult = null
+            batchItems = emptyList()
+            photos = photos.map { PhotoDraft(it.uri) }
+            video = video?.copy(edits = MaskEdits())
+            if (isVideo) updateVideoPreview() else if (hasProject) rerender()
         }
+        fun removeCurrent() {
+            if (isVideo || photos.size <= 1) {
+                closeProject()
+                return
+            }
+            pendingPhoto = null
+            selection = null
+            failedExports = failedExports - checkNotNull(draft).uri
+            batchResult = null
+            batchItems = emptyList()
+            photos = photos.filterIndexed { index, _ -> index != photoIndex }
+            photoIndex = photoIndex.coerceAtMost(photos.lastIndex)
+            photo = null
+            rerender()
+        }
+
         fun switchPhoto(target: Int) {
             if (target !in photos.indices) {
                 notify(getString(if (target < 0) R.string.editor_first_photo else R.string.editor_last_photo))
@@ -580,18 +609,18 @@ class MainActivity : ComponentActivity() {
             pendingPhoto = target.takeUnless { it == photoIndex }
         }
 
-        LaunchedEffect(pendingPhoto, renderRevision, style, emoji, busy) {
+        LaunchedEffect(pendingPhoto, renderRevision, style, emoji, targets, busy) {
             val target = pendingPhoto ?: return@LaunchedEffect
             if (busy) return@LaunchedEffect
             val item = photos.getOrNull(target) ?: return@LaunchedEffect
             val revision = renderRevision
             try {
-                val (bitmap, faces) = renderPhoto(item, style, emoji)
+                val (bitmap, analysis) = renderPhoto(item, style, emoji, targets)
                 if (pendingPhoto != target || renderRevision != revision || busy) {
                     bitmap.recycle()
                     return@LaunchedEffect
                 }
-                updatePhoto(item.copy(faces = faces))
+                updatePhoto(item.copy(analysis = analysis))
                 selection = null
                 failed = false
                 photoIndex = target
@@ -656,20 +685,40 @@ class MainActivity : ComponentActivity() {
                         }
                         if (infoOpen) PrivacyPopover { infoOpen = false }
 
-                        // Single entry for photos and videos, plus a clear action once a project is open.
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically) {
-                            Button(onClick = { pickMedia.launch(mediaRequest) }, enabled = !busy, shape = pill,
-                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 9.dp)) {
-                                IconLabel(R.drawable.tap_add, pickLabel)
+                        Box {
+                            Button(onClick = { menuTargets = targets }, enabled = !busy, shape = pill) {
+                                Text(stringResource(R.string.editor_subjects) + " ▾")
                             }
-                            if (hasProject) {
-                                OutlinedButton(onClick = { closeProject() }, enabled = !busy, shape = pill,
-                                    colors = ButtonDefaults.outlinedButtonColors(containerColor = paper, contentColor = brown),
-                                    border = BorderStroke(1.dp, line),
-                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 9.dp)) {
-                                    IconLabel(R.drawable.tap_close, stringResource(R.string.editor_clear))
+                            DropdownMenu(expanded = menuTargets != null, onDismissRequest = { menuTargets = null }) {
+                                SubjectTarget.entries.forEach { target ->
+                                    val label = when (target) {
+                                        SubjectTarget.Face -> R.string.editor_subject_face
+                                        SubjectTarget.Person -> R.string.editor_subject_person
+                                        SubjectTarget.Pet -> R.string.editor_subject_pet
+                                    }
+                                    val enabled = target == SubjectTarget.Face || silhouettesAvailable
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(if (enabled) stringResource(label)
+                                                else stringResource(R.string.editor_subject_unavailable, stringResource(label)))
+                                        },
+                                        leadingIcon = { Checkbox(target in menuTargets.orEmpty(), onCheckedChange = null, enabled = enabled) },
+                                        enabled = enabled,
+                                        onClick = { menuTargets = menuTargets.orEmpty().toggle(target) },
+                                    )
                                 }
+                                HorizontalDivider()
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.editor_subject_apply)) },
+                                    enabled = !busy && menuTargets != targets,
+                                    onClick = {
+                                        val next = checkNotNull(menuTargets)
+                                        menuTargets = null
+                                        val customized = photos.any { it.edits != MaskEdits() || it.faceStickers.isNotEmpty() } ||
+                                            video?.edits?.let { it != MaskEdits() } == true
+                                        if (customized) pendingTargets = next else applyTargets(next)
+                                    },
+                                )
                             }
                         }
                         if (!hasProject) {
@@ -793,13 +842,18 @@ class MainActivity : ComponentActivity() {
                                 }
                                 val canvasEdits = video?.edits ?: draft?.edits
                                 if (canvasEdits != null) {
-                                    FilterChip(
-                                        selected = canvasEdits.inverted,
-                                        onClick = { applyEdits(canvasEdits.copy(inverted = !canvasEdits.inverted)) },
-                                        label = { Text(stringResource(R.string.editor_invert_mask)) },
-                                        enabled = mediaReady && (isVideo || photo != null),
-                                        modifier = Modifier.align(Alignment.TopStart).padding(start = 10.dp, top = 8.dp),
-                                    )
+                                    Row(Modifier.align(Alignment.TopStart).padding(10.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        OverlayPill(stringResource(R.string.editor_remove_media), dark = false,
+                                            canvasControl = true, enabled = !busy, icon = R.drawable.tap_close) {
+                                            pendingPhoto = null
+                                            confirmRemove = true
+                                        }
+                                        OverlayPill(stringResource(R.string.editor_invert_mask), dark = canvasEdits.inverted,
+                                            canvasControl = !canvasEdits.inverted, enabled = mediaReady && (isVideo || photo != null)) {
+                                            applyEdits(canvasEdits.copy(inverted = !canvasEdits.inverted))
+                                        }
+                                    }
                                 }
                                 if (pendingPhoto != null && !busy) {
                                     LinearProgressIndicator(Modifier.align(Alignment.BottomCenter).fillMaxWidth())
@@ -923,7 +977,7 @@ class MainActivity : ComponentActivity() {
                                 onShuffle = {
                                     if (face == null && current != null && !current.faces.isNullOrEmpty()) {
                                         updatePhoto(current.copy(
-                                            faceStickers = current.faces.associate { it.id to stickers.random() },
+                                            faceStickers = current.faces.orEmpty().associate { it.id to stickers.random() },
                                         ))
                                         rerender()
                                     } else applySticker(stickers.filter { it != (current?.faceStickers?.get(face) ?: emoji) }.random())
@@ -1015,6 +1069,32 @@ class MainActivity : ComponentActivity() {
                     OverlayPill(feedback, Modifier.align(Alignment.TopCenter).widthIn(max = 320.dp).padding(top = 8.dp), toast = true)
                 }
             }
+        }
+        if (confirmRemove) {
+            AlertDialog(
+                onDismissRequest = { confirmRemove = false },
+                title = { Text(stringResource(R.string.editor_remove_media_title)) },
+                text = { Text(stringResource(R.string.editor_remove_media_body)) },
+                confirmButton = {
+                    TextButton(onClick = { confirmRemove = false; removeCurrent() }) {
+                        Text(stringResource(R.string.editor_remove_media))
+                    }
+                },
+                dismissButton = { TextButton(onClick = { confirmRemove = false }) { Text(stringResource(R.string.cancel)) } },
+            )
+        }
+        pendingTargets?.let { next ->
+            AlertDialog(
+                onDismissRequest = { pendingTargets = null },
+                title = { Text(stringResource(R.string.editor_subject_confirm_title)) },
+                text = { Text(stringResource(R.string.editor_subject_confirm_body)) },
+                confirmButton = {
+                    TextButton(onClick = { pendingTargets = null; applyTargets(next) }) {
+                        Text(stringResource(R.string.editor_subject_apply))
+                    }
+                },
+                dismissButton = { TextButton(onClick = { pendingTargets = null }) { Text(stringResource(R.string.cancel)) } },
+            )
         }
         if (settingsOpen) {
             val locale = resources.configuration.locales[0]
@@ -1112,28 +1192,33 @@ class MainActivity : ComponentActivity() {
             decoder.setTargetSampleSize(ceil(maxOf(info.size.width, info.size.height) / 2048.0).toInt().coerceAtLeast(1))
         }
 
-    private fun detectPhoto(bitmap: Bitmap): List<PhotoFace> =
-        FaceDetector(this, detectPerson = false).use { it.detect(bitmap).faces.mapIndexed(::PhotoFace) }
+    private fun detectPhoto(bitmap: Bitmap, targets: Set<SubjectTarget>): Detection =
+        FaceDetector(this, detectPerson = false).use {
+            it.detect(bitmap, SubjectTarget.Face in targets, SubjectTarget.Person in targets, SubjectTarget.Pet in targets)
+        }
 
-    private suspend fun detectPhoto(uri: Uri): List<PhotoFace> = withContext(Dispatchers.Default) {
+    private suspend fun detectPhoto(uri: Uri, targets: Set<SubjectTarget>): Detection = withContext(Dispatchers.Default) {
         val source = decodePhoto(uri)
-        try { detectPhoto(source) } finally { source.recycle() }
+        try { detectPhoto(source, targets) } finally { source.recycle() }
     }
 
-    private suspend fun renderPhoto(draft: PhotoDraft, style: MaskStyle, emoji: String): Pair<Bitmap, List<PhotoFace>> {
+    private suspend fun renderPhoto(
+        draft: PhotoDraft, style: MaskStyle, emoji: String, targets: Set<SubjectTarget>,
+    ): Pair<Bitmap, Detection> {
         var output: Bitmap? = null
         try {
             return withContext(Dispatchers.Default) {
                 val source = decodePhoto(draft.uri)
                 try {
-                    val faces = draft.faces ?: detectPhoto(source)
+                    val analysis = draft.analysis ?: detectPhoto(source, targets)
+                    val faces = analysis.faces.mapIndexed(::PhotoFace)
                     ensureActive()
                     val overrides = if (style == MaskStyle.Sticker) {
                         faces.mapNotNull { face -> draft.faceStickers[face.id]?.let { draft.edits.boxFor(face) to it } }.toMap()
                     } else emptyMap()
-                    val rendered = renderEditorPhoto(source, draft.edits.masks(faces), style, emoji, overrides, draft.edits.inverted)
+                    val rendered = renderEditorPhoto(source, draft.edits.masks(faces), style, emoji, overrides, draft.edits.inverted, analysis.person)
                     output = rendered
-                    rendered to faces
+                    rendered to analysis
                 } finally { source.recycle() }
             }
         } catch (error: Exception) {
@@ -1143,7 +1228,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private suspend fun savePhotos(drafts: List<PhotoDraft>, style: MaskStyle, emoji: String,
-        progress: (Int) -> Unit): PhotoExport {
+        targets: Set<SubjectTarget>, progress: (Int) -> Unit): PhotoExport {
         require(drafts.size in 1..batchLimit)
         val saved = mutableListOf<Uri>()
         val failures = mutableSetOf<Uri>()
@@ -1151,7 +1236,7 @@ class MainActivity : ComponentActivity() {
             for ((index, draft) in drafts.withIndex()) {
                 currentCoroutineContext().ensureActive()
                 try {
-                    val (bitmap) = renderPhoto(draft, style, emoji)
+                    val (bitmap) = renderPhoto(draft, style, emoji, targets)
                     try {
                         withContext(Dispatchers.IO) {
                             saved += saveMedia(false) { check(bitmap.compress(Bitmap.CompressFormat.JPEG, 95, it)) }

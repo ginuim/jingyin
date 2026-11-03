@@ -104,4 +104,15 @@
     <string name="editor_done_clean">完成並返回（離開後自動清理暫存檔）</string>
     <string name="editor_delete_mask">刪除選取的遮蓋</string>
     <string name="editor_invert_mask">反選</string>
+    <string name="editor_subjects">處理主體</string>
+    <string name="editor_subject_face">人臉</string>
+    <string name="editor_subject_person">人物</string>
+    <string name="editor_subject_pet">寵物（貓和狗）</string>
+    <string name="editor_subject_apply">套用</string>
+    <string name="editor_subject_confirm_title">更改處理主體？</string>
+    <string name="editor_subject_confirm_body">這會重新偵測整批素材，並重設所有手動遮蓋、個別設定的貼圖和反選。</string>
+    <string name="editor_remove_media">移除</string>
+    <string name="editor_remove_media_title">移除目前素材？</string>
+    <string name="editor_remove_media_body">目前素材和相關編輯將從專案移除，原始檔會保留在相簿中。</string>
+    <string name="editor_subject_unavailable">%1$s（僅偵錯版）</string>
 </resources>

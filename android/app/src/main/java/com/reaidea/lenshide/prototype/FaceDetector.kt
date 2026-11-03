@@ -31,9 +31,8 @@ data class Detection(
 class FaceDetector(context: Context, val inputSize: Int = 320, detectPerson: Boolean = true) : AutoCloseable {
     private val initialized = OpenCVLoader.initLocal().also { check(it) { "OpenCV initialization failed" } }
     private val model: FaceDetectorYN
-    private val segmenter = if (detectPerson && context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) {
-        PersonSegmenter(context, inputSize)
-    } else null
+    private val defaultPerson = detectPerson && context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+    private val segmenter = lazy { PersonSegmenter(context, inputSize) }
     private val rgba = Mat(inputSize, inputSize, CvType.CV_8UC4)
     private val bgr = Mat()
     private val result = Mat()
@@ -55,46 +54,48 @@ class FaceDetector(context: Context, val inputSize: Int = 320, detectPerson: Boo
             0.55f, 0.3f, 5000)
     }
 
-    fun detect(bitmap: Bitmap): Detection {
+    fun detect(bitmap: Bitmap, faces: Boolean = true, person: Boolean = defaultPerson, pets: Boolean = false): Detection {
         val fit = placement(bitmap.width, bitmap.height)
         canvas.drawColor(Color.BLACK)
         canvas.drawBitmap(bitmap, null, RectF(fit[0], fit[1], fit[0] + fit[2], fit[1] + fit[3]), paint)
         Utils.bitmapToMat(square, rgba)
-        return infer(bitmap.width, bitmap.height)
+        return infer(bitmap.width, bitmap.height, faces, person, pets)
     }
 
     /** RGBA readback of a letterboxed GL texture, with the first row at bottom. */
-    fun detectGl(bytes: ByteArray, width: Int, height: Int): Detection {
+    fun detectGl(bytes: ByteArray, width: Int, height: Int, faces: Boolean = true, person: Boolean = defaultPerson, pets: Boolean = false): Detection {
         rgba.put(0, 0, bytes)
         Core.flip(rgba, rgba, 0)
-        return infer(width, height)
+        return infer(width, height, faces, person, pets)
     }
 
-    private fun infer(width: Int, height: Int): Detection {
+    private fun infer(width: Int, height: Int, detectFaces: Boolean, detectPerson: Boolean, detectPets: Boolean): Detection {
         val start = SystemClock.elapsedRealtimeNanos()
-        Imgproc.cvtColor(rgba, bgr, Imgproc.COLOR_RGBA2BGR)
-        model.detect(bgr, result)
-        val fit = placement(width, height)
-        val faces = (0 until result.rows()).mapNotNull { row ->
-            val r = FloatArray(15)
-            result.get(row, 0, r)
-            // Analysis pixels -> display-normalized, top-left origin.
-            val x = (r[0] - fit[0]) / fit[2]
-            val y = (r[1] - fit[1]) / fit[3]
-            val w = r[2] / fit[2]
-            val h = r[3] / fit[3]
-            if (w <= 0 || h <= 0 || x + w <= 0 || y + h <= 0 || x >= 1 || y >= 1) null else {
-                // Scale the safety margin with the detected face so distant faces stay local.
-                FaceBox(x + w / 2, y + h * 0.47f, w * 0.625f, h * 0.66f)
+        val faces = if (!detectFaces) emptyList() else {
+            Imgproc.cvtColor(rgba, bgr, Imgproc.COLOR_RGBA2BGR)
+            model.detect(bgr, result)
+            val fit = placement(width, height)
+            (0 until result.rows()).mapNotNull { row ->
+                val r = FloatArray(15)
+                result.get(row, 0, r)
+                // Analysis pixels -> display-normalized, top-left origin.
+                val x = (r[0] - fit[0]) / fit[2]
+                val y = (r[1] - fit[1]) / fit[3]
+                val w = r[2] / fit[2]
+                val h = r[3] / fit[3]
+                if (w <= 0 || h <= 0 || x + w <= 0 || y + h <= 0 || x >= 1 || y >= 1) null else {
+                    // Scale the safety margin with the detected face so distant faces stay local.
+                    FaceBox(x + w / 2, y + h * 0.47f, w * 0.625f, h * 0.66f)
+                }
             }
         }
         val detectMillis = (SystemClock.elapsedRealtimeNanos() - start) / 1e6
 
         val segmentStart = SystemClock.elapsedRealtimeNanos()
-        val person = segmenter?.let {
+        val person = if (detectPerson || detectPets) {
             rgba.get(0, 0, scratch)
-            it.segment(scratch)
-        }
+            segmenter.value.segment(scratch, detectPerson, detectPets)
+        } else null
         val segmentMillis = (SystemClock.elapsedRealtimeNanos() - segmentStart) / 1e6
         return Detection(faces, person, detectMillis, segmentMillis)
     }
@@ -109,7 +110,7 @@ class FaceDetector(context: Context, val inputSize: Int = 320, detectPerson: Boo
 
     override fun close() {
         rgba.release(); bgr.release(); result.release(); square.recycle()
-        segmenter?.close()
+        if (segmenter.isInitialized()) segmenter.value.close()
         // OpenCV's generated FaceDetectorYN wrapper has no explicit native delete API.
         // Keep one detector per job, never per frame; ncnn is the planned production comparison.
     }
