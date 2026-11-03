@@ -1,6 +1,7 @@
 package com.reaidea.lenshide.prototype
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -27,10 +28,12 @@ data class Detection(
 )
 
 /** One instance per worker/GL thread. No identity embeddings or persistence of detections. */
-class FaceDetector(context: Context, val inputSize: Int = 320) : AutoCloseable {
+class FaceDetector(context: Context, val inputSize: Int = 320, detectPerson: Boolean = true) : AutoCloseable {
     private val initialized = OpenCVLoader.initLocal().also { check(it) { "OpenCV initialization failed" } }
     private val model: FaceDetectorYN
-    private val segmenter = PersonSegmenter(context, inputSize)
+    private val segmenter = if (detectPerson && context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+        PersonSegmenter(context, inputSize)
+    } else null
     private val rgba = Mat(inputSize, inputSize, CvType.CV_8UC4)
     private val bgr = Mat()
     private val result = Mat()
@@ -90,8 +93,10 @@ class FaceDetector(context: Context, val inputSize: Int = 320) : AutoCloseable {
         val detectMillis = (SystemClock.elapsedRealtimeNanos() - start) / 1e6
 
         val segmentStart = SystemClock.elapsedRealtimeNanos()
-        rgba.get(0, 0, scratch)
-        val person = segmenter.segment(scratch)
+        val person = segmenter?.let {
+            rgba.get(0, 0, scratch)
+            it.segment(scratch)
+        }
         val segmentMillis = (SystemClock.elapsedRealtimeNanos() - segmentStart) / 1e6
         return Detection(faces, person, detectMillis, segmentMillis)
     }
@@ -106,7 +111,7 @@ class FaceDetector(context: Context, val inputSize: Int = 320) : AutoCloseable {
 
     override fun close() {
         rgba.release(); bgr.release(); result.release(); square.recycle()
-        segmenter.close()
+        segmenter?.close()
         // OpenCV's generated FaceDetectorYN wrapper has no explicit native delete API.
         // Keep one detector per job, never per frame; ncnn is the planned production comparison.
     }

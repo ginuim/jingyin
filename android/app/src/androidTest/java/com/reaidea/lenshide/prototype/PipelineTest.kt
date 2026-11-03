@@ -105,6 +105,66 @@ class PipelineTest {
         } finally { input.delete() }
     }
 
+    @Test fun editorVideoReusesFaceGeometryAndExportsEachAudioMode() = runBlocking<Unit> {
+        val source = fixture("matrix-30.mp4")
+        try {
+            val exporter = VideoExporter(context)
+            val timeline = mutableListOf<MaskFrame>()
+            val preview = withTimeout(120_000) {
+                exporter.exportEditor(Uri.fromFile(source), EditorAudio.Original,
+                    VideoMaskOptions(MaskStyle.Mosaic, stickers.first(), emptyList()) { timeline += it },
+                    VideoPurpose.Preview) {}
+            }
+            try {
+                assertTrue(timeline.any { it.faces.isNotEmpty() })
+                assertTrue(timeline.zipWithNext().all { (first, next) -> first.timeUs <= next.timeUs })
+                val face = timeline.first { it.faces.isNotEmpty() }.faces.first()
+                val manual = listOf(face.copy(cx = 0.5f, cy = 0.5f))
+                for ((audio, style) in EditorAudio.entries.zip(MaskStyle.entries)) {
+                    val exported = withTimeout(120_000) {
+                        exporter.exportEditor(Uri.fromFile(source), audio,
+                            VideoMaskOptions(style, stickers.first(), manual, timeline),
+                            VideoPurpose.FreeExport) {}
+                    }
+                    try {
+                        MediaMetadataRetriever().useRetriever { output ->
+                            output.setDataSource(exported.file.path)
+                            assertEquals("720", output.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT))
+                            assertNull(output.extractMetadata(MediaMetadataRetriever.METADATA_KEY_LOCATION))
+                            val hasAudio = output.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO) != null
+                            assertEquals(audio != EditorAudio.Mute, hasAudio)
+                            checkNotNull(output.getFrameAtTime(500_000)).recycle()
+                        }
+                    } finally { exported.file.delete() }
+                }
+            } finally { preview.file.delete() }
+        } finally { source.delete() }
+    }
+
+    @Test fun editorExportsFullImportedVideo() = runBlocking<Unit> {
+        val source = fixture("matrix-60.mp4")
+        try {
+            val options = VideoMaskOptions(
+                MaskStyle.Mosaic, stickers.first(),
+                listOf(FaceBox(0.5f, 0.5f, 0.15f, 0.15f)),
+                listOf(MaskFrame(0, emptyList())),
+            )
+            val exporter = VideoExporter(context)
+            for ((purpose, expectedSeconds) in listOf(VideoPurpose.FreeExport to 30, VideoPurpose.FullExport to 60)) {
+                val result = withTimeout(120_000) {
+                    exporter.exportEditor(Uri.fromFile(source), EditorAudio.Mute, options, purpose) {}
+                }
+                try {
+                    MediaMetadataRetriever().useRetriever {
+                        it.setDataSource(result.file.path)
+                        val ms = it.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)!!.toLong()
+                        assertTrue("Expected $expectedSeconds seconds, got $ms ms", ms in expectedSeconds * 1000L - 500..expectedSeconds * 1000L + 100)
+                    }
+                } finally { result.file.delete() }
+            }
+        } finally { source.delete() }
+    }
+
     @Test fun cancelFailureAndRetry() = runBlocking<Unit> {
         val source = fixture("short.mp4")
         val before = context.cacheDir.listFiles()!!.filter { it.name.startsWith("lenshide-") }.map { it.name }.toSet()

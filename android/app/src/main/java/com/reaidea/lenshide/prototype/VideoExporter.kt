@@ -8,6 +8,7 @@ import android.os.Looper
 import android.os.SystemClock
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Metadata
+import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
@@ -31,6 +32,8 @@ import java.io.File
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
+internal enum class VideoPurpose { Preview, FreeExport, FullExport }
+
 data class VideoExport(val file: File, val report: String)
 
 /** AutoCloseable was added after Android 9; release() works on both old and current devices. */
@@ -40,14 +43,31 @@ internal inline fun <T> MediaMetadataRetriever.useRetriever(block: (MediaMetadat
 /** Lab has no purchase entitlement. Processor itself enforces the free 30s / 720p boundary. */
 @UnstableApi
 class VideoExporter(private val context: Context) {
-    suspend fun export(uri: Uri, mute: Boolean, progress: (Int) -> Unit): VideoExport {
-        withContext(Dispatchers.IO) {
+    suspend fun export(uri: Uri, mute: Boolean, progress: (Int) -> Unit): VideoExport =
+        exportEditor(uri, if (mute) EditorAudio.Mute else EditorAudio.Original, null, VideoPurpose.FreeExport, progress)
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    internal suspend fun exportEditor(
+        uri: Uri,
+        audio: EditorAudio,
+        options: VideoMaskOptions?,
+        purpose: VideoPurpose,
+        progress: (Int) -> Unit,
+    ): VideoExport {
+        val aspect = withContext(Dispatchers.IO) {
+            val bytes = context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length }
+            require(bytes == null || bytes <= 1_073_741_824L) { "INPUT_SIZE_LIMIT_1_GIB" }
             MediaMetadataRetriever().useRetriever { retriever ->
                 retriever.setDataSource(context, uri)
                 val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
                 require(duration != null && duration in 1..300_000) { "INPUT_DURATION_LIMIT_5_MINUTES" }
                 val transfer = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_COLOR_TRANSFER)?.toIntOrNull()
                 require(transfer != 6 && transfer != 7) { context.getString(R.string.sdr_only) }
+                val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull()
+                val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull()
+                require(width != null && width > 0 && height != null && height > 0) { "Missing video size" }
+                val rotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
+                if (rotation % 180 == 0) width.toDouble() / height else height.toDouble() / width
             }
         }
         return withContext(Dispatchers.Main) {
@@ -57,14 +77,26 @@ class VideoExporter(private val context: Context) {
             val start = SystemClock.elapsedRealtime()
             val parentScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.currentCoroutineContext())
             suspendCancellableCoroutine { continuation ->
-                val item = MediaItem.Builder().setUri(uri)
-                    .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setEndPositionMs(30_000).build())
-                    .build()
+                val item = MediaItem.Builder().setUri(uri).apply {
+                    if (purpose == VideoPurpose.FreeExport) {
+                        setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setEndPositionMs(30_000).build())
+                    }
+                }.build()
+                val videoEffects = buildList {
+                    when (purpose) {
+                        VideoPurpose.FreeExport -> add(Presentation.createForHeight(cappedHeight(720, 1280, aspect)))
+                        VideoPurpose.Preview -> add(Presentation.createForHeight(cappedHeight(480, 854, aspect)))
+                        VideoPurpose.FullExport -> Unit
+                    }
+                    add(FacePixelEffect(metrics, options))
+                }
+                val audioEffects = if (audio == EditorAudio.Voice) {
+                    listOf(SonicAudioProcessor().apply { setPitch(1.32f) })
+                } else emptyList()
                 val edited = EditedMediaItem.Builder(item)
-                    .setRemoveAudio(mute)
+                    .setRemoveAudio(audio == EditorAudio.Mute)
                     .setFrameRate(30)
-                    .setEffects(Effects(emptyList(), listOf(
-                        Presentation.createForHeight(720), FacePixelEffect(metrics))))
+                    .setEffects(Effects(audioEffects, videoEffects))
                     .build()
                 var poll: kotlinx.coroutines.Job? = null
                 val transformer = Transformer.Builder(context)
@@ -76,8 +108,9 @@ class VideoExporter(private val context: Context) {
                             poll?.cancel()
                             val seconds = (SystemClock.elapsedRealtime() - start) / 1000.0
                             val report = "wallSeconds=%.2f, durationMs=${exportResult.durationMs}, size=${exportResult.fileSizeBytes}\nvideoEncoder=${exportResult.videoEncoderName}\naudioEncoder=${exportResult.audioEncoderName}\n${metrics.snapshot()}".format(seconds)
-                            if (continuation.isActive) continuation.resume(VideoExport(output, report))
-                            else output.delete()
+                            if (continuation.isActive) {
+                                continuation.resume(VideoExport(output, report)) { output.delete() }
+                            } else output.delete()
                         }
                         override fun onError(composition: Composition, exportResult: ExportResult, exportException: ExportException) {
                             poll?.cancel(); output.delete()
@@ -106,6 +139,10 @@ class VideoExporter(private val context: Context) {
         }
     }
 }
+
+/** Leave the source aspect ratio intact, including ultrawide media. */
+private fun cappedHeight(maxHeight: Int, maxWidth: Int, aspect: Double): Int =
+    (minOf(maxHeight.toDouble(), maxWidth / aspect).toInt() / 2 * 2).coerceAtLeast(2)
 
 /** Never copy source GPS, capture dates, device tags or other source metadata to a new file. */
 @UnstableApi

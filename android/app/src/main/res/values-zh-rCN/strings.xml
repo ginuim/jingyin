@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">LensHide 实验版</string>
+    <string name="app_name">TapHide</string>
     <string name="lab_notice">安卓性能原型 · 全程本地处理。自动检测可能漏脸，请检查结果。本版只导出前 30 秒 / 720p 与单张照片；不含购买。</string>
     <string name="pick_photo">选择照片</string>
     <string name="pick_video">选择视频</string>
@@ -16,4 +16,32 @@
     <string name="saved">已保存到相册</string>
     <string name="device">设备能力</string>
     <string name="sdr_only">实验版暂不支持 HDR 视频，请选择 SDR 素材</string>
+    <string name="editor_original_audio">原声</string>
+    <string name="editor_pixelate">🟫 隐私马赛克</string>
+    <string name="editor_blur">💧 柔焦模糊</string>
+    <string name="editor_share">分享</string>
+    <string name="editor_canvas_hint">👆 点打码处可露脸 · 点任意位置可补遮</string>
+    <string name="editor_reset">还原自动打码</string>
+    <string name="editor_reset_done">已还原默认自动打码</string>
+    <string name="editor_photo_count">照片 %1$d / %2$d</string>
+    <string name="editor_retry">重试</string>
+    <string name="editor_voice">🧸 趣味变声</string>
+    <string name="editor_change_sticker">点我换贴纸</string>
+    <string name="editor_sticker">贴纸遮脸</string>
+    <string name="editor_saving">正在本地抹除定位并保存…</string>
+    <string name="editor_revealed">已露脸 · 再点一下可重新遮住</string>
+    <string name="editor_covered">已恢复打码遮盖</string>
+    <string name="editor_removed">已移除该处补遮</string>
+    <string name="editor_added">已补遮该位置 · 再点一下可取消</string>
+    <string name="editor_mask_limit">已达到补遮数量上限</string>
+    <string name="editor_home_intro">选择照片或视频，素材全程在设备上处理。</string>
+    <string name="editor_process_photos">处理照片</string>
+    <string name="editor_process_video">处理视频</string>
+    <string name="editor_close">关闭</string>
+    <string name="editor_batch_hint">效果应用于整批照片，可逐张检查和调整遮盖。</string>
+    <string name="editor_video_hint">视频自动遮盖人脸。点画面可添加或移除手动蒙版。</string>
+    <string name="editor_save_batch">保存全部 %1$d 张照片</string>
+    <string name="editor_batch_result">已保存 %1$d 张 · 失败 %2$d 张</string>
+    <string name="editor_retry_failed">重试 %1$d 张失败照片</string>
+    <string name="editor_no_faces">未检测到人脸，请检查预览，并手动补遮。</string>
 </resources>

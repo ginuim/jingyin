@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">LensHide Lab</string>
+    <string name="app_name">TapHide</string>
     <string name="lab_notice">Android performance prototype. Processing stays on this device. Face detection can miss faces; inspect results. Exports: first 30 seconds / 720p and one photo. No purchases.</string>
     <string name="pick_photo">Choose photo</string>
     <string name="pick_video">Choose video</string>
@@ -16,4 +16,32 @@
     <string name="saved">Saved to gallery</string>
     <string name="device">Device capabilities</string>
     <string name="sdr_only">The lab supports SDR video only. Choose an SDR source.</string>
+    <string name="editor_original_audio">Original audio</string>
+    <string name="editor_pixelate">🟫 Privacy mosaic</string>
+    <string name="editor_blur">💧 Soft blur</string>
+    <string name="editor_share">Share</string>
+    <string name="editor_canvas_hint">👆 Tap a mask to reveal · Tap to cover</string>
+    <string name="editor_reset">Reset masks</string>
+    <string name="editor_reset_done">Automatic masks restored</string>
+    <string name="editor_photo_count">Photos %1$d / %2$d</string>
+    <string name="editor_retry">Retry</string>
+    <string name="editor_voice">🧸 Fun voice</string>
+    <string name="editor_change_sticker">Change sticker</string>
+    <string name="editor_sticker">Face sticker</string>
+    <string name="editor_saving">Removing metadata and saving…</string>
+    <string name="editor_revealed">Face revealed · Tap again to cover</string>
+    <string name="editor_covered">Mask restored</string>
+    <string name="editor_removed">Manual mask removed</string>
+    <string name="editor_added">Mask added · Tap again to remove</string>
+    <string name="editor_mask_limit">Mask limit reached</string>
+    <string name="editor_home_intro">Choose photos or a video. All processing happens on this device.</string>
+    <string name="editor_process_photos">Process photos</string>
+    <string name="editor_process_video">Process video</string>
+    <string name="editor_close">Close</string>
+    <string name="editor_batch_hint">Effects apply to the whole batch. Switch photos to check and adjust each one.</string>
+    <string name="editor_video_hint">Faces are covered automatically. Tap the video to add or remove a manual mask.</string>
+    <string name="editor_save_batch">Save all %1$d photos</string>
+    <string name="editor_batch_result">Saved %1$d · Failed %2$d</string>
+    <string name="editor_retry_failed">Retry %1$d failed photos</string>
+    <string name="editor_no_faces">No faces detected. Check the preview and add masks where needed.</string>
 </resources>

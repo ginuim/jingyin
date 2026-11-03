@@ -2,6 +2,7 @@ package com.reaidea.lenshide.prototype
 
 import android.content.Context
 import android.opengl.GLES20
+import android.opengl.GLUtils
 import android.os.SystemClock
 import androidx.media3.common.VideoFrameProcessingException
 import androidx.media3.common.util.GlProgram
@@ -35,10 +36,15 @@ class FrameMetrics {
 }
 
 @UnstableApi
-class FacePixelEffect(private val metrics: FrameMetrics) : GlEffect {
+class FacePixelEffect internal constructor(
+    private val metrics: FrameMetrics,
+    private val options: VideoMaskOptions?,
+) : GlEffect {
+    constructor(metrics: FrameMetrics) : this(metrics, null)
+
     override fun toGlShaderProgram(context: Context, useHdr: Boolean): GlShaderProgram {
         check(!useHdr) { "This prototype supports SDR only" }
-        return SubjectPixelShader(context, metrics)
+        return SubjectPixelShader(context, metrics, options)
     }
 }
 
@@ -47,8 +53,9 @@ class FacePixelEffect(private val metrics: FrameMetrics) : GlEffect {
  * Shares its geometry with [SubjectMask]; keep the GLSL formulas in sync with that file.
  */
 @UnstableApi
-private class SubjectPixelShader(context: Context, private val metrics: FrameMetrics) : BaseGlShaderProgram(false, 1) {
-    private val detector = FaceDetector(context)
+private class SubjectPixelShader(context: Context, private val metrics: FrameMetrics, private val options: VideoMaskOptions?) : BaseGlShaderProgram(false, 1) {
+    private val detector = if (options?.timeline != null) null else FaceDetector(context, detectPerson = options == null)
+    private val stickerTexture = GlUtil.createTexture(256, 256, false)
     private val analysis = GlProgram(VERTEX, ANALYSIS)
     private val render = GlProgram(VERTEX, RENDER)
     private val pixels = ByteBuffer.allocateDirect(320 * 320 * 4).order(ByteOrder.nativeOrder())
@@ -63,6 +70,13 @@ private class SubjectPixelShader(context: Context, private val metrics: FrameMet
     private var height = 0
 
     init {
+        if (options?.style == MaskStyle.Sticker) {
+            val bitmap = stickerBitmap(options.sticker)
+            try {
+                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, stickerTexture)
+                GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0)
+            } finally { bitmap.recycle() }
+        }
         analysis.setBufferAttribute("aPosition", GlUtil.getNormalizedCoordinateBounds(), 4)
         render.setBufferAttribute("aPosition", GlUtil.getNormalizedCoordinateBounds(), 4)
         GLES20.glGenTextures(1, maskTexture, 0)
@@ -83,20 +97,28 @@ private class SubjectPixelShader(context: Context, private val metrics: FrameMet
         val oldFbo = IntArray(1)
         GLES20.glGetIntegerv(GLES20.GL_FRAMEBUFFER_BINDING, oldFbo, 0)
         try {
-            GlUtil.focusFramebufferUsingCurrentContext(fbo, 320, 320)
-            analysis.use()
-            analysis.setSamplerTexIdUniform("uTex", inputTexId, 0)
             val fit = SubjectMask.letterboxFit(width, height)
-            analysis.setFloatsUniform("uFit", fit)
-            analysis.bindAttributesAndUniforms()
-            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
-            pixels.clear()
-            GLES20.glReadPixels(0, 0, 320, 320, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixels)
-            GlUtil.checkGlError()
-            pixels.rewind(); pixels.get(bytes)
-            val detection = detector.detectGl(bytes, width, height)
-            check(detection.faces.size <= 64) { "Too many faces for the prototype; export stopped" }
-            uploadPersonMask(detection.person)
+            val detection = if (detector == null) Detection(emptyList(), null, 0.0) else {
+                GlUtil.focusFramebufferUsingCurrentContext(fbo, 320, 320)
+                analysis.use()
+                analysis.setSamplerTexIdUniform("uTex", inputTexId, 0)
+                analysis.setFloatsUniform("uFit", fit)
+                analysis.bindAttributesAndUniforms()
+                GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+                pixels.clear()
+                GLES20.glReadPixels(0, 0, 320, 320, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixels)
+                GlUtil.checkGlError()
+                pixels.rewind(); pixels.get(bytes)
+                detector.detectGl(bytes, width, height)
+            }
+            val masks = if (options == null) detection.faces else {
+                val faces = options.timeline?.facesAt(presentationTimeUs) ?: detection.faces.also {
+                    options.onFrame(MaskFrame(presentationTimeUs, it))
+                }
+                faces + options.manual
+            }
+            check(masks.size <= 64) { "Too many masks; export stopped" }
+            uploadPersonMask(if (options == null) detection.person else null)
             GlUtil.focusFramebufferUsingCurrentContext(oldFbo[0], width, height)
 
             render.use()
@@ -105,10 +127,12 @@ private class SubjectPixelShader(context: Context, private val metrics: FrameMet
             render.setFloatsUniform("uFit", fit)
             render.setFloatsUniform("uSize", floatArrayOf(width.toFloat(), height.toFloat()))
             render.setFloatsUniform("uCell", floatArrayOf(SubjectMask.cellSize(width, height).toFloat()))
-            render.setIntUniform("uCount", detection.faces.size)
+            render.setSamplerTexIdUniform("uSticker", stickerTexture, 2)
+            render.setIntUniform("uStyle", options?.style?.let { it.ordinal + 1 } ?: 0)
+            render.setIntUniform("uCount", masks.size)
             render.bindAttributesAndUniforms()
             ellipses.fill(0f)
-            detection.faces.forEachIndexed { index, face ->
+            masks.forEachIndexed { index, face ->
                 ellipses[index * 4] = face.cx; ellipses[index * 4 + 1] = face.cy
                 ellipses[index * 4 + 2] = face.rx; ellipses[index * 4 + 3] = face.ry
             }
@@ -147,7 +171,8 @@ private class SubjectPixelShader(context: Context, private val metrics: FrameMet
             analysis.delete(); render.delete()
             GLES20.glDeleteTextures(1, maskTexture, 0)
             GlUtil.deleteFbo(fbo); GlUtil.deleteTexture(texture)
-            detector.close()
+            GlUtil.deleteTexture(stickerTexture)
+            detector?.close()
         } finally { super.release() }
     }
 
@@ -176,6 +201,8 @@ private class SubjectPixelShader(context: Context, private val metrics: FrameMet
             precision highp float;
             uniform sampler2D uTex;
             uniform sampler2D uMask;
+            uniform sampler2D uSticker;
+            uniform int uStyle;
             uniform vec2 uFit;
             uniform vec2 uSize;
             uniform float uCell;
@@ -198,7 +225,37 @@ private class SubjectPixelShader(context: Context, private val metrics: FrameMet
                 cellCentre = clamp(cellCentre, vec2(0.0), vec2(1.0));
                 vec4 source = texture2D(uTex, vTex);
                 vec4 mosaic = texture2D(uTex, vec2(cellCentre.x, 1.0 - cellCentre.y));
-                gl_FragColor = mix(source, mosaic, coverage);
+                if (uStyle == 0) {
+                    gl_FragColor = mix(source, mosaic, coverage);
+                    return;
+                }
+                vec4 result = source;
+                for (int i = 0; i < 64; i++) {
+                    if (i >= uCount) break;
+                    vec4 e = uFaces[i];
+                    vec2 uv = (p - e.xy) / (2.0 * e.zw) + 0.5;
+                    if (uStyle == 1 && all(greaterThanEqual(uv, vec2(0.0))) && all(lessThanEqual(uv, vec2(1.0)))) {
+                        vec2 sampleP = e.xy + ((min(floor(uv * 4.0), vec2(3.0)) + 0.5) / 4.0 - 0.5) * (2.0 * e.zw);
+                        result = texture2D(uTex, vec2(sampleP.x, 1.0 - sampleP.y));
+                    } else if (uStyle == 2 && length(uv - 0.5) < 0.5) {
+                        vec4 blurred = vec4(0.0);
+                        float stepPx = min(uSize.x, uSize.y) / 120.0;
+                        for (int y = -3; y <= 3; y++) {
+                            for (int x = -3; x <= 3; x++) {
+                                blurred += texture2D(uTex, vTex + vec2(float(x), float(y)) * stepPx / uSize);
+                            }
+                        }
+                        result = blurred / 49.0;
+                    } else if (uStyle == 3) {
+                        float radius = min(e.z * uSize.x, e.w * uSize.y);
+                        vec2 stickerUv = (p - e.xy) * uSize / (2.0 * radius) + 0.5;
+                        if (all(greaterThanEqual(stickerUv, vec2(0.0))) && all(lessThanEqual(stickerUv, vec2(1.0)))) {
+                            vec4 sticker = texture2D(uSticker, stickerUv);
+                            result = vec4(sticker.rgb + result.rgb * (1.0 - sticker.a), 1.0);
+                        }
+                    }
+                }
+                gl_FragColor = result;
             }
         """
     }

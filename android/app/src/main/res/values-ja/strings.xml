@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">LensHide 検証版</string>
+    <string name="app_name">TapHide</string>
     <string name="lab_notice">Android 性能検証版。処理は端末内で完結します。顔の見落としがあるため結果を確認してください。書き出しは先頭30秒・720p、写真1枚まで。購入機能はありません。</string>
     <string name="pick_photo">写真を選択</string>
     <string name="pick_video">動画を選択</string>
@@ -16,4 +16,32 @@
     <string name="saved">写真ライブラリに保存しました</string>
     <string name="device">端末の機能</string>
     <string name="sdr_only">検証版はSDR動画のみ対応しています。SDR素材を選択してください。</string>
+    <string name="editor_original_audio">元の音声</string>
+    <string name="editor_pixelate">🟫 モザイク</string>
+    <string name="editor_blur">💧 ぼかし</string>
+    <string name="editor_share">共有</string>
+    <string name="editor_canvas_hint">👆 タップで表示・隠す</string>
+    <string name="editor_reset">自動マスクに戻す</string>
+    <string name="editor_reset_done">自動マスクに戻しました</string>
+    <string name="editor_photo_count">写真 %1$d / %2$d</string>
+    <string name="editor_retry">再試行</string>
+    <string name="editor_voice">🧸 ボイスチェンジ</string>
+    <string name="editor_change_sticker">ステッカー変更</string>
+    <string name="editor_sticker">顔ステッカー</string>
+    <string name="editor_saving">メタデータを削除して保存中…</string>
+    <string name="editor_revealed">顔を表示しました · 再タップで隠す</string>
+    <string name="editor_covered">マスクを戻しました</string>
+    <string name="editor_removed">追加マスクを削除しました</string>
+    <string name="editor_added">マスクを追加しました · 再タップで削除</string>
+    <string name="editor_mask_limit">追加マスク数の上限に達しました</string>
+    <string name="editor_home_intro">写真または動画を選択してください。処理はすべて端末内で行います。</string>
+    <string name="editor_process_photos">写真を処理</string>
+    <string name="editor_process_video">動画を処理</string>
+    <string name="editor_close">閉じる</string>
+    <string name="editor_batch_hint">効果は一括で適用されます。写真ごとに確認・調整できます。</string>
+    <string name="editor_video_hint">顔は自動で隠れます。画面をタップして手動マスクを追加・削除できます。</string>
+    <string name="editor_save_batch">%1$d 枚すべて保存</string>
+    <string name="editor_batch_result">保存 %1$d 枚 · 失敗 %2$d 枚</string>
+    <string name="editor_retry_failed">失敗した %1$d 枚を再試行</string>
+    <string name="editor_no_faces">顔を検出できませんでした。プレビューを確認し、必要な箇所にマスクを追加してください。</string>
 </resources>

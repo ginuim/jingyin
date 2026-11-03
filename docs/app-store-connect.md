@@ -223,3 +223,7 @@ Video timeline navigation derives at most eight reduced full-frame thumbnails fr
 当前 `1.0.2` 已可分发。`1.0.3 (8)` 已于 23:18（Asia/Shanghai）提交，后台显示「正在等待审核」与「已提交 1 个项目」，提交 ID `c9af2561-9852-4a33-abf6-4402044bf163`。沿用审核通过后自动发布，保留评分；价格、IAP 和数据处理方式没有变更。
 
 本次纳入 2026-09-21 未发版的界面优化，四语各 5 张新截图及关键词、更新说明；详情和真机待验边界见 [1.0.3 发布记录](./ios-release-1.0.3.md)。本文开头及其他章节里的「当前」状态是各次历史记录，最新状态以本节为准。
+
+## 2026-11-03 Android 原型的隐私说明范围
+
+TapHide Android 原型使用设备端 OpenCV YuNet。人脸矩形与帧时间仅驻留在编辑会话内存。Android 视频编辑使用逐帧检测，已移除临时人脸轨迹编号。系统分享只向用户选定的 App 提供处理结果。四语隐私政策已补充 Android 的独立段落。以上处理路径属于 Android 原型，本次没有新的 iOS 构建或 App Store Connect 审核提交。
