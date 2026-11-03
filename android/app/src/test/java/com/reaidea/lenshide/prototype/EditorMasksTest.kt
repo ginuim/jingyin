@@ -15,12 +15,4 @@ class EditorMasksTest {
         assertEquals(2, manual.masks(faces).size)
         assertEquals(covered, manual.tap(0.7f, 0.6f, faces, 0.1f, 0.1f))
     }
-
-    @Test fun lookupUsesLatestRenderedFrame() {
-        val face = FaceBox(0.4f, 0.5f, 0.1f, 0.1f)
-        val timeline = listOf(MaskFrame(0, emptyList()), MaskFrame(50_000, listOf(face)), MaskFrame(90_000, emptyList()))
-        assertTrue(timeline.facesAt(49_999).isEmpty())
-        assertEquals(listOf(face), timeline.facesAt(75_000))
-        assertTrue(timeline.facesAt(90_000).isEmpty())
-    }
 }

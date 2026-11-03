@@ -32,13 +32,31 @@ import java.io.File
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-internal enum class VideoPurpose { Preview, FreeExport, FullExport }
+internal enum class VideoPurpose { FreeExport, FullExport }
 
 data class VideoExport(val file: File, val report: String)
 
 /** AutoCloseable was added after Android 9; release() works on both old and current devices. */
 internal inline fun <T> MediaMetadataRetriever.useRetriever(block: (MediaMetadataRetriever) -> T): T =
     try { block(this) } finally { release() }
+
+/** Checks the supported input limits off the UI thread before playback or export. */
+internal suspend fun inspectVideo(context: Context, uri: Uri): Double = withContext(Dispatchers.IO) {
+    val bytes = context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length }
+    require(bytes == null || bytes <= 1_073_741_824L) { "INPUT_SIZE_LIMIT_1_GIB" }
+    MediaMetadataRetriever().useRetriever { retriever ->
+        retriever.setDataSource(context, uri)
+        val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+        require(duration != null && duration in 1..300_000) { "INPUT_DURATION_LIMIT_5_MINUTES" }
+        val transfer = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_COLOR_TRANSFER)?.toIntOrNull()
+        require(transfer != 6 && transfer != 7) { context.getString(R.string.sdr_only) }
+        val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull()
+        val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull()
+        require(width != null && width > 0 && height != null && height > 0) { "Missing video size" }
+        val rotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
+        if (rotation % 180 == 0) width.toDouble() / height else height.toDouble() / width
+    }
+}
 
 /** Lab has no purchase entitlement. Processor itself enforces the free 30s / 720p boundary. */
 @UnstableApi
@@ -54,22 +72,7 @@ class VideoExporter(private val context: Context) {
         purpose: VideoPurpose,
         progress: (Int) -> Unit,
     ): VideoExport {
-        val aspect = withContext(Dispatchers.IO) {
-            val bytes = context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length }
-            require(bytes == null || bytes <= 1_073_741_824L) { "INPUT_SIZE_LIMIT_1_GIB" }
-            MediaMetadataRetriever().useRetriever { retriever ->
-                retriever.setDataSource(context, uri)
-                val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
-                require(duration != null && duration in 1..300_000) { "INPUT_DURATION_LIMIT_5_MINUTES" }
-                val transfer = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_COLOR_TRANSFER)?.toIntOrNull()
-                require(transfer != 6 && transfer != 7) { context.getString(R.string.sdr_only) }
-                val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull()
-                val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull()
-                require(width != null && width > 0 && height != null && height > 0) { "Missing video size" }
-                val rotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
-                if (rotation % 180 == 0) width.toDouble() / height else height.toDouble() / width
-            }
-        }
+        val aspect = inspectVideo(context, uri)
         return withContext(Dispatchers.Main) {
             val metrics = FrameMetrics()
             val output = File.createTempFile("lenshide-", ".mp4", context.cacheDir)
@@ -85,7 +88,6 @@ class VideoExporter(private val context: Context) {
                 val videoEffects = buildList {
                     when (purpose) {
                         VideoPurpose.FreeExport -> add(Presentation.createForHeight(cappedHeight(720, 1280, aspect)))
-                        VideoPurpose.Preview -> add(Presentation.createForHeight(cappedHeight(480, 854, aspect)))
                         VideoPurpose.FullExport -> Unit
                     }
                     add(FacePixelEffect(metrics, options))

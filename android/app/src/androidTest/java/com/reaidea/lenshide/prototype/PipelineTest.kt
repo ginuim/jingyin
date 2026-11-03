@@ -105,39 +105,29 @@ class PipelineTest {
         } finally { input.delete() }
     }
 
-    @Test fun editorVideoReusesFaceGeometryAndExportsEachAudioMode() = runBlocking<Unit> {
+    @Test fun editorDetectsFacesAndExportsEachAudioMode() = runBlocking<Unit> {
         val source = fixture("matrix-30.mp4")
         try {
             val exporter = VideoExporter(context)
-            val timeline = mutableListOf<MaskFrame>()
-            val preview = withTimeout(120_000) {
-                exporter.exportEditor(Uri.fromFile(source), EditorAudio.Original,
-                    VideoMaskOptions(MaskStyle.Mosaic, stickers.first(), emptyList()) { timeline += it },
-                    VideoPurpose.Preview) {}
-            }
-            try {
-                assertTrue(timeline.any { it.faces.isNotEmpty() })
-                assertTrue(timeline.zipWithNext().all { (first, next) -> first.timeUs <= next.timeUs })
-                val face = timeline.first { it.faces.isNotEmpty() }.faces.first()
-                val manual = listOf(face.copy(cx = 0.5f, cy = 0.5f))
-                for ((audio, style) in EditorAudio.entries.zip(MaskStyle.entries)) {
-                    val exported = withTimeout(120_000) {
-                        exporter.exportEditor(Uri.fromFile(source), audio,
-                            VideoMaskOptions(style, stickers.first(), manual, timeline),
-                            VideoPurpose.FreeExport) {}
-                    }
-                    try {
-                        MediaMetadataRetriever().useRetriever { output ->
-                            output.setDataSource(exported.file.path)
-                            assertEquals("720", output.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT))
-                            assertNull(output.extractMetadata(MediaMetadataRetriever.METADATA_KEY_LOCATION))
-                            val hasAudio = output.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO) != null
-                            assertEquals(audio != EditorAudio.Mute, hasAudio)
-                            checkNotNull(output.getFrameAtTime(500_000)).recycle()
-                        }
-                    } finally { exported.file.delete() }
+            val manual = listOf(FaceBox(0.5f, 0.5f, 0.12f, 0.15f))
+            for ((audio, style) in EditorAudio.entries.zip(MaskStyle.entries)) {
+                val exported = withTimeout(120_000) {
+                    exporter.exportEditor(Uri.fromFile(source), audio,
+                        VideoMaskOptions(style, stickers.first(), manual), VideoPurpose.FreeExport) {}
                 }
-            } finally { preview.file.delete() }
+                try {
+                    val faceCount = Regex("faces=(\\d+)").find(exported.report)!!.groupValues[1].toInt()
+                    assertTrue("Export detected no faces", faceCount > 0)
+                    MediaMetadataRetriever().useRetriever { output ->
+                        output.setDataSource(exported.file.path)
+                        assertEquals("720", output.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT))
+                        assertNull(output.extractMetadata(MediaMetadataRetriever.METADATA_KEY_LOCATION))
+                        val hasAudio = output.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO) != null
+                        assertEquals(audio != EditorAudio.Mute, hasAudio)
+                        checkNotNull(output.getFrameAtTime(500_000)).recycle()
+                    }
+                } finally { exported.file.delete() }
+            }
         } finally { source.delete() }
     }
 
@@ -147,7 +137,6 @@ class PipelineTest {
             val options = VideoMaskOptions(
                 MaskStyle.Mosaic, stickers.first(),
                 listOf(FaceBox(0.5f, 0.5f, 0.15f, 0.15f)),
-                listOf(MaskFrame(0, emptyList())),
             )
             val exporter = VideoExporter(context)
             for ((purpose, expectedSeconds) in listOf(VideoPurpose.FreeExport to 30, VideoPurpose.FullExport to 60)) {

@@ -33,13 +33,6 @@ internal fun FaceBox.contains(x: Float, y: Float) =
     kotlin.math.abs(x - cx) <= rx && kotlin.math.abs(y - cy) <= ry
 
 internal data class PhotoFace(val id: Int, val box: FaceBox)
-internal data class MaskFrame(val timeUs: Long, val faces: List<FaceBox>)
-
-internal fun List<MaskFrame>.facesAt(timeUs: Long): List<FaceBox> {
-    val index = binarySearchBy(timeUs) { it.timeUs }
-    return getOrNull(if (index >= 0) index else (-index - 2).coerceAtLeast(0))?.faces.orEmpty()
-}
-
 internal val stickers = listOf(
     "😎", "🥸", "🤡", "👽", "👻", "🤖", "🙈", "😺",
     "😍", "🤩", "🤠", "🥳", "😈", "🎃", "🐼", "🐸",
@@ -58,6 +51,9 @@ internal fun renderEditorPhoto(
     source: Bitmap, masks: List<FaceBox>, style: MaskStyle, emoji: String,
     overrides: Map<FaceBox, String> = emptyMap(),
 ): Bitmap {
+    if (style == MaskStyle.Mosaic) {
+        return PhotoMasking.render(source, Detection(masks, null, 0.0))
+    }
     val output = source.copy(Bitmap.Config.ARGB_8888, true)
     val canvas = Canvas(output)
     val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
@@ -69,17 +65,7 @@ internal fun renderEditorPhoto(
         for (mask in masks) {
             val rect = RectF((mask.cx - mask.rx) * w, (mask.cy - mask.ry) * h, (mask.cx + mask.rx) * w, (mask.cy + mask.ry) * h)
             when (style) {
-                MaskStyle.Mosaic -> {
-                    val dx = rect.width() / 4
-                    val dy = rect.height() / 4
-                    for (row in 0..3) for (column in 0..3) {
-                        val x = rect.left + column * dx
-                        val y = rect.top + row * dy
-                        paint.color = source.getPixel((x + dx / 2).toInt().coerceIn(0, w - 1),
-                            (y + dy / 2).toInt().coerceIn(0, h - 1))
-                        canvas.drawRect(x, y, x + dx, y + dy, paint)
-                    }
-                }
+                MaskStyle.Mosaic -> error("Mosaic is rendered by PhotoMasking")
                 MaskStyle.Blur -> {
                     canvas.save()
                     canvas.clipPath(Path().apply { addOval(rect, Path.Direction.CW) })
@@ -140,6 +126,4 @@ internal data class VideoMaskOptions(
     val style: MaskStyle,
     val sticker: String,
     val manual: List<FaceBox>,
-    val timeline: List<MaskFrame>? = null,
-    val onFrame: (MaskFrame) -> Unit = {},
 )

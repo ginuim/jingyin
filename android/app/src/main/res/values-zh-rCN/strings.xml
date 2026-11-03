@@ -34,11 +34,9 @@
     <string name="editor_removed">已移除该处补遮</string>
     <string name="editor_added">已补遮该位置 · 再点一下可取消</string>
     <string name="editor_mask_limit">已达到补遮数量上限</string>
-    <string name="editor_home_intro">选择照片或视频，素材全程在设备上处理。</string>
-    <string name="editor_process_photos">处理照片</string>
-    <string name="editor_process_video">处理视频</string>
     <string name="editor_close">关闭</string>
     <string name="editor_batch_hint">效果应用于整批照片，可逐张检查和调整遮盖。</string>
+    <string name="editor_preparing_preview">正在准备预览…</string>
     <string name="editor_video_hint">视频自动遮盖人脸。点画面可添加或移除手动蒙版。</string>
     <string name="editor_save_batch">保存全部 %1$d 张照片</string>
     <string name="editor_batch_result">已保存 %1$d 张 · 失败 %2$d 张</string>
@@ -79,4 +77,34 @@
     <string name="editor_save_copy">另存成片</string>
     <string name="editor_copy_saved">已保存成片副本</string>
     <string name="editor_sticker_hint">点选人脸可单独换贴纸</string>
+    <string name="editor_pick_media">选择照片或视频</string>
+    <string name="editor_reselect_photos">重选素材 (%1$d/%2$d)</string>
+    <string name="editor_reselect_video">重选素材（已选视频）</string>
+    <string name="editor_clear">清空</string>
+    <string name="editor_limit_hint">照片最多 20 张 · 视频限单选（最长 5 分钟 / 1GB 内）</string>
+    <string name="editor_rule_detail">选照片后自动禁用视频，选视频仅限单选 · 全程不上传服务器</string>
+    <string name="editor_empty_title">还没有选择照片或视频</string>
+    <string name="editor_empty_body">导入即自动打码，点脸可露脸、点空白处可补遮，有手就能安心晒日常。</string>
+    <string name="editor_steps">① 选素材 → ② 自动打码 → ③ 点按微调</string>
+    <string name="editor_local_badge">🔒 本地</string>
+    <string name="editor_mixed_rejected">照片与视频不能混选，请只选照片，或只选 1 个视频。</string>
+    <string name="editor_video_single">视频只能单选 1 个。</string>
+    <string name="editor_first_photo">已经是第一张照片</string>
+    <string name="editor_last_photo">已经是最后一张照片</string>
+    <string name="editor_photo_chip">照片 %1$d · %2$s</string>
+    <string name="editor_status_pending">待识别</string>
+    <string name="editor_status_no_face">未检测到人脸</string>
+    <plurals name="editor_status_faces">
+        <item quantity="other">%1$d 张脸</item>
+    </plurals>
+    <string name="editor_swipe_hint">左右滑动 %1$d/%2$d</string>
+    <string name="editor_style_mosaic_sub">默认 · 隐私</string>
+    <string name="editor_style_blur_sub">柔和自然</string>
+    <string name="editor_style_sticker_sub">%1$d 款表情</string>
+    <string name="editor_info_body">🔒 全程设备本地处理，导出时自动抹除 GPS 位置与设备信息。\n👆 点画面上的脸即可露脸或遮脸，点空白处直接补遮。</string>
+    <string name="editor_badge_gps">✓ 已抹除 GPS 经纬度</string>
+    <string name="editor_badge_device">✓ 已抹除拍摄设备与时间</string>
+    <string name="editor_export_badge">无水印 · 隐私安全成片</string>
+    <string name="editor_batch_failed_notice">有 %1$d 张照片导出失败，可仅重试失败项。</string>
+    <string name="editor_done_clean">完成并返回（离开后自动清理临时文件）</string>
 </resources>

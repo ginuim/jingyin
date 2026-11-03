@@ -84,10 +84,8 @@ class FaceDetector(context: Context, val inputSize: Int = 320, detectPerson: Boo
             val w = r[2] / fit[2]
             val h = r[3] / fit[3]
             if (w <= 0 || h <= 0 || x + w <= 0 || y + h <= 0 || x >= 1 || y >= 1) null else {
-                // Same expansion as iOS expandedForFaceCoverage, kept unclamped for a true ellipse.
-                val cx = x + w / 2
-                val cy = y + h / 2 - h * 0.05f
-                FaceBox(cx, cy, max(w * 1.48f, 0.08f) / 2, max(h * 1.62f, 0.10f) / 2)
+                // Scale the safety margin with the detected face so distant faces stay local.
+                FaceBox(x + w / 2, y + h * 0.47f, w * 0.625f, h * 0.66f)
             }
         }
         val detectMillis = (SystemClock.elapsedRealtimeNanos() - start) / 1e6

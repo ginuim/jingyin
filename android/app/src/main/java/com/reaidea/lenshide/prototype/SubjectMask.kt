@@ -1,5 +1,6 @@
 package com.reaidea.lenshide.prototype
 
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -53,8 +54,11 @@ object SubjectMask {
             coverage = smoothstep(PERSON_LOW, PERSON_HIGH, person.sample(lu, lv))
         }
         for (face in faces) {
-            val dx = (u - face.cx) / face.rx
-            val dy = (v - face.cy) / face.ry
+            val x = u - face.cx
+            val y = v - face.cy
+            if (abs(x) >= face.rx || abs(y) >= face.ry) continue
+            val dx = x / face.rx
+            val dy = y / face.ry
             val ellipse = 1f - smoothstep(FACE_INNER, FACE_OUTER, sqrt(dx * dx + dy * dy))
             coverage = max(coverage, ellipse)
         }
@@ -64,7 +68,7 @@ object SubjectMask {
 
 /**
  * Face coverage ellipse in display-normalized coordinates, unclamped.
- * Built from the detector box with the same expansion as iOS expandedForFaceCoverage.
+ * Built from the detector box with a proportional safety margin.
  */
 data class FaceBox(val cx: Float, val cy: Float, val rx: Float, val ry: Float)
 

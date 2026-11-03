@@ -54,7 +54,7 @@ class FacePixelEffect internal constructor(
  */
 @UnstableApi
 private class SubjectPixelShader(context: Context, private val metrics: FrameMetrics, private val options: VideoMaskOptions?) : BaseGlShaderProgram(false, 1) {
-    private val detector = if (options?.timeline != null) null else FaceDetector(context, detectPerson = options == null)
+    private val detector = FaceDetector(context, detectPerson = options == null)
     private val stickerTexture = GlUtil.createTexture(256, 256, false)
     private val analysis = GlProgram(VERTEX, ANALYSIS)
     private val render = GlProgram(VERTEX, RENDER)
@@ -98,7 +98,7 @@ private class SubjectPixelShader(context: Context, private val metrics: FrameMet
         GLES20.glGetIntegerv(GLES20.GL_FRAMEBUFFER_BINDING, oldFbo, 0)
         try {
             val fit = SubjectMask.letterboxFit(width, height)
-            val detection = if (detector == null) Detection(emptyList(), null, 0.0) else {
+            val detection = run {
                 GlUtil.focusFramebufferUsingCurrentContext(fbo, 320, 320)
                 analysis.use()
                 analysis.setSamplerTexIdUniform("uTex", inputTexId, 0)
@@ -111,14 +111,9 @@ private class SubjectPixelShader(context: Context, private val metrics: FrameMet
                 pixels.rewind(); pixels.get(bytes)
                 detector.detectGl(bytes, width, height)
             }
-            val masks = if (options == null) detection.faces else {
-                val faces = options.timeline?.facesAt(presentationTimeUs) ?: detection.faces.also {
-                    options.onFrame(MaskFrame(presentationTimeUs, it))
-                }
-                faces + options.manual
-            }
-            check(masks.size <= 64) { "Too many masks; export stopped" }
-            uploadPersonMask(if (options == null) detection.person else null)
+            val masks = detection.faces + options?.manual.orEmpty()
+            check(masks.size <= 64) { "Too many masks; processing stopped" }
+            if (options == null || !maskAllocated) uploadPersonMask(detection.person)
             GlUtil.focusFramebufferUsingCurrentContext(oldFbo[0], width, height)
 
             render.use()
@@ -172,7 +167,7 @@ private class SubjectPixelShader(context: Context, private val metrics: FrameMet
             GLES20.glDeleteTextures(1, maskTexture, 0)
             GlUtil.deleteFbo(fbo); GlUtil.deleteTexture(texture)
             GlUtil.deleteTexture(stickerTexture)
-            detector?.close()
+            detector.close()
         } finally { super.release() }
     }
 
@@ -212,7 +207,7 @@ private class SubjectPixelShader(context: Context, private val metrics: FrameMet
             void main() {
                 vec2 p = vec2(vTex.x, 1.0 - vTex.y);
                 vec2 maskUv = (p - 0.5) * uFit + 0.5;
-                float person = smoothstep(0.35, 0.65, texture2D(uMask, maskUv).r);
+                float person = uStyle == 0 ? smoothstep(0.35, 0.65, texture2D(uMask, maskUv).r) : 0.0;
                 float face = 0.0;
                 for (int i = 0; i < 64; i++) {
                     if (i >= uCount) break;
@@ -225,7 +220,7 @@ private class SubjectPixelShader(context: Context, private val metrics: FrameMet
                 cellCentre = clamp(cellCentre, vec2(0.0), vec2(1.0));
                 vec4 source = texture2D(uTex, vTex);
                 vec4 mosaic = texture2D(uTex, vec2(cellCentre.x, 1.0 - cellCentre.y));
-                if (uStyle == 0) {
+                if (uStyle <= 1) {
                     gl_FragColor = mix(source, mosaic, coverage);
                     return;
                 }
@@ -234,10 +229,7 @@ private class SubjectPixelShader(context: Context, private val metrics: FrameMet
                     if (i >= uCount) break;
                     vec4 e = uFaces[i];
                     vec2 uv = (p - e.xy) / (2.0 * e.zw) + 0.5;
-                    if (uStyle == 1 && all(greaterThanEqual(uv, vec2(0.0))) && all(lessThanEqual(uv, vec2(1.0)))) {
-                        vec2 sampleP = e.xy + ((min(floor(uv * 4.0), vec2(3.0)) + 0.5) / 4.0 - 0.5) * (2.0 * e.zw);
-                        result = texture2D(uTex, vec2(sampleP.x, 1.0 - sampleP.y));
-                    } else if (uStyle == 2 && length(uv - 0.5) < 0.5) {
+                    if (uStyle == 2 && length(uv - 0.5) < 0.5) {
                         vec4 blurred = vec4(0.0);
                         float stepPx = min(uSize.x, uSize.y) / 120.0;
                         for (int y = -3; y <= 3; y++) {

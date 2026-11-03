@@ -23,10 +23,16 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -34,17 +40,21 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -52,6 +62,10 @@ import androidx.core.content.FileProvider
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
+import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
@@ -60,14 +74,25 @@ import java.io.File
 import java.util.Locale
 import kotlin.math.ceil
 
-private val coral = Color(0xFFE87A64)
-private val paper = Color(0xFFFFFBF9)
-private val pink = Color(0xFFF7E8E3)
-private val ink = Color(0xFF2D221E)
-private val brown = Color(0xFF6E473B)
-private val mutedInk = Color(0xFF7A655E)
-private val pill = RoundedCornerShape(50)
-private const val batchLimit = 20
+// Palette aligned with the design reference (apricot / cocoa tokens).
+internal val coral = Color(0xFFEF7E68)
+internal val coralDeep = Color(0xFFDC644D)
+internal val apricotDark = Color(0xFFB84B37)
+internal val apricot300 = Color(0xFFF6BDB0)
+internal val paper = Color(0xFFFFF9F6)
+internal val pink = Color(0xFFFDECE7)
+internal val line = Color(0xFFFAD9D0)
+internal val ink = Color(0xFF2B211E)
+internal val brown = Color(0xFF5A4944)
+internal val mutedInk = Color(0xFF75665F)
+internal val emerald = Color(0xFF10B981)
+internal val emeraldSoft = Color(0xFFECFDF5)
+internal val emeraldDeep = Color(0xFF047857)
+internal val roseSoft = Color(0xFFFFF1F2)
+internal val roseLine = Color(0xFFFECDD3)
+internal val roseDeep = Color(0xFFBE123C)
+internal val pill = RoundedCornerShape(50)
+internal const val batchLimit = 20
 
 private data class PhotoDraft(
     val uri: Uri,
@@ -83,7 +108,7 @@ private data class VideoDraft(val uri: Uri, val edits: MaskEdits = MaskEdits())
 @UnstableApi
 class MainActivity : ComponentActivity() {
     private var running: Job? = null
-    private var resumePlayback = false
+    private var activityStarted by mutableStateOf(false)
     private var visiblePlayer: ExoPlayer? = null
     private val shareDirectory get() = File(cacheDir, "editor-share")
 
@@ -125,10 +150,16 @@ class MainActivity : ComponentActivity() {
         var batchResult by remember { mutableStateOf<Pair<Int, Int>?>(null) }
         var analyzeBatch by remember { mutableStateOf(false) }
         var photo by remember { mutableStateOf<Bitmap?>(null) }
-        var videoPreview by remember { mutableStateOf<File?>(null) }
         var videoOutput by remember { mutableStateOf<File?>(null) }
-        var frameMasks by remember { mutableStateOf(emptyList<MaskFrame>()) }
         var player by remember { mutableStateOf<ExoPlayer?>(null) }
+        var videoRetry by remember { mutableIntStateOf(0) }
+        val sourceUri = video?.uri
+        var checkedVideo by remember(sourceUri, videoRetry) { mutableStateOf(false) }
+        var previewFailed by remember(sourceUri, videoRetry) { mutableStateOf(false) }
+        var videoBuffering by remember { mutableStateOf(false) }
+        var firstFrameRendered by remember { mutableStateOf(false) }
+        var videoSize by remember { mutableStateOf(VideoSize.UNKNOWN) }
+        val videoReady = player != null && firstFrameRendered && !previewFailed
         var playing by remember { mutableStateOf(true) }
         var position by remember { mutableLongStateOf(0L) }
         var duration by remember { mutableLongStateOf(0L) }
@@ -153,6 +184,9 @@ class MainActivity : ComponentActivity() {
         val ripple = remember { Animatable(1f) }
         val draft = photos.getOrNull(photoIndex)
         var seekPosition by remember { mutableStateOf<Float?>(null) }
+        var infoOpen by remember { mutableStateOf(false) }
+        val scope = rememberCoroutineScope()
+        val slide = remember { Animatable(0f) }
         val emoji = stickers[emojiIndex]
         val secondary = ButtonDefaults.buttonColors(containerColor = pink, contentColor = brown)
         fun notify(message: String) {
@@ -166,9 +200,7 @@ class MainActivity : ComponentActivity() {
             photos = emptyList()
             photoIndex = 0
             video = null
-            frameMasks = emptyList()
             photo = null
-            videoPreview = null
             videoOutput = null
             seekPosition = null
             failedExports = emptySet()
@@ -190,6 +222,10 @@ class MainActivity : ComponentActivity() {
             failed = false
             renderRevision++
         }
+        fun updateVideoPreview() {
+            position = player?.currentPosition ?: position
+            videoOutput = null
+        }
         fun startWork(block: suspend () -> Unit) {
             if (busy) return
             busy = true
@@ -209,23 +245,30 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        val pickPhotos = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(batchLimit)) { selected ->
-            if (selected.isNotEmpty()) {
-                closeProject()
-                photos = selected.distinct().take(batchLimit).map { PhotoDraft(uri = it) }
-                analyzeBatch = true
-                rerender()
-            }
-        }
-        val pickVideo = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { selected ->
-            if (selected != null) {
-                closeProject()
-                video = VideoDraft(selected)
-                position = 0
-                duration = 0
-                audio = EditorAudio.Original
-                playing = false
-                rerender()
+        // One entry point for photos and videos. The system Photo Picker cannot disable individual items,
+        // so the rules are enforced on the returned selection: photos and videos never mix, one video only.
+        val pickMedia = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(batchLimit)) { selected ->
+            val uris = selected.distinct()
+            if (uris.isEmpty()) return@rememberLauncherForActivityResult
+            val videos = uris.filter { isVideoUri(it) }
+            val images = uris - videos.toSet()
+            when {
+                videos.isNotEmpty() && images.isNotEmpty() -> notify(getString(R.string.editor_mixed_rejected))
+                videos.size > 1 -> notify(getString(R.string.editor_video_single))
+                videos.size == 1 -> {
+                    closeProject()
+                    video = VideoDraft(videos.single())
+                    position = 0
+                    duration = 0
+                    audio = EditorAudio.Original
+                    playing = false
+                }
+                else -> {
+                    closeProject()
+                    photos = images.take(batchLimit).map { PhotoDraft(uri = it) }
+                    analyzeBatch = true
+                    rerender()
+                }
             }
         }
 
@@ -269,9 +312,73 @@ class MainActivity : ComponentActivity() {
                 reveal = null
             }
         }
-        LaunchedEffect(player, playing) {
+        LaunchedEffect(sourceUri, videoRetry) {
+            if (sourceUri == null) return@LaunchedEffect
+            try {
+                inspectVideo(this@MainActivity, sourceUri)
+                checkedVideo = true
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                android.util.Log.w("TapHide", "Video could not be opened", error)
+                previewFailed = true
+            }
+        }
+        val videoOptions = video?.let { VideoMaskOptions(style, emoji, it.edits.manual) }
+        val output = videoOutput
+        DisposableEffect(sourceUri, checkedVideo, videoOptions, output) {
+            val active = if (sourceUri != null && checkedVideo) {
+                firstFrameRendered = false
+                videoSize = VideoSize.UNKNOWN
+                previewFailed = false
+                ExoPlayer.Builder(this@MainActivity).build().apply {
+                    addListener(object : Player.Listener {
+                        override fun onRenderedFirstFrame() {
+                            firstFrameRendered = true
+                        }
+
+                        override fun onVideoSizeChanged(size: VideoSize) {
+                            videoSize = size
+                        }
+
+                        override fun onPlaybackStateChanged(state: Int) {
+                            videoBuffering = state == Player.STATE_BUFFERING
+                        }
+
+                        override fun onPlayerError(error: PlaybackException) {
+                            android.util.Log.w("TapHide", "Video preview failed", error)
+                            previewFailed = true
+                        }
+                    })
+                    if (output == null) {
+                        setVideoEffects(listOf(FacePixelEffect(FrameMetrics(), videoOptions)))
+                    }
+                    setMediaItem(MediaItem.fromUri(output?.let(Uri::fromFile) ?: sourceUri), position)
+                    repeatMode = Player.REPEAT_MODE_ONE
+                    player = this
+                    visiblePlayer = this
+                    prepare()
+                }
+            } else null
+            onDispose {
+                if (active != null) {
+                    player = null
+                    visiblePlayer = null
+                    active.release()
+                }
+            }
+        }
+        LaunchedEffect(player, playing, busy, activityStarted) {
+            player?.playWhenReady = playing && !busy && activityStarted
+        }
+        LaunchedEffect(player, audio, output) {
+            player?.apply {
+                volume = if (output == null && audio == EditorAudio.Mute) 0f else 1f
+                playbackParameters = PlaybackParameters(1f, if (output == null && audio == EditorAudio.Voice) 1.32f else 1f)
+            }
+        }
+        LaunchedEffect(player) {
             val active = player ?: return@LaunchedEffect
-            active.playWhenReady = playing
             while (true) {
                 position = active.currentPosition
                 duration = active.duration.coerceAtLeast(0)
@@ -279,55 +386,36 @@ class MainActivity : ComponentActivity() {
             }
         }
         LaunchedEffect(renderRevision) {
-            val currentVideo = video
-            val currentPhoto = draft
-            if (currentPhoto == null && currentVideo == null) return@LaunchedEffect
+            val currentPhoto = draft ?: return@LaunchedEffect
             photo = null
-            videoPreview = null
-            videoOutput = null
             startWork {
                 try {
-                    if (currentVideo != null) {
-                        val frames = ArrayList<MaskFrame>()
-                        val timeline = frameMasks.takeIf { it.isNotEmpty() }
-                        val options = VideoMaskOptions(style, emoji, currentVideo.edits.manual, timeline) { frames.add(it) }
-                        val result = VideoExporter(this@MainActivity).exportEditor(
-                            currentVideo.uri, audio, options, VideoPurpose.Preview,
-                        ) { progress = it }
-                        if (timeline == null) frameMasks = frames.toList()
-                        videoPreview = result.file
-                    } else if (currentPhoto != null) {
-                        val batch = if (analyzeBatch) photos else listOf(currentPhoto)
-                        analyzeBatch = false
-                        for ((index, item) in batch.withIndex()) {
-                            try {
-                                if (item.uri == currentPhoto.uri) {
-                                    val (bitmap, faces) = renderPhoto(item, style, emoji)
-                                    updatePhoto(item.copy(faces = faces))
-                                    photo = bitmap
-                                } else {
-                                    updatePhoto(item.copy(faces = detectPhoto(item.uri)))
-                                }
-                            } catch (cancelled: CancellationException) {
-                                throw cancelled
-                            } catch (error: Exception) {
-                                android.util.Log.w("TapHide", "Photo could not be analyzed", error)
+                    val batch = if (analyzeBatch) photos else listOf(currentPhoto)
+                    analyzeBatch = false
+                    for ((index, item) in batch.withIndex()) {
+                        try {
+                            if (item.uri == currentPhoto.uri) {
+                                val (bitmap, faces) = renderPhoto(item, style, emoji)
+                                updatePhoto(item.copy(faces = faces))
+                                photo = bitmap
+                            } else {
+                                updatePhoto(item.copy(faces = detectPhoto(item.uri)))
                             }
-                            progress = (index + 1) * 100 / batch.size
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (error: Exception) {
+                            android.util.Log.w("TapHide", "Photo could not be analyzed", error)
                         }
+                        progress = (index + 1) * 100 / batch.size
                     }
                 } finally {
-                    failed = if (currentVideo != null) videoPreview == null else photo == null
+                    failed = photo == null
                 }
             }
         }
         photo?.let { bitmap ->
             DisposableEffect(bitmap) { onDispose { bitmap.recycle() } }
         }
-        videoPreview?.let { file ->
-            DisposableEffect(file) { onDispose { file.delete() } }
-        }
-
         videoOutput?.let { file ->
             DisposableEffect(file) { onDispose { file.delete() } }
         }
@@ -346,11 +434,10 @@ class MainActivity : ComponentActivity() {
                 when {
                     currentVideo != null -> {
                         val file = videoOutput ?: VideoExporter(this@MainActivity).exportEditor(currentVideo.uri, audio,
-                            VideoMaskOptions(style, emoji, currentVideo.edits.manual, frameMasks.takeIf { it.isNotEmpty() }),
+                            VideoMaskOptions(style, emoji, currentVideo.edits.manual),
                             VideoPurpose.FullExport) { progress = it }.file.also {
                             position = player?.currentPosition ?: position
                             videoOutput = it
-                            videoPreview = null
                         }
                         if (share) shareFile(stageShare("mp4") { stream -> copyVideo(file, stream) }, "video/mp4")
                         else savedExport = SavedExport(listOf(saveVideo(file)), video = true)
@@ -377,100 +464,195 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        Surface(Modifier.fillMaxSize(), color = Color(0xFFF6EDE9)) {
+        val mediaRequest = PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+        val mediaReady = !busy && (!isVideo || videoReady)
+        val swipeEnabled = hasProject && !isVideo && photos.size > 1 && !busy
+        val canExport = !busy && (if (isVideo) videoReady else photo != null)
+        val pickLabel = when {
+            !hasProject -> stringResource(R.string.editor_pick_media)
+            isVideo -> stringResource(R.string.editor_reselect_video)
+            else -> stringResource(R.string.editor_reselect_photos, photos.size, batchLimit)
+        }
+        fun switchPhoto(target: Int, widthPx: Float) {
+            val current = photoIndex
+            if (target == current || target !in photos.indices) {
+                if (target != current) {
+                    notify(getString(if (target < current) R.string.editor_first_photo else R.string.editor_last_photo))
+                }
+                scope.launch { slide.animateTo(0f, tween(180)) }
+                return
+            }
+            val direction = if (target > current) -1f else 1f
+            scope.launch {
+                slide.animateTo(direction * widthPx, tween(150))
+                selectedFace = null
+                photoIndex = target
+                rerender()
+                slide.snapTo(-direction * widthPx)
+                slide.animateTo(0f, tween(230, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)))
+            }
+        }
+
+        Surface(Modifier.fillMaxSize(), color = Color(0xFFF4E6E0)) {
             BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding(), contentAlignment = Alignment.TopCenter) {
                 val framed = maxWidth >= 640.dp
                 Surface(
                     Modifier.widthIn(max = 400.dp).fillMaxWidth()
                         .then(if (framed) Modifier.padding(vertical = 20.dp) else Modifier.fillMaxHeight()),
                     shape = if (framed) RoundedCornerShape(38.dp) else RoundedCornerShape(0.dp),
-                    border = if (framed) androidx.compose.foundation.BorderStroke(6.dp, Color.White) else null,
+                    border = if (framed) BorderStroke(6.dp, Color.White) else null,
                     shadowElevation = if (framed) 16.dp else 0.dp,
+                    color = paper,
                 ) {
-                    Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 24.dp),
+                    Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        // Header: title and privacy hint on the left; plan entry and settings on the right.
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically) {
-                            Text(stringResource(R.string.app_name), fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (hasProject) {
-                                    IconButton(onClick = { closeProject() }, enabled = !busy) {
-                                        TapIcon(R.drawable.tap_close, stringResource(R.string.editor_close))
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(stringResource(R.string.app_name), fontSize = 24.sp, fontWeight = FontWeight.ExtraBold,
+                                    color = ink, letterSpacing = (-0.5).sp)
+                                Box(Modifier.size(40.dp).clip(CircleShape).clickable { infoOpen = !infoOpen },
+                                    contentAlignment = Alignment.Center) {
+                                    Box(Modifier.size(24.dp).background(pink, CircleShape), contentAlignment = Alignment.Center) {
+                                        Text("!", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = apricotDark)
                                     }
                                 }
-                                TextButton(onClick = { lifetimeOpen = true }, enabled = !busy) {
-                                    Text(stringResource(R.string.editor_lifetime))
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Surface(onClick = { lifetimeOpen = true }, enabled = !busy, shape = pill, color = pink,
+                                    border = BorderStroke(1.dp, line), contentColor = coralDeep) {
+                                    Text(stringResource(R.string.editor_lifetime), Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                        fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
-                                IconButton(onClick = { settingsOpen = true }, enabled = !busy) {
-                                    TapIcon(R.drawable.tap_settings, stringResource(R.string.editor_settings))
+                                Box(Modifier.size(40.dp).clip(CircleShape).clickable(enabled = !busy) { settingsOpen = true },
+                                    contentAlignment = Alignment.Center) {
+                                    Box(Modifier.size(32.dp).background(Color.White, CircleShape).border(1.dp, line, CircleShape),
+                                        contentAlignment = Alignment.Center) {
+                                        TapIcon(R.drawable.tap_settings, stringResource(R.string.editor_settings), Modifier.size(16.dp))
+                                    }
                                 }
                             }
                         }
-                        if (!hasProject) {
-                            Text(stringResource(R.string.editor_home_intro), color = mutedInk, fontSize = 14.sp, lineHeight = 22.sp)
-                            EditorButton(stringResource(R.string.editor_process_photos), true, !busy, Modifier.fillMaxWidth(), icon = R.drawable.tap_photos) {
-                                pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                            }
-                            EditorButton(stringResource(R.string.editor_process_video), false, !busy, Modifier.fillMaxWidth(), icon = R.drawable.tap_video) {
-                                pickVideo.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
-                            }
-                        } else {
-                            Text(stringResource(if (isVideo) R.string.editor_video_hint else R.string.editor_batch_hint),
-                                color = mutedInk, fontSize = 14.sp, lineHeight = 22.sp)
-                            val noFaces = if (isVideo) {
-                                frameMasks.isNotEmpty() && frameMasks.none { it.faces.isNotEmpty() }
-                            } else draft?.faces?.isEmpty() == true
-                            if (!busy && !failed && noFaces) {
-                                Text(stringResource(R.string.editor_no_faces), color = brown, fontSize = 13.sp)
-                            }
+                        if (infoOpen) PrivacyPopover { infoOpen = false }
 
-                            Surface(Modifier.fillMaxWidth().aspectRatio(4f / 5f),
-                                shape = RoundedCornerShape(16.dp), color = Color(0xFFEFE2DC)) {
-                                BoxWithConstraints(contentAlignment = Alignment.Center) {
-                                    val density = LocalDensity.current
-                                    val viewWidth = with(density) { maxWidth.toPx() }
-                                    val viewHeight = with(density) { maxHeight.toPx() }
-                                    val videoSize = player?.videoSize
-                                    val mediaWidth = if (isVideo) videoSize?.width ?: 0 else photo?.width ?: 0
-                                    val mediaHeight = if (isVideo) videoSize?.height ?: 0 else photo?.height ?: 0
-                                    val aspectScale = if (mediaWidth > 0 && mediaHeight > 0) {
-                                        minOf(viewWidth / mediaWidth, viewHeight / mediaHeight)
-                                    } else 1f
-                                    val imageWidth = mediaWidth * aspectScale
-                                    val imageHeight = mediaHeight * aspectScale
-                                    val left = (viewWidth - imageWidth) / 2
-                                    val top = (viewHeight - imageHeight) / 2
+                        // Single entry for photos and videos, plus a clear action once a project is open.
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Button(onClick = { pickMedia.launch(mediaRequest) }, enabled = !busy, shape = pill,
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 9.dp)) {
+                                IconLabel(R.drawable.tap_add, pickLabel)
+                            }
+                            if (hasProject) {
+                                OutlinedButton(onClick = { closeProject() }, enabled = !busy, shape = pill,
+                                    colors = ButtonDefaults.outlinedButtonColors(containerColor = paper, contentColor = brown),
+                                    border = BorderStroke(1.dp, line),
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 9.dp)) {
+                                    IconLabel(R.drawable.tap_close, stringResource(R.string.editor_clear))
+                                }
+                            }
+                        }
+                        Text(
+                            when {
+                                !hasProject -> stringResource(R.string.editor_limit_hint)
+                                isVideo -> stringResource(R.string.editor_video_hint)
+                                else -> stringResource(R.string.editor_batch_hint)
+                            },
+                            color = mutedInk, fontSize = 11.sp, lineHeight = 16.sp,
+                        )
+                        if (hasProject && !busy && !failed && draft?.faces?.isEmpty() == true) {
+                            Text(stringResource(R.string.editor_no_faces), color = brown, fontSize = 12.sp, lineHeight = 17.sp)
+                        }
 
+                        // Photo batch chips: jump to any photo; swiping the canvas moves to neighbours.
+                        if (hasProject && !isVideo) {
+                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                photos.forEachIndexed { index, item ->
+                                    val selected = index == photoIndex
+                                    val count = item.faces?.size
+                                    val status = when (count) {
+                                        null -> stringResource(R.string.editor_status_pending)
+                                        0 -> stringResource(R.string.editor_status_no_face)
+                                        else -> pluralStringResource(R.plurals.editor_status_faces, count, count)
+                                    }
+                                    Surface(onClick = {
+                                        if (!selected) {
+                                            selectedFace = null
+                                            photoIndex = index
+                                            rerender()
+                                        }
+                                    }, enabled = !busy, shape = pill,
+                                        color = if (selected) coral else Color.White,
+                                        border = BorderStroke(1.dp, if (selected) coral else line),
+                                        contentColor = if (selected) Color.White else brown) {
+                                        Text(stringResource(R.string.editor_photo_chip, index + 1, status),
+                                            Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                            fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                                    }
+                                }
+                            }
+                        }
+
+                        Surface(Modifier.fillMaxWidth().aspectRatio(4f / 5f), shape = RoundedCornerShape(16.dp),
+                            color = Color(0xFFEFE2DC), border = BorderStroke(1.dp, line)) {
+                            if (!hasProject) {
+                                EmptyCanvas(enabled = !busy) { pickMedia.launch(mediaRequest) }
+                            } else BoxWithConstraints(
+                                Modifier.fillMaxSize().then(if (swipeEnabled) Modifier.pointerInput(Unit) {
+                                    // Static gesture container: the media layer moves, so drag coordinates stay stable.
+                                    var total = 0f
+                                    detectHorizontalDragGestures(
+                                        onDragStart = { total = 0f },
+                                        onHorizontalDrag = { change, dragAmount ->
+                                            change.consume()
+                                            total += dragAmount
+                                            val limit = size.width * 0.5f
+                                            scope.launch { slide.snapTo(total.coerceIn(-limit, limit)) }
+                                        },
+                                        onDragEnd = {
+                                            val threshold = size.width * 0.18f
+                                            val current = photoIndex
+                                            val target = when {
+                                                total <= -threshold -> current + 1
+                                                total >= threshold -> current - 1
+                                                else -> current
+                                            }
+                                            switchPhoto(target, size.width.toFloat())
+                                        },
+                                        onDragCancel = { scope.launch { slide.animateTo(0f, tween(180)) } },
+                                    )
+                                } else Modifier),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                val density = LocalDensity.current
+                                val viewWidth = with(density) { maxWidth.toPx() }
+                                val viewHeight = with(density) { maxHeight.toPx() }
+                                val mediaWidth = if (isVideo) videoSize.width * videoSize.pixelWidthHeightRatio else (photo?.width ?: 0).toFloat()
+                                val mediaHeight = if (isVideo) videoSize.height else photo?.height ?: 0
+                                val aspectScale = if (mediaWidth > 0 && mediaHeight > 0) {
+                                    minOf(viewWidth / mediaWidth, viewHeight / mediaHeight)
+                                } else 1f
+                                val imageWidth = mediaWidth * aspectScale
+                                val imageHeight = mediaHeight * aspectScale
+                                val left = (viewWidth - imageWidth) / 2
+                                val top = (viewHeight - imageHeight) / 2
+
+                                Box(Modifier.fillMaxSize().graphicsLayer { translationX = slide.value }) {
                                     if (isVideo) {
-                                        (videoOutput ?: videoPreview)?.let { file ->
-                                            val active = remember(file) {
-                                                ExoPlayer.Builder(this@MainActivity).build().apply {
-                                                    setMediaItem(MediaItem.fromUri(Uri.fromFile(file)))
-                                                    repeatMode = ExoPlayer.REPEAT_MODE_ONE
-                                                    seekTo(position)
-                                                    prepare()
-                                                }
-                                            }
-                                            DisposableEffect(active) {
-                                                player = active
-                                                visiblePlayer = active
-                                                onDispose {
-                                                    if (player === active) player = null
-                                                    if (visiblePlayer === active) visiblePlayer = null
-                                                    active.release()
-                                                }
-                                            }
+                                        player?.takeUnless { previewFailed }?.let { active ->
                                             AndroidView(factory = {
                                                 (LayoutInflater.from(it).inflate(R.layout.editor_video, null) as PlayerView)
                                                     .apply { player = active }
-                                            }, update = { it.player = active }, modifier = Modifier.fillMaxSize())
+                                            }, update = { it.player = active }, onRelease = { it.player = null },
+                                                modifier = Modifier.fillMaxSize())
                                         }
                                     } else {
                                         photo?.let { Image(it.asImageBitmap(), stringResource(R.string.result),
                                             Modifier.fillMaxSize(), contentScale = ContentScale.Fit) }
                                     }
 
-                                    if (imageWidth > 0 && imageHeight > 0 && !busy) {
+                                    if (imageWidth > 0 && imageHeight > 0 && mediaReady) {
                                         val tapAction by rememberUpdatedState<(Offset) -> Unit> { point ->
                                             val x = (point.x - left) / imageWidth
                                             val y = (point.y - top) / imageHeight
@@ -491,13 +673,16 @@ class MainActivity : ComponentActivity() {
                                                 else -> R.string.editor_added
                                             }
                                             notify(getString(message))
-                                            if (isVideo) position = player?.currentPosition ?: position
                                             rippleAt = point
                                             rippleRevision++
                                             if (next != old) {
-                                                if (isVideo) video = video?.copy(edits = next)
-                                                else updatePhoto(checkNotNull(draft).copy(edits = next))
-                                                rerender()
+                                                if (isVideo) {
+                                                    updateVideoPreview()
+                                                    video = video?.copy(edits = next)
+                                                } else {
+                                                    updatePhoto(checkNotNull(draft).copy(edits = next))
+                                                    rerender()
+                                                }
                                             }
                                         }
                                         Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { tapAction(it) } })
@@ -516,168 +701,207 @@ class MainActivity : ComponentActivity() {
                                                 style = Stroke(2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 5f))))
                                         }
                                     }
-                                    if (!isVideo) {
-                                        OverlayPill(stringResource(if (style == MaskStyle.Sticker) R.string.editor_sticker_hint
-                                            else R.string.editor_canvas_hint), Modifier.align(Alignment.TopCenter).padding(12.dp))
-                                    }
-                                    if (busy) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            CircularProgressIndicator()
-                                            if (isVideo || progress > 0) OverlayPill("$progress%")
-                                            OverlayPill(stringResource(R.string.cancel), Modifier.padding(top = 8.dp), dark = false) {
-                                                running?.cancel()
-                                            }
-                                        }
-                                    } else if (failed) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Text(stringResource(R.string.failed), Modifier.padding(horizontal = 12.dp))
-                                            EditorButton(stringResource(R.string.editor_retry), true, true) { rerender() }
+                                }
+                                if (!isVideo) {
+                                    OverlayPill(stringResource(if (style == MaskStyle.Sticker) R.string.editor_sticker_hint
+                                        else R.string.editor_canvas_hint), Modifier.align(Alignment.TopCenter).padding(12.dp))
+                                }
+                                if (busy) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        CircularProgressIndicator()
+                                        if (isVideo || progress > 0) OverlayPill("$progress%")
+                                        OverlayPill(stringResource(R.string.cancel), Modifier.padding(top = 8.dp), dark = false) {
+                                            running?.cancel()
                                         }
                                     }
-                                    Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                        verticalAlignment = Alignment.CenterVertically) {
+                                } else if (failed || (isVideo && previewFailed)) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(stringResource(R.string.failed), Modifier.padding(horizontal = 12.dp))
+                                        EditorButton(stringResource(R.string.editor_retry), true, true) {
+                                            if (isVideo) {
+                                                videoOutput = null
+                                                videoRetry++
+                                            } else rerender()
+                                        }
+                                    }
+                                } else if (isVideo && (!videoReady || videoBuffering)) {
+                                    Surface(shape = RoundedCornerShape(12.dp), color = paper) {
+                                        Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Text(stringResource(R.string.editor_preparing_preview), fontSize = 13.sp)
+                                            LinearProgressIndicator(Modifier.width(144.dp))
+                                        }
+                                    }
+                                }
+                                if (swipeEnabled) {
+                                    if (photoIndex > 0) {
+                                        SwipeArrow(Modifier.align(Alignment.CenterStart).padding(start = 8.dp),
+                                            R.drawable.tap_left, stringResource(R.string.editor_previous)) {
+                                            switchPhoto(photoIndex - 1, viewWidth)
+                                        }
+                                    }
+                                    if (photoIndex < photos.lastIndex) {
+                                        SwipeArrow(Modifier.align(Alignment.CenterEnd).padding(end = 8.dp),
+                                            R.drawable.tap_right, stringResource(R.string.editor_next)) {
+                                            switchPhoto(photoIndex + 1, viewWidth)
+                                        }
+                                    }
+                                }
+                                Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalAlignment = Alignment.CenterVertically) {
+                                    if (isVideo) {
+                                        OverlayPill("${timeLabel(position)} / ${timeLabel(duration)}",
+                                            icon = if (playing) R.drawable.tap_pause else R.drawable.tap_play,
+                                            monospace = true, enabled = mediaReady) { playing = !playing }
+                                        val audioLabel = when (audio) {
+                                            EditorAudio.Original -> stringResource(R.string.editor_original_audio)
+                                            EditorAudio.Mute -> stringResource(R.string.mute)
+                                            EditorAudio.Voice -> stringResource(R.string.editor_voice)
+                                        }
+                                        val audioIcon = when (audio) {
+                                            EditorAudio.Original -> R.drawable.tap_audio
+                                            EditorAudio.Mute -> R.drawable.tap_mute
+                                            EditorAudio.Voice -> R.drawable.tap_voice
+                                        }
+                                        OverlayPill(audioLabel, dark = false, canvasControl = true, icon = audioIcon, enabled = mediaReady) {
+                                            updateVideoPreview()
+                                            audio = EditorAudio.entries[(audio.ordinal + 1) % EditorAudio.entries.size]
+                                        }
+                                    } else if (swipeEnabled) {
+                                        OverlayPill(stringResource(R.string.editor_swipe_hint, photoIndex + 1, photos.size), dark = true)
+                                    }
+                                    Spacer(Modifier.weight(1f))
+                                    OverlayPill(stringResource(R.string.editor_reset), dark = false, canvasControl = true,
+                                        icon = R.drawable.tap_refresh, enabled = mediaReady) {
                                         if (isVideo) {
-                                            OverlayPill("${timeLabel(position)} / ${timeLabel(duration)}",
-                                                icon = if (playing) R.drawable.tap_pause else R.drawable.tap_play,
-                                                monospace = true, enabled = !busy && player != null) { playing = !playing }
-                                            val audioLabel = when (audio) {
-                                                EditorAudio.Original -> stringResource(R.string.editor_original_audio)
-                                                EditorAudio.Mute -> stringResource(R.string.mute)
-                                                EditorAudio.Voice -> stringResource(R.string.editor_voice)
-                                            }
-                                            val audioIcon = when (audio) {
-                                                EditorAudio.Original -> R.drawable.tap_audio
-                                                EditorAudio.Mute -> R.drawable.tap_mute
-                                                EditorAudio.Voice -> R.drawable.tap_voice
-                                            }
-                                            OverlayPill(audioLabel, dark = false, canvasControl = true, icon = audioIcon, enabled = !busy) {
-                                                audio = EditorAudio.entries[(audio.ordinal + 1) % EditorAudio.entries.size]
-                                                rerender()
-                                            }
+                                            updateVideoPreview()
+                                            video = video?.copy(edits = MaskEdits())
                                         } else {
-                                            Surface(shape = pill, color = Color.Black.copy(alpha = 0.5f), contentColor = Color.White) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    OverlayPill("", dark = true, transparent = true, icon = R.drawable.tap_left,
-                                                        iconDescription = stringResource(R.string.editor_previous), enabled = !busy) {
-                                                        selectedFace = null
-                                                    photoIndex = (photoIndex + photos.size - 1) % photos.size
-                                                        rerender()
-                                                    }
-                                                    Text(stringResource(R.string.editor_photo_count, photoIndex + 1, photos.size), fontSize = 11.sp)
-                                                    OverlayPill("", dark = true, transparent = true, icon = R.drawable.tap_right,
-                                                        iconDescription = stringResource(R.string.editor_next), enabled = !busy) {
-                                                        selectedFace = null
-                                                    photoIndex = (photoIndex + 1) % photos.size
-                                                        rerender()
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        Spacer(Modifier.weight(1f))
-                                        OverlayPill(stringResource(R.string.editor_reset), dark = false, canvasControl = true,
-                                            icon = R.drawable.tap_refresh, enabled = !busy) {
-                                            if (isVideo) video = video?.copy(edits = MaskEdits())
-                                            else updatePhoto(checkNotNull(draft).copy(edits = MaskEdits(), faceStickers = emptyMap()))
-                                            notify(getString(R.string.editor_reset_done))
+                                            updatePhoto(checkNotNull(draft).copy(edits = MaskEdits(), faceStickers = emptyMap()))
                                             rerender()
                                         }
+                                        notify(getString(R.string.editor_reset_done))
                                     }
                                 }
                             }
-                            if (isVideo && duration > 0) {
-                                Slider(value = (seekPosition ?: position.toFloat()).coerceIn(0f, duration.toFloat()),
-                                    onValueChange = { seekPosition = it },
-                                    onValueChangeFinished = {
-                                        seekPosition?.let { player?.seekTo(it.toLong()) }
-                                        seekPosition = null
-                                    }, enabled = !busy && player != null, valueRange = 0f..duration.toFloat())
+                        }
+                        if (isVideo && duration > 0) {
+                            Slider(value = (seekPosition ?: position.toFloat()).coerceIn(0f, duration.toFloat()),
+                                onValueChange = { seekPosition = it },
+                                onValueChangeFinished = {
+                                    seekPosition?.let { player?.seekTo(it.toLong()) }
+                                    seekPosition = null
+                                }, enabled = mediaReady, valueRange = 0f..duration.toFloat())
+                        }
+                        if (hasProject && style == MaskStyle.Sticker) {
+                            val face = selectedFace
+                            val current = draft
+                            fun applySticker(sticker: String) {
+                                if (face != null && current != null) {
+                                    updatePhoto(current.copy(
+                                        faceStickers = current.faceStickers + (face to sticker),
+                                        edits = current.edits.copy(revealed = current.edits.revealed - face),
+                                    ))
+                                } else {
+                                    emojiIndex = stickers.indexOf(sticker)
+                                    if (current != null) updatePhoto(current.copy(faceStickers = emptyMap()))
+                                }
+                                if (isVideo) updateVideoPreview() else rerender()
                             }
-                            if (style == MaskStyle.Sticker) {
-                                val face = selectedFace
-                                val current = draft
-                                fun applySticker(sticker: String) {
-                                    if (face != null && current != null) {
+                            StickerPanel(current?.faceStickers?.get(face) ?: emoji, face,
+                                current?.edits?.revealed?.contains(face) == true, mediaReady,
+                                onSelect = ::applySticker,
+                                onShuffle = {
+                                    if (face == null && current != null && !current.faces.isNullOrEmpty()) {
                                         updatePhoto(current.copy(
-                                            faceStickers = current.faceStickers + (face to sticker),
-                                            edits = current.edits.copy(revealed = current.edits.revealed - face),
+                                            faceStickers = current.faces.associate { it.id to stickers.random() },
+                                            edits = current.edits.copy(revealed = emptySet()),
                                         ))
-                                    } else {
-                                        emojiIndex = stickers.indexOf(sticker)
-                                        if (current != null) updatePhoto(current.copy(faceStickers = emptyMap()))
+                                        rerender()
+                                    } else applySticker(stickers.filter { it != (current?.faceStickers?.get(face) ?: emoji) }.random())
+                                },
+                                onReveal = {
+                                    if (face != null && current != null) {
+                                        val revealed = current.edits.revealed
+                                        updatePhoto(current.copy(edits = current.edits.copy(
+                                            revealed = if (face in revealed) revealed - face else revealed + face,
+                                        )))
+                                        rerender()
                                     }
-                                    rerender()
-                                }
-                                StickerPanel(current?.faceStickers?.get(face) ?: emoji, face,
-                                    current?.edits?.revealed?.contains(face) == true, !busy,
-                                    onSelect = ::applySticker,
-                                    onShuffle = {
-                                        if (face == null && current != null && !current.faces.isNullOrEmpty()) {
-                                            updatePhoto(current.copy(
-                                                faceStickers = current.faces.associate { it.id to stickers.random() },
-                                                edits = current.edits.copy(revealed = emptySet()),
-                                            ))
-                                            rerender()
-                                        } else applySticker(stickers.filter { it != (current?.faceStickers?.get(face) ?: emoji) }.random())
-                                    },
-                                    onReveal = {
-                                        if (face != null && current != null) {
-                                            val revealed = current.edits.revealed
-                                            updatePhoto(current.copy(edits = current.edits.copy(
-                                                revealed = if (face in revealed) revealed - face else revealed + face,
-                                            )))
-                                            rerender()
-                                        }
-                                    },
-                                    onClear = { selectedFace = null },
-                                )
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                },
+                                onClear = { selectedFace = null },
+                            )
+                        }
+                        if (hasProject) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 for (option in MaskStyle.entries) {
-                                    val (label, icon) = when (option) {
-                                        MaskStyle.Mosaic -> R.string.editor_pixelate to R.drawable.tap_grid
-                                        MaskStyle.Blur -> R.string.editor_blur to R.drawable.tap_blur
-                                        MaskStyle.Sticker -> R.string.editor_sticker to R.drawable.tap_sticker
+                                    val active = style == option
+                                    val label = when (option) {
+                                        MaskStyle.Mosaic -> stringResource(R.string.editor_pixelate)
+                                        MaskStyle.Blur -> stringResource(R.string.editor_blur)
+                                        MaskStyle.Sticker -> stringResource(R.string.editor_sticker)
                                     }
-                                    EditorButton(stringResource(label), style == option, !busy,
-                                        Modifier.weight(1f), compact = true, icon = icon) {
+                                    val sub = when (option) {
+                                        MaskStyle.Mosaic -> stringResource(R.string.editor_style_mosaic_sub)
+                                        MaskStyle.Blur -> stringResource(R.string.editor_style_blur_sub)
+                                        MaskStyle.Sticker -> stringResource(R.string.editor_style_sticker_sub, stickers.size)
+                                    }
+                                    val icon = when (option) {
+                                        MaskStyle.Mosaic -> R.drawable.tap_grid
+                                        MaskStyle.Blur -> R.drawable.tap_blur
+                                        MaskStyle.Sticker -> R.drawable.tap_sticker
+                                    }
+                                    Surface(onClick = {
                                         if (style != option) {
                                             selectedFace = null
                                             style = option
-                                            rerender()
+                                            if (isVideo) updateVideoPreview() else rerender()
+                                        }
+                                    }, enabled = mediaReady, modifier = Modifier.weight(1f), shape = RoundedCornerShape(16.dp),
+                                        color = if (active) paper else Color.White,
+                                        border = BorderStroke(if (active) 2.dp else 1.dp, if (active) coral else pink),
+                                        contentColor = if (active) apricotDark else brown) {
+                                        Column(Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            TapIcon(icon, modifier = Modifier.size(18.dp))
+                                            Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis)
+                                            Text(sub, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         }
                                     }
                                 }
                             }
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                val enabled = !busy && if (isVideo) videoOutput != null || videoPreview != null else photo != null
-                                Button(onClick = { export(false) }, enabled = enabled,
-                                    modifier = Modifier.weight(1f).heightIn(min = 50.dp)) {
-                                    IconLabel(R.drawable.tap_download, stringResource(R.string.save))
-                                }
-                                Button(onClick = { export(true) }, enabled = enabled, colors = secondary,
-                                    modifier = Modifier.heightIn(min = 50.dp)) {
-                                    IconLabel(R.drawable.tap_share, stringResource(R.string.editor_share))
-                                }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Button(onClick = { export(false) }, enabled = canExport, shape = pill,
+                                modifier = Modifier.weight(1f).heightIn(min = 50.dp)) {
+                                IconLabel(R.drawable.tap_download, stringResource(R.string.save))
                             }
-                            if (!isVideo && photos.size > 1) {
-                                Button(onClick = { export(false, photos) }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
-                                    Text(stringResource(R.string.editor_save_batch, photos.size))
-                                }
-                                batchResult?.let { (saved, failures) ->
-                                    Text(stringResource(R.string.editor_batch_result, saved, failures))
-                                }
-                                if (failedExports.isNotEmpty()) {
-                                    TextButton(onClick = { export(false, photos.filter { it.uri in failedExports }) }, enabled = !busy) {
-                                        Text(stringResource(R.string.editor_retry_failed, failedExports.size))
-                                    }
+                            Button(onClick = { export(true) }, enabled = canExport, colors = secondary, shape = pill,
+                                modifier = Modifier.heightIn(min = 50.dp)) {
+                                IconLabel(R.drawable.tap_share, stringResource(R.string.editor_share))
+                            }
+                        }
+                        if (hasProject && !isVideo && photos.size > 1) {
+                            Button(onClick = { export(false, photos) }, enabled = !busy, shape = pill, colors = secondary,
+                                modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(R.string.editor_save_batch, photos.size))
+                            }
+                            batchResult?.let { (saved, failures) ->
+                                Text(stringResource(R.string.editor_batch_result, saved, failures), color = brown, fontSize = 12.sp)
+                            }
+                            if (failedExports.isNotEmpty()) {
+                                TextButton(onClick = { export(false, photos.filter { it.uri in failedExports }) }, enabled = !busy) {
+                                    Text(stringResource(R.string.editor_retry_failed, failedExports.size))
                                 }
                             }
                         }
                     }
                 }
                 if (feedback.isNotEmpty()) {
-                    OverlayPill(feedback, Modifier.align(Alignment.TopCenter).padding(top = 8.dp, start = 12.dp, end = 12.dp), toast = true)
+                    OverlayPill(feedback, Modifier.align(Alignment.TopCenter).widthIn(max = 320.dp).padding(top = 8.dp), toast = true)
                 }
             }
         }
@@ -712,6 +936,16 @@ class MainActivity : ComponentActivity() {
             if (isVideoResult) copyMovie.launch("$name.mp4") else copyPhoto.launch("$name.jpg")
         }, enabled = !busy)
 
+    }
+
+    private fun isVideoUri(uri: Uri): Boolean = contentResolver.getType(uri)?.startsWith("video/") == true
+
+    @Composable
+    private fun SwipeArrow(modifier: Modifier, icon: Int, description: String, onClick: () -> Unit) {
+        Surface(onClick = onClick, modifier = modifier.size(32.dp), shape = CircleShape,
+            color = Color.Black.copy(alpha = 0.4f), contentColor = Color.White) {
+            Box(contentAlignment = Alignment.Center) { TapIcon(icon, description, Modifier.size(14.dp)) }
+        }
     }
 
     @Composable
@@ -911,15 +1145,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         running?.cancel()
-        resumePlayback = visiblePlayer?.playWhenReady == true
+        activityStarted = false
         visiblePlayer?.pause()
         super.onStop()
     }
 
     override fun onStart() {
         super.onStart()
-        if (resumePlayback) visiblePlayer?.play()
-        resumePlayback = false
+        activityStarted = true
     }
 
     override fun onDestroy() {
