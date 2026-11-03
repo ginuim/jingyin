@@ -82,7 +82,7 @@ class MainActivity : ComponentActivity() {
                             FaceDetector(this@MainActivity).use { detector ->
                                 val detection = detector.detect(source)
                                 ensureActive()
-                                FaceDetector.pixelate(source, detection.faces)
+                                PhotoMasking.render(source, detection)
                             }
                         } finally { source.recycle() }
                     }
@@ -130,12 +130,12 @@ class MainActivity : ComponentActivity() {
                                     FaceDetector(this@MainActivity).use { detector ->
                                         repeat(3) { ensureActive(); detector.detect(source) }
                                         val samples = mutableListOf<Double>()
-                                        var latest = Detection(emptyList(), 0.0)
+                                        var latest = Detection(emptyList(), null, 0.0)
                                         repeat(20) { ensureActive(); latest = detector.detect(source); samples += latest.millis }
                                         ensureActive()
-                                        val masked = FaceDetector.pixelate(source, latest.faces)
+                                        val masked = PhotoMasking.render(source, latest)
                                         val sorted = samples.sorted()
-                                        masked to "faces=${latest.faces.size}, samples=20, input=320, threads=2\ninferenceMedianMs=%.2f, p95Ms=%.2f, maxMs=%.2f".format(sorted[10], sorted[18], sorted.last())
+                                        masked to "faces=${latest.faces.size}, person=${latest.person != null}, samples=20, input=320, threads=2\nsegmentMs=%.2f\ninferenceMedianMs=%.2f, p95Ms=%.2f, maxMs=%.2f".format(latest.segmentMillis, sorted[10], sorted[18], sorted.last())
                                     }
                                 } finally { source.recycle() }
                             }

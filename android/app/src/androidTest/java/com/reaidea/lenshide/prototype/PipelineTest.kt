@@ -36,24 +36,43 @@ class PipelineTest {
                 FaceDetector(context, size).use { detector ->
                     repeat(3) { detector.detect(bitmap) }
                     val detections = (1..20).map { detector.detect(bitmap) }
-                    val times = detections.map { it.millis }.sorted()
-                    val faces = detections.last().faces
+                    val times = detections.map { it.millis + it.segmentMillis }.sorted()
+                    val last = detections.last()
+                    val faces = last.faces
                     assertTrue("No faces detected at $size", faces.isNotEmpty())
-                    assertTrue(faces.all { it.x >= 0 && it.y >= 0 && it.x + it.width <= 1.0001 && it.y + it.height <= 1.0001 })
-                    val masked = FaceDetector.pixelate(bitmap, faces)
+                    assertNotNull("Person silhouette missing at $size", last.person)
+                    assertTrue(faces.all { it.cx in 0f..1f && it.cy in 0f..1f })
+                    val masked = PhotoMasking.render(bitmap, last)
                     try {
-                        // Actual pixels must change inside each detected region.
+                        // Pixels must change inside each face ellipse; the mask is elliptical, not a rectangle.
                         faces.forEach { face ->
                             var changed = 0
-                            for (i in 1..9) for (j in 1..9) {
-                                val x = ((face.x + face.width * i / 10) * bitmap.width).toInt().coerceIn(0, bitmap.width - 1)
-                                val y = ((face.y + face.height * j / 10) * bitmap.height).toInt().coerceIn(0, bitmap.height - 1)
+                            for (i in -4..4) for (j in -4..4) {
+                                val u = face.cx + face.rx * i / 5f
+                                val v = face.cy + face.ry * j / 5f
+                                if (u !in 0f..1f || v !in 0f..1f) continue
+                                val x = (u * bitmap.width).toInt().coerceIn(0, bitmap.width - 1)
+                                val y = (v * bitmap.height).toInt().coerceIn(0, bitmap.height - 1)
                                 if (bitmap.getPixel(x, y) != masked.getPixel(x, y)) changed++
                             }
                             assertTrue("Mask did not modify face pixels", changed > 0)
                         }
                         report("photo-$size", "visibleFaces=8, detected=${faces.size}, samples=20, medianMs=${times[10]}, p95Ms=${times[18]}, maxMs=${times.last()}")
                         if (size == 320) File(context.filesDir, "masked-photo.jpg").outputStream().use { masked.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, it) }
+                        // Silhouette sanity: fraction of analysis texels covered, plus a visual dump of the mask.
+                        val person = last.person!!
+                        val covered = person.alpha.count { (it.toInt() and 0xFF) > 127 }
+                        report("person-$size", "coveredFraction=%.3f, segmentMsLast=%.2f".format(covered / (person.size * person.size.toFloat()), last.segmentMillis))
+                        if (size == 320) {
+                            val mask = android.graphics.Bitmap.createBitmap(person.size, person.size, android.graphics.Bitmap.Config.ARGB_8888)
+                            for (y in 0 until person.size) for (x in 0 until person.size) {
+                                val a = person.alpha[y * person.size + x].toInt() and 0xFF
+                                mask.setPixel(x, y, Color.argb(255, a, a, a))
+                            }
+                            try {
+                                File(context.filesDir, "person-mask.png").outputStream().use { mask.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                            } finally { mask.recycle() }
+                        }
                     } finally { masked.recycle() }
                 }
             }
