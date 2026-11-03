@@ -11,22 +11,45 @@ import kotlin.math.min
 internal enum class MaskStyle { Mosaic, Blur, Sticker }
 enum class EditorAudio { Original, Mute, Voice }
 
+internal sealed interface MaskSelection {
+    data class Automatic(val id: Int) : MaskSelection
+    data class Manual(val index: Int) : MaskSelection
+}
+
 internal data class MaskEdits(
     val revealed: Set<Int> = emptySet(),
     val manual: List<FaceBox> = emptyList(),
+    val adjusted: Map<Int, FaceBox> = emptyMap(),
+    val inverted: Boolean = false,
 ) {
-    fun tap(x: Float, y: Float, faces: List<PhotoFace>, radiusX: Float, radiusY: Float): MaskEdits {
-        val manualIndex = manual.indexOfLast { it.contains(x, y) }
-        if (manualIndex >= 0) return copy(manual = manual.filterIndexed { index, _ -> index != manualIndex })
-        val face = faces.lastOrNull { it.box.contains(x, y) }
-        if (face != null) {
-            return copy(revealed = if (face.id in revealed) revealed - face.id else revealed + face.id)
-        }
-        if (manual.size >= 32) return this
-        return copy(manual = manual + FaceBox(x, y, radiusX, radiusY))
+    fun boxFor(face: PhotoFace) = adjusted[face.id] ?: face.box
+
+    fun hitTest(x: Float, y: Float, faces: List<PhotoFace>): MaskSelection? {
+        val index = manual.indexOfLast { it.contains(x, y) }
+        if (index >= 0) return MaskSelection.Manual(index)
+        return faces.lastOrNull { it.id !in revealed && boxFor(it).contains(x, y) }
+            ?.let { MaskSelection.Automatic(it.id) }
     }
 
-    fun masks(faces: List<PhotoFace>) = faces.filter { it.id !in revealed }.map { it.box } + manual
+    fun boxFor(selection: MaskSelection?, faces: List<PhotoFace>): FaceBox? = when (selection) {
+        is MaskSelection.Automatic -> faces.firstOrNull { it.id == selection.id && it.id !in revealed }?.let(::boxFor)
+        is MaskSelection.Manual -> manual.getOrNull(selection.index)
+        null -> null
+    }
+
+    fun remove(selection: MaskSelection): MaskEdits = when (selection) {
+        is MaskSelection.Automatic -> copy(revealed = revealed + selection.id, adjusted = adjusted - selection.id)
+        is MaskSelection.Manual -> copy(manual = manual.filterIndexed { index, _ -> index != selection.index })
+    }
+
+    fun transform(selection: MaskSelection, box: FaceBox): MaskEdits = when (selection) {
+        is MaskSelection.Automatic -> copy(adjusted = adjusted + (selection.id to box))
+        is MaskSelection.Manual -> copy(manual = manual.mapIndexed { index, old ->
+            if (index == selection.index) box else old
+        })
+    }
+
+    fun masks(faces: List<PhotoFace>) = faces.filter { it.id !in revealed }.map(::boxFor) + manual
 }
 
 internal fun FaceBox.contains(x: Float, y: Float) =
@@ -50,9 +73,10 @@ internal fun stickerBitmap(emoji: String): Bitmap {
 internal fun renderEditorPhoto(
     source: Bitmap, masks: List<FaceBox>, style: MaskStyle, emoji: String,
     overrides: Map<FaceBox, String> = emptyMap(),
+    inverted: Boolean = false,
 ): Bitmap {
-    if (style == MaskStyle.Mosaic) {
-        return PhotoMasking.render(source, Detection(masks, null, 0.0))
+    if (style == MaskStyle.Mosaic || inverted) {
+        return PhotoMasking.render(source, Detection(masks, null, 0.0), inverted)
     }
     val output = source.copy(Bitmap.Config.ARGB_8888, true)
     val canvas = Canvas(output)
@@ -126,4 +150,5 @@ internal data class VideoMaskOptions(
     val style: MaskStyle,
     val sticker: String,
     val manual: List<FaceBox>,
+    val inverted: Boolean = false,
 )

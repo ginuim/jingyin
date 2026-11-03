@@ -38,13 +38,21 @@ class FrameMetrics {
 @UnstableApi
 class FacePixelEffect internal constructor(
     private val metrics: FrameMetrics,
-    private val options: VideoMaskOptions?,
+    initialOptions: VideoMaskOptions?,
 ) : GlEffect {
     constructor(metrics: FrameMetrics) : this(metrics, null)
 
+    @Volatile private var options = initialOptions
+
+    internal fun updateOptions(next: VideoMaskOptions?): Boolean {
+        if (options == next) return false
+        options = next
+        return true
+    }
+
     override fun toGlShaderProgram(context: Context, useHdr: Boolean): GlShaderProgram {
         check(!useHdr) { "This prototype supports SDR only" }
-        return SubjectPixelShader(context, metrics, options)
+        return SubjectPixelShader(context, metrics, options == null) { options }
     }
 }
 
@@ -53,8 +61,13 @@ class FacePixelEffect internal constructor(
  * Shares its geometry with [SubjectMask]; keep the GLSL formulas in sync with that file.
  */
 @UnstableApi
-private class SubjectPixelShader(context: Context, private val metrics: FrameMetrics, private val options: VideoMaskOptions?) : BaseGlShaderProgram(false, 1) {
-    private val detector = FaceDetector(context, detectPerson = options == null)
+private class SubjectPixelShader(
+    context: Context,
+    private val metrics: FrameMetrics,
+    detectPerson: Boolean,
+    private val currentOptions: () -> VideoMaskOptions?,
+) : BaseGlShaderProgram(false, 1) {
+    private val detector = FaceDetector(context, detectPerson = detectPerson)
     private val stickerTexture = GlUtil.createTexture(256, 256, false)
     private val analysis = GlProgram(VERTEX, ANALYSIS)
     private val render = GlProgram(VERTEX, RENDER)
@@ -69,14 +82,9 @@ private class SubjectPixelShader(context: Context, private val metrics: FrameMet
     private var width = 0
     private var height = 0
 
+    private var uploadedSticker: String? = null
+
     init {
-        if (options?.style == MaskStyle.Sticker) {
-            val bitmap = stickerBitmap(options.sticker)
-            try {
-                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, stickerTexture)
-                GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0)
-            } finally { bitmap.recycle() }
-        }
         analysis.setBufferAttribute("aPosition", GlUtil.getNormalizedCoordinateBounds(), 4)
         render.setBufferAttribute("aPosition", GlUtil.getNormalizedCoordinateBounds(), 4)
         GLES20.glGenTextures(1, maskTexture, 0)
@@ -111,6 +119,15 @@ private class SubjectPixelShader(context: Context, private val metrics: FrameMet
                 pixels.rewind(); pixels.get(bytes)
                 detector.detectGl(bytes, width, height)
             }
+            val options = currentOptions()
+            if (options?.style == MaskStyle.Sticker && !options.inverted && options.sticker != uploadedSticker) {
+                val bitmap = stickerBitmap(options.sticker)
+                try {
+                    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, stickerTexture)
+                    GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0)
+                    uploadedSticker = options.sticker
+                } finally { bitmap.recycle() }
+            }
             val masks = detection.faces + options?.manual.orEmpty()
             check(masks.size <= 64) { "Too many masks; processing stopped" }
             if (options == null || !maskAllocated) uploadPersonMask(detection.person)
@@ -125,6 +142,7 @@ private class SubjectPixelShader(context: Context, private val metrics: FrameMet
             render.setSamplerTexIdUniform("uSticker", stickerTexture, 2)
             render.setIntUniform("uStyle", options?.style?.let { it.ordinal + 1 } ?: 0)
             render.setIntUniform("uCount", masks.size)
+            render.setIntUniform("uInverted", if (options?.inverted == true) 1 else 0)
             render.bindAttributesAndUniforms()
             ellipses.fill(0f)
             masks.forEachIndexed { index, face ->
@@ -203,6 +221,7 @@ private class SubjectPixelShader(context: Context, private val metrics: FrameMet
             uniform float uCell;
             uniform vec4 uFaces[64];
             uniform int uCount;
+            uniform int uInverted;
             varying vec2 vTex;
             void main() {
                 vec2 p = vec2(vTex.x, 1.0 - vTex.y);
@@ -220,8 +239,8 @@ private class SubjectPixelShader(context: Context, private val metrics: FrameMet
                 cellCentre = clamp(cellCentre, vec2(0.0), vec2(1.0));
                 vec4 source = texture2D(uTex, vTex);
                 vec4 mosaic = texture2D(uTex, vec2(cellCentre.x, 1.0 - cellCentre.y));
-                if (uStyle <= 1) {
-                    gl_FragColor = mix(source, mosaic, coverage);
+                if (uStyle <= 1 || uInverted == 1) {
+                    gl_FragColor = mix(source, mosaic, uInverted == 1 ? 1.0 - coverage : coverage);
                     return;
                 }
                 vec4 result = source;

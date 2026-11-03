@@ -20,7 +20,7 @@
     <string name="editor_pixelate">モザイク</string>
     <string name="editor_blur">ぼかし</string>
     <string name="editor_share">共有</string>
-    <string name="editor_canvas_hint">タップで表示・隠す</string>
+    <string name="editor_canvas_hint">タップしてマスクを選択・追加</string>
     <string name="editor_reset">自動マスクに戻す</string>
     <string name="editor_reset_done">自動マスクに戻しました</string>
     <string name="editor_photo_count">写真 %1$d / %2$d</string>
@@ -29,15 +29,13 @@
     <string name="editor_change_sticker">ステッカー変更</string>
     <string name="editor_sticker">顔ステッカー</string>
     <string name="editor_saving">メタデータを削除して保存中…</string>
-    <string name="editor_revealed">顔を表示しました · 再タップで隠す</string>
-    <string name="editor_covered">マスクを戻しました</string>
-    <string name="editor_removed">追加マスクを削除しました</string>
-    <string name="editor_added">マスクを追加しました · 再タップで削除</string>
+    <string name="editor_removed">マスクを削除しました</string>
+    <string name="editor_added">マスクを追加しました</string>
     <string name="editor_mask_limit">追加マスク数の上限に達しました</string>
     <string name="editor_close">閉じる</string>
     <string name="editor_batch_hint">効果は一括で適用されます。写真ごとに確認・調整できます。</string>
     <string name="editor_preparing_preview">プレビューを準備中…</string>
-    <string name="editor_video_hint">顔は自動で隠れます。画面をタップして手動マスクを追加・削除できます。</string>
+    <string name="editor_video_hint">動画の顔は自動で隠れます。タップして手動マスクを追加・選択し、右下の角をドラッグしてサイズを変えられます。</string>
     <string name="editor_save_batch">%1$d 枚すべて保存</string>
     <string name="editor_batch_result">保存 %1$d 枚 · 失敗 %2$d 枚</string>
     <string name="editor_retry_failed">失敗した %1$d 枚を再試行</string>
@@ -67,8 +65,6 @@
     <string name="editor_all_faces">すべての顔に適用</string>
     <string name="editor_selected_face">選択中の顔 %1$d</string>
     <string name="editor_shuffle">シャッフル</string>
-    <string name="editor_reveal_face">顔を表示</string>
-    <string name="editor_cover_face">顔を隠す</string>
     <string name="editor_on_device">端末内で処理</string>
     <string name="editor_cancel_cleanup">中止して一時ファイルを削除</string>
     <string name="editor_clean_metadata">元の位置情報、端末情報、撮影日時を削除済み</string>
@@ -76,7 +72,6 @@
     <string name="editor_next">次へ</string>
     <string name="editor_save_copy">コピーを保存</string>
     <string name="editor_copy_saved">コピーを保存しました</string>
-    <string name="editor_sticker_hint">顔をタップすると個別に変更できます</string>
     <string name="editor_pick_media">写真または動画を選択</string>
     <string name="editor_reselect_photos">素材を選び直す (%1$d/%2$d)</string>
     <string name="editor_reselect_video">素材を選び直す（動画）</string>
@@ -84,7 +79,7 @@
     <string name="editor_limit_hint">写真は最大 20 枚 · 動画は 1 本まで（5 分以内・1GB 以内）</string>
     <string name="editor_rule_detail">写真を選ぶと動画は選べません。動画は単独で選択。アップロードはしません。</string>
     <string name="editor_empty_title">写真または動画が未選択です</string>
-    <string name="editor_empty_body">読み込むと自動でモザイクをかけます。顔をタップで表示切替、空白をタップで手動追加。</string>
+    <string name="editor_empty_body">読み込むと自動でマスクがかかります。マスクをタップして選択し、ドラッグして移動できます。</string>
     <string name="editor_steps">① 選択 → ② 自動モザイク → ③ タップで調整</string>
     <string name="editor_local_badge">🔒 端末内</string>
     <string name="editor_mixed_rejected">写真と動画は一緒に選べません。写真だけ、または動画 1 本だけを選んでください。</string>
@@ -101,10 +96,12 @@
     <string name="editor_style_mosaic_sub">標準 · プライバシー</string>
     <string name="editor_style_blur_sub">やわらかく自然</string>
     <string name="editor_style_sticker_sub">%1$d 種のスタンプ</string>
-    <string name="editor_info_body">🔒 すべて端末内で処理し、書き出し時に GPS 位置と機器情報を削除します。\n👆 顔をタップで表示/非表示、空白をタップで手動モザイクを追加。</string>
+    <string name="editor_info_body">🔒 すべて端末内で処理し、書き出し時に GPS 位置と機器情報を削除します。\n👆 マスクをタップして選択します。内側をドラッグして移動、右下の角をドラッグしてサイズを変更できます。</string>
     <string name="editor_badge_gps">✓ GPS 位置情報を削除済み</string>
     <string name="editor_badge_device">✓ 撮影機器と撮影日時を削除済み</string>
     <string name="editor_export_badge">透かしなし · プライバシー保護済み</string>
     <string name="editor_batch_failed_notice">%1$d 枚の書き出しに失敗しました。失敗分のみ再試行できます。</string>
     <string name="editor_done_clean">完了して戻る（離れると一時ファイルを削除）</string>
+    <string name="editor_delete_mask">選択したマスクを削除</string>
+    <string name="editor_invert_mask">マスクを反転</string>
 </resources>

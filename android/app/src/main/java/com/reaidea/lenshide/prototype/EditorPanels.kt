@@ -238,8 +238,8 @@ internal fun LifetimePanel(onClose: () -> Unit) {
 }
 
 @Composable
-internal fun StickerPanel(selection: String, selectedFace: Int?, revealed: Boolean, enabled: Boolean,
-    onSelect: (String) -> Unit, onShuffle: () -> Unit, onReveal: () -> Unit, onClear: () -> Unit) {
+internal fun StickerPanel(selection: String, selectedFace: Int?, enabled: Boolean,
+    onSelect: (String) -> Unit, onShuffle: () -> Unit, onClear: () -> Unit) {
     Surface(shape = RoundedCornerShape(16.dp), color = Color.White, border = BorderStroke(1.dp, line)) {
         Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -271,9 +271,6 @@ internal fun StickerPanel(selection: String, selectedFace: Int?, revealed: Boole
             }
             if (selectedFace != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = onReveal, enabled = enabled) {
-                        Text(stringResource(if (revealed) R.string.editor_cover_face else R.string.editor_reveal_face))
-                    }
                     Spacer(Modifier.weight(1f))
                     IconButton(onClick = onClear, enabled = enabled) {
                         TapIcon(R.drawable.tap_close, stringResource(R.string.editor_done))

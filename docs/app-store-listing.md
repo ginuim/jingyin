@@ -236,6 +236,8 @@ Emojiステッカーは顔を隠す用途です。他の対象や手動範囲に
 
 ## App Review Notes（英文，可直接粘贴）
 
+This submission is for the iOS app. The privacy policy describes the Android preview in a separate paragraph.
+
 lenshide does not require an account or sign-in. No demo account is needed.
 
 All video frames, photo pixels, face detection, audio processing, and exports run locally on the device. Original media, recognition data, and exports are not uploaded to the developer’s servers.
