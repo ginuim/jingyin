@@ -1,13 +1,13 @@
 # TapHide Android 原型
 
-独立技术验证工程，包名 `com.reaidea.lenshide.prototype`。不是完整安卓产品，不代表已完成 iOS 功能迁移或发布验收。
+独立技术验证工程，应用 ID `cn.reaidea.taphide`（Kotlin 包名仍为 `com.reaidea.lenshide.prototype`）。不是完整安卓产品，不代表已完成 iOS 功能迁移或发布验收。
 
 ## 底层实验管线
 
 - Kotlin + Compose；最低 Android 12 / API 31，compile/target API 35。最低版本暂用于缩小系统兼容性范围，不代表低端设备已过滤。
 - 系统文件选择器导入照片/视频，无 INTERNET、摄像头或全盘存储权限；禁止备份。
 - 随包附带 MIT 许可的 YuNet `2023mar` 固定输入模型，OpenCV 4.12.0 CPU 后端，2 线程。首次准备模型与推理在工作线程执行。
-- 人物轮廓：TensorFlow Lite CPU 运行 DeepLab-v3 `deeplab_v3.tflite`（输入 257×257，输出 21 类 logits，person = 15），在同一个 320×320 补黑边帧上取「person logit − 其他类最大 logit」的符号作为掩码，双线性放大回 320 网格后膨胀 2 texel。**该权重许可未确认，仅供本地实验，不可发布**，见 `THIRD_PARTY.md`。
+- 人物轮廓：TensorFlow Lite CPU 运行 DeepLab-v3 `deeplab_v3.tflite`（输入 257×257，输出 21 类 logits，person = 15），在同一个 320×320 补黑边帧上取「person logit − 其他类最大 logit」的符号作为掩码，双线性放大回 320 网格后膨胀 2 texel。**该权重许可未确认，只放在 `src/debug/assets` 且由 `FLAG_DEBUGGABLE` 门控：debug 构建启用，release 构建不打包该模型、退回人脸椭圆**，见 `THIRD_PARTY.md`。
 - 实验测试使用 320 输入、3 次预热、20 次检测，记录中位数和 P95。编辑器照片保持方向，最长边降采样到约 2048 像素以内，导出 JPEG 时不复制源 EXIF。
 - 视频 Media3 Transformer / MediaCodec + 自定义 GL 效果：GPU 缩小并补黑边到 320×320，仅回读低分辨率 RGBA，逐帧 CPU 检测与人物分割，再在 GPU 按「人物轮廓 ∪ 人脸椭圆」混合整帧马赛克。同步背压，输出纹理池容量为 1，不缓存整段视频。
 - 实验用轮廓遮盖与 iOS 默认行为对齐：人物掩码为逐像素轮廓（`smoothstep(0.35, 0.65)` 羽化）；人脸为按人脸框扩展 1.48×/1.62× 的椭圆，`0.86→1.0` 径向渐隐；马赛克单元取短边的 `24 × 短边/720`（下限 8），与 iOS `CIPixellate` 默认强度 24 同量级，不再是每张脸一个 4×4 矩形块。
@@ -44,9 +44,9 @@ research/prepare-fixtures.sh /absolute/path/to/source.mp4
 adb install -r app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
 adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb shell am instrument -w \
-  com.reaidea.lenshide.prototype.test/androidx.test.runner.AndroidJUnitRunner
-adb shell run-as com.reaidea.lenshide.prototype cat files/lab-results.txt
-adb shell run-as com.reaidea.lenshide.prototype cat files/matrix-results.txt
+  cn.reaidea.taphide.test/androidx.test.runner.AndroidJUnitRunner
+adb shell run-as cn.reaidea.taphide cat files/lab-results.txt
+adb shell run-as cn.reaidea.taphide cat files/matrix-results.txt
 ```
 
 `clean` 会删除生成的测试素材，之后需重新执行准备脚本。也可运行 `connectedDebugAndroidTest`，但 Gradle 可能卸载测试 App 并删除其内部输出。

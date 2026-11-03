@@ -7,7 +7,7 @@ android {
     namespace = "com.reaidea.lenshide.prototype"
     compileSdk = 35
     defaultConfig {
-        applicationId = "com.reaidea.lenshide.prototype"
+        applicationId = "cn.reaidea.taphide"
         // Local curiosity builds only; the normal prototype still requires Android 12.
         minSdk = providers.gradleProperty("labMinSdk").orNull?.toInt() ?: 31
         targetSdk = 35

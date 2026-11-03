@@ -29,7 +29,7 @@ internal data class MaskEdits(
     fun masks(faces: List<PhotoFace>) = faces.filter { it.id !in revealed }.map { it.box } + manual
 }
 
-private fun FaceBox.contains(x: Float, y: Float) =
+internal fun FaceBox.contains(x: Float, y: Float) =
     kotlin.math.abs(x - cx) <= rx && kotlin.math.abs(y - cy) <= ry
 
 internal data class PhotoFace(val id: Int, val box: FaceBox)
@@ -40,7 +40,12 @@ internal fun List<MaskFrame>.facesAt(timeUs: Long): List<FaceBox> {
     return getOrNull(if (index >= 0) index else (-index - 2).coerceAtLeast(0))?.faces.orEmpty()
 }
 
-internal val stickers = listOf("😊", "🐱", "🐻", "🐰", "🌸", "😎", "🐶", "🍓", "🦊", "🐼", "✨", "🥳")
+internal val stickers = listOf(
+    "😎", "🥸", "🤡", "👽", "👻", "🤖", "🙈", "😺",
+    "😍", "🤩", "🤠", "🥳", "😈", "🎃", "🐼", "🐸",
+    "😊", "😉", "😂", "🤔", "🤫", "🤐", "🤯", "😱",
+    "😡", "💀", "💩", "🐶", "🦊", "🐯", "🦁", "🐻",
+)
 
 internal fun stickerBitmap(emoji: String): Bitmap {
     val bitmap = Bitmap.createBitmap(256, 256, Bitmap.Config.ARGB_8888)
@@ -49,17 +54,17 @@ internal fun stickerBitmap(emoji: String): Bitmap {
     return bitmap
 }
 
-internal fun renderEditorPhoto(source: Bitmap, masks: List<FaceBox>, style: MaskStyle, emoji: String): Bitmap {
+internal fun renderEditorPhoto(
+    source: Bitmap, masks: List<FaceBox>, style: MaskStyle, emoji: String,
+    overrides: Map<FaceBox, String> = emptyMap(),
+): Bitmap {
     val output = source.copy(Bitmap.Config.ARGB_8888, true)
     val canvas = Canvas(output)
     val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     val w = source.width
     val h = source.height
-    val effect = when (style) {
-        MaskStyle.Blur -> softBlur(source)
-        MaskStyle.Sticker -> stickerBitmap(emoji)
-        MaskStyle.Mosaic -> null
-    }
+    val effect = if (style == MaskStyle.Blur) softBlur(source) else null
+    val renderedStickers = mutableMapOf<String, Bitmap>()
     try {
         for (mask in masks) {
             val rect = RectF((mask.cx - mask.rx) * w, (mask.cy - mask.ry) * h, (mask.cx + mask.rx) * w, (mask.cy + mask.ry) * h)
@@ -83,7 +88,9 @@ internal fun renderEditorPhoto(source: Bitmap, masks: List<FaceBox>, style: Mask
                 }
                 MaskStyle.Sticker -> {
                     val radius = min(rect.width(), rect.height()) / 2
-                    canvas.drawBitmap(checkNotNull(effect), null,
+                    val symbol = overrides[mask] ?: emoji
+                    val sticker = renderedStickers.getOrPut(symbol) { stickerBitmap(symbol) }
+                    canvas.drawBitmap(sticker, null,
                         RectF(rect.centerX() - radius, rect.centerY() - radius, rect.centerX() + radius, rect.centerY() + radius), paint)
                 }
             }
@@ -91,6 +98,7 @@ internal fun renderEditorPhoto(source: Bitmap, masks: List<FaceBox>, style: Mask
         return output
     } finally {
         if (effect !== source) effect?.recycle()
+        renderedStickers.values.forEach(Bitmap::recycle)
     }
 }
 

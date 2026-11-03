@@ -2,11 +2,14 @@ package com.reaidea.lenshide.prototype
 
 import android.content.ClipData
 import android.content.ContentValues
+import android.content.Context
+import android.content.res.Configuration
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Bundle
+import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.view.LayoutInflater
 import androidx.activity.ComponentActivity
@@ -54,6 +57,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.*
 import java.io.File
+import java.util.Locale
 import kotlin.math.ceil
 
 private val coral = Color(0xFFE87A64)
@@ -69,7 +73,10 @@ private data class PhotoDraft(
     val uri: Uri,
     val faces: List<PhotoFace>? = null,
     val edits: MaskEdits = MaskEdits(),
+    val faceStickers: Map<Int, String> = emptyMap(),
 )
+
+private data class PhotoExport(val saved: List<Uri>, val failed: Set<Uri>)
 
 private data class VideoDraft(val uri: Uri, val edits: MaskEdits = MaskEdits())
 
@@ -79,6 +86,14 @@ class MainActivity : ComponentActivity() {
     private var resumePlayback = false
     private var visiblePlayer: ExoPlayer? = null
     private val shareDirectory get() = File(cacheDir, "editor-share")
+
+    override fun attachBaseContext(newBase: Context) {
+        val tag = newBase.getSharedPreferences("editor_settings", MODE_PRIVATE).getString("language", null)
+        val localized = if (tag == null) newBase else newBase.createConfigurationContext(
+            Configuration(newBase.resources.configuration).apply { setLocale(Locale.forLanguageTag(tag)) },
+        )
+        super.attachBaseContext(localized)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -121,7 +136,14 @@ class MainActivity : ComponentActivity() {
         var progress by remember { mutableIntStateOf(0) }
         var renderRevision by remember { mutableIntStateOf(0) }
         var saving by remember { mutableStateOf(false) }
-        var savedFeedback by remember { mutableStateOf(false) }
+        var settingsOpen by remember { mutableStateOf(false) }
+        var lifetimeOpen by remember { mutableStateOf(false) }
+        var saveOpen by remember { mutableStateOf(false) }
+        var saveError by remember { mutableStateOf(false) }
+        var saveBatchRequest by remember { mutableStateOf(false) }
+        var savedExport by remember { mutableStateOf<SavedExport?>(null) }
+        var batchItems by remember { mutableStateOf(emptyList<Uri>()) }
+        var selectedFace by remember { mutableStateOf<Int?>(null) }
         var failed by remember { mutableStateOf(false) }
         var feedback by remember { mutableStateOf("") }
         var feedbackRevision by remember { mutableIntStateOf(0) }
@@ -151,6 +173,10 @@ class MainActivity : ComponentActivity() {
             seekPosition = null
             failedExports = emptySet()
             batchResult = null
+            batchItems = emptyList()
+            selectedFace = null
+            savedExport = null
+            saveOpen = false
             analyzeBatch = false
             feedback = ""
             reveal = null
@@ -170,9 +196,13 @@ class MainActivity : ComponentActivity() {
             progress = 0
             running = lifecycleScope.launch {
                 try { block() }
-                catch (_: CancellationException) { notify(getString(R.string.cancelled)) }
+                catch (_: CancellationException) {
+                    if (saving) saveOpen = false
+                    notify(getString(R.string.cancelled))
+                }
                 catch (error: Exception) {
                     android.util.Log.e("TapHide", "Media operation failed", error)
+                    if (saving) saveError = true
                     notify(getString(R.string.failed))
                 }
                 finally { busy = false; saving = false }
@@ -199,11 +229,35 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        var copySource by remember { mutableStateOf<Uri?>(null) }
+        fun finishCopy(destination: Uri?) {
+            val source = copySource
+            copySource = null
+            if (source != null && destination != null) {
+                startWork {
+                    withContext(Dispatchers.IO) {
+                        try {
+                            checkNotNull(contentResolver.openInputStream(source)).use { input ->
+                                checkNotNull(contentResolver.openOutputStream(destination, "wt")).use { output ->
+                                    copyStream(input, output)
+                                }
+                            }
+                        } catch (error: Exception) {
+                            runCatching { DocumentsContract.deleteDocument(contentResolver, destination) }
+                            throw error
+                        }
+                    }
+                    notify(getString(R.string.editor_copy_saved))
+                }
+            }
+        }
+        val copyPhoto = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/jpeg"), ::finishCopy)
+        val copyMovie = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("video/mp4"), ::finishCopy)
+
         LaunchedEffect(feedbackRevision) {
             if (feedback.isNotEmpty()) {
                 delay(2100)
                 feedback = ""
-                savedFeedback = false
             }
         }
         LaunchedEffect(rippleRevision) {
@@ -282,6 +336,12 @@ class MainActivity : ComponentActivity() {
             val currentVideo = video
             if (busy || (currentVideo == null && draft == null)) return
             saving = !share
+            if (!share) {
+                saveOpen = true
+                saveError = false
+                savedExport = null
+                saveBatchRequest = batch != null
+            }
             startWork {
                 when {
                     currentVideo != null -> {
@@ -293,7 +353,7 @@ class MainActivity : ComponentActivity() {
                             videoPreview = null
                         }
                         if (share) shareFile(stageShare("mp4") { stream -> copyVideo(file, stream) }, "video/mp4")
-                        else saveVideo(file)
+                        else savedExport = SavedExport(listOf(saveVideo(file)), video = true)
                     }
                     share -> {
                         val current = checkNotNull(photo)
@@ -301,19 +361,18 @@ class MainActivity : ComponentActivity() {
                         shareFile(file, "image/jpeg")
                     }
                     batch != null -> {
-                        val previousSaved = if (batch.size < photos.size) batchResult?.first ?: 0 else 0
-                        val failures = savePhotos(batch, style, emoji) { progress = it }
-                        failedExports = failures
-                        batchResult = (previousSaved + batch.size - failures.size) to failures.size
+                        val retrying = batch.size < photos.size
+                        val result = savePhotos(batch, style, emoji) { progress = it }
+                        batchItems = (if (retrying) batchItems else emptyList()) + result.saved
+                        failedExports = result.failed
+                        batchResult = batchItems.size to result.failed.size
+                        savedExport = SavedExport(batchItems, video = false, failures = result.failed.size)
                     }
                     else -> {
-                        val failures = savePhotos(listOf(checkNotNull(draft)), style, emoji) { progress = it }
-                        check(failures.isEmpty())
+                        val result = savePhotos(listOf(checkNotNull(draft)), style, emoji) { progress = it }
+                        check(result.failed.isEmpty())
+                        savedExport = SavedExport(result.saved, video = false)
                     }
-                }
-                if (!share && batch == null) {
-                    savedFeedback = true
-                    notify(getString(R.string.saved))
                 }
             }
         }
@@ -333,18 +392,26 @@ class MainActivity : ComponentActivity() {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically) {
                             Text(stringResource(R.string.app_name), fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
-                            if (hasProject) {
-                                OverlayPill(stringResource(R.string.editor_close), dark = false, enabled = !busy) {
-                                    closeProject()
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (hasProject) {
+                                    IconButton(onClick = { closeProject() }, enabled = !busy) {
+                                        TapIcon(R.drawable.tap_close, stringResource(R.string.editor_close))
+                                    }
+                                }
+                                TextButton(onClick = { lifetimeOpen = true }, enabled = !busy) {
+                                    Text(stringResource(R.string.editor_lifetime))
+                                }
+                                IconButton(onClick = { settingsOpen = true }, enabled = !busy) {
+                                    TapIcon(R.drawable.tap_settings, stringResource(R.string.editor_settings))
                                 }
                             }
                         }
                         if (!hasProject) {
                             Text(stringResource(R.string.editor_home_intro), color = mutedInk, fontSize = 14.sp, lineHeight = 22.sp)
-                            EditorButton(stringResource(R.string.editor_process_photos), true, !busy, Modifier.fillMaxWidth()) {
+                            EditorButton(stringResource(R.string.editor_process_photos), true, !busy, Modifier.fillMaxWidth(), icon = R.drawable.tap_photos) {
                                 pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                             }
-                            EditorButton(stringResource(R.string.editor_process_video), false, !busy, Modifier.fillMaxWidth()) {
+                            EditorButton(stringResource(R.string.editor_process_video), false, !busy, Modifier.fillMaxWidth(), icon = R.drawable.tap_video) {
                                 pickVideo.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
                             }
                         } else {
@@ -409,6 +476,10 @@ class MainActivity : ComponentActivity() {
                                             val y = (point.y - top) / imageHeight
                                             if (x !in 0f..1f || y !in 0f..1f) return@rememberUpdatedState
                                             val faces = draft?.faces.orEmpty()
+                                            if (style == MaskStyle.Sticker && !isVideo) {
+                                                selectedFace = faces.lastOrNull { it.box.contains(x, y) }?.id
+                                                if (selectedFace != null) return@rememberUpdatedState
+                                            }
                                             val old = video?.edits ?: checkNotNull(draft).edits
                                             val next = old.tap(x, y, faces, 0.13f, 0.1f)
                                             reveal = faces.firstOrNull { it.id in next.revealed && it.id !in old.revealed }?.box
@@ -438,15 +509,16 @@ class MainActivity : ComponentActivity() {
                                             drawCircle(coral.copy(alpha = (1 - ripple.value) * 0.9f),
                                                 radius, point, style = Stroke(3.dp.toPx()))
                                         }
-                                        reveal?.let { box ->
+                                        val selectedBox = draft?.faces?.firstOrNull { it.id == selectedFace }?.box
+                                        (selectedBox ?: reveal)?.let { box ->
                                             drawRect(coral, Offset(left + (box.cx - box.rx) * imageWidth, top + (box.cy - box.ry) * imageHeight),
                                                 Size(box.rx * 2 * imageWidth, box.ry * 2 * imageHeight),
                                                 style = Stroke(2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 5f))))
                                         }
                                     }
                                     if (!isVideo) {
-                                        OverlayPill(stringResource(R.string.editor_canvas_hint),
-                                            Modifier.align(Alignment.TopCenter).padding(12.dp))
+                                        OverlayPill(stringResource(if (style == MaskStyle.Sticker) R.string.editor_sticker_hint
+                                            else R.string.editor_canvas_hint), Modifier.align(Alignment.TopCenter).padding(12.dp))
                                     }
                                     if (busy) {
                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -466,36 +538,47 @@ class MainActivity : ComponentActivity() {
                                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                                         verticalAlignment = Alignment.CenterVertically) {
                                         if (isVideo) {
-                                            OverlayPill("${if (playing) "⏸" else "▶"} ${timeLabel(position)} / ${timeLabel(duration)}",
+                                            OverlayPill("${timeLabel(position)} / ${timeLabel(duration)}",
+                                                icon = if (playing) R.drawable.tap_pause else R.drawable.tap_play,
                                                 monospace = true, enabled = !busy && player != null) { playing = !playing }
                                             val audioLabel = when (audio) {
-                                                EditorAudio.Original -> "🔊 " + stringResource(R.string.editor_original_audio)
-                                                EditorAudio.Mute -> "🔇 " + stringResource(R.string.mute)
+                                                EditorAudio.Original -> stringResource(R.string.editor_original_audio)
+                                                EditorAudio.Mute -> stringResource(R.string.mute)
                                                 EditorAudio.Voice -> stringResource(R.string.editor_voice)
                                             }
-                                            OverlayPill(audioLabel, dark = false, canvasControl = true, enabled = !busy) {
+                                            val audioIcon = when (audio) {
+                                                EditorAudio.Original -> R.drawable.tap_audio
+                                                EditorAudio.Mute -> R.drawable.tap_mute
+                                                EditorAudio.Voice -> R.drawable.tap_voice
+                                            }
+                                            OverlayPill(audioLabel, dark = false, canvasControl = true, icon = audioIcon, enabled = !busy) {
                                                 audio = EditorAudio.entries[(audio.ordinal + 1) % EditorAudio.entries.size]
                                                 rerender()
                                             }
                                         } else {
                                             Surface(shape = pill, color = Color.Black.copy(alpha = 0.5f), contentColor = Color.White) {
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    OverlayPill("‹", dark = true, transparent = true, enabled = !busy) {
-                                                        photoIndex = (photoIndex + photos.size - 1) % photos.size
+                                                    OverlayPill("", dark = true, transparent = true, icon = R.drawable.tap_left,
+                                                        iconDescription = stringResource(R.string.editor_previous), enabled = !busy) {
+                                                        selectedFace = null
+                                                    photoIndex = (photoIndex + photos.size - 1) % photos.size
                                                         rerender()
                                                     }
                                                     Text(stringResource(R.string.editor_photo_count, photoIndex + 1, photos.size), fontSize = 11.sp)
-                                                    OverlayPill("›", dark = true, transparent = true, enabled = !busy) {
-                                                        photoIndex = (photoIndex + 1) % photos.size
+                                                    OverlayPill("", dark = true, transparent = true, icon = R.drawable.tap_right,
+                                                        iconDescription = stringResource(R.string.editor_next), enabled = !busy) {
+                                                        selectedFace = null
+                                                    photoIndex = (photoIndex + 1) % photos.size
                                                         rerender()
                                                     }
                                                 }
                                             }
                                         }
                                         Spacer(Modifier.weight(1f))
-                                        OverlayPill(stringResource(R.string.editor_reset), dark = false, canvasControl = true, enabled = !busy) {
+                                        OverlayPill(stringResource(R.string.editor_reset), dark = false, canvasControl = true,
+                                            icon = R.drawable.tap_refresh, enabled = !busy) {
                                             if (isVideo) video = video?.copy(edits = MaskEdits())
-                                            else updatePhoto(checkNotNull(draft).copy(edits = MaskEdits()))
+                                            else updatePhoto(checkNotNull(draft).copy(edits = MaskEdits(), faceStickers = emptyMap()))
                                             notify(getString(R.string.editor_reset_done))
                                             rerender()
                                         }
@@ -510,17 +593,56 @@ class MainActivity : ComponentActivity() {
                                         seekPosition = null
                                     }, enabled = !busy && player != null, valueRange = 0f..duration.toFloat())
                             }
+                            if (style == MaskStyle.Sticker) {
+                                val face = selectedFace
+                                val current = draft
+                                fun applySticker(sticker: String) {
+                                    if (face != null && current != null) {
+                                        updatePhoto(current.copy(
+                                            faceStickers = current.faceStickers + (face to sticker),
+                                            edits = current.edits.copy(revealed = current.edits.revealed - face),
+                                        ))
+                                    } else {
+                                        emojiIndex = stickers.indexOf(sticker)
+                                        if (current != null) updatePhoto(current.copy(faceStickers = emptyMap()))
+                                    }
+                                    rerender()
+                                }
+                                StickerPanel(current?.faceStickers?.get(face) ?: emoji, face,
+                                    current?.edits?.revealed?.contains(face) == true, !busy,
+                                    onSelect = ::applySticker,
+                                    onShuffle = {
+                                        if (face == null && current != null && !current.faces.isNullOrEmpty()) {
+                                            updatePhoto(current.copy(
+                                                faceStickers = current.faces.associate { it.id to stickers.random() },
+                                                edits = current.edits.copy(revealed = emptySet()),
+                                            ))
+                                            rerender()
+                                        } else applySticker(stickers.filter { it != (current?.faceStickers?.get(face) ?: emoji) }.random())
+                                    },
+                                    onReveal = {
+                                        if (face != null && current != null) {
+                                            val revealed = current.edits.revealed
+                                            updatePhoto(current.copy(edits = current.edits.copy(
+                                                revealed = if (face in revealed) revealed - face else revealed + face,
+                                            )))
+                                            rerender()
+                                        }
+                                    },
+                                    onClear = { selectedFace = null },
+                                )
+                            }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 for (option in MaskStyle.entries) {
-                                    val label = when (option) {
-                                        MaskStyle.Mosaic -> stringResource(R.string.editor_pixelate)
-                                        MaskStyle.Blur -> stringResource(R.string.editor_blur)
-                                        MaskStyle.Sticker -> "$emoji " + stringResource(
-                                            if (style == option) R.string.editor_change_sticker else R.string.editor_sticker)
+                                    val (label, icon) = when (option) {
+                                        MaskStyle.Mosaic -> R.string.editor_pixelate to R.drawable.tap_grid
+                                        MaskStyle.Blur -> R.string.editor_blur to R.drawable.tap_blur
+                                        MaskStyle.Sticker -> R.string.editor_sticker to R.drawable.tap_sticker
                                     }
-                                    EditorButton(label, style == option, !busy, Modifier.weight(1f), compact = true) {
-                                        if (style != option || option == MaskStyle.Sticker) {
-                                            if (style == option) emojiIndex = (emojiIndex + 1) % stickers.size
+                                    EditorButton(stringResource(label), style == option, !busy,
+                                        Modifier.weight(1f), compact = true, icon = icon) {
+                                        if (style != option) {
+                                            selectedFace = null
                                             style = option
                                             rerender()
                                         }
@@ -531,15 +653,11 @@ class MainActivity : ComponentActivity() {
                                 val enabled = !busy && if (isVideo) videoOutput != null || videoPreview != null else photo != null
                                 Button(onClick = { export(false) }, enabled = enabled,
                                     modifier = Modifier.weight(1f).heightIn(min = 50.dp)) {
-                                    Text(stringResource(when {
-                                        saving -> R.string.editor_saving
-                                        savedFeedback -> R.string.saved
-                                        else -> R.string.save
-                                    }), fontWeight = FontWeight.Bold)
+                                    IconLabel(R.drawable.tap_download, stringResource(R.string.save))
                                 }
                                 Button(onClick = { export(true) }, enabled = enabled, colors = secondary,
                                     modifier = Modifier.heightIn(min = 50.dp)) {
-                                    Text(stringResource(R.string.editor_share), fontWeight = FontWeight.Bold)
+                                    IconLabel(R.drawable.tap_share, stringResource(R.string.editor_share))
                                 }
                             }
                             if (!isVideo && photos.size > 1) {
@@ -563,22 +681,59 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        if (settingsOpen) {
+            val locale = resources.configuration.locales[0]
+            val language = when (locale.language) {
+                "zh" -> if (locale.country in listOf("TW", "HK", "MO") || locale.script == "Hant") "zh-TW" else "zh-CN"
+                "ja" -> "ja"
+                else -> "en"
+            }
+            SettingsPanel(language, !hasProject, onLanguage = { tag ->
+                if (tag != language) {
+                    getSharedPreferences("editor_settings", MODE_PRIVATE).edit().putString("language", tag).apply()
+                    recreate()
+                }
+            }, onClose = { settingsOpen = false })
+        }
+        if (lifetimeOpen) LifetimePanel { lifetimeOpen = false }
+        if (saveOpen) SavePanel(progress, savedExport, saveError, onClose = {
+            if (saving) running?.cancel()
+            saveOpen = false
+        }, onRetry = {
+            if (saveBatchRequest) {
+                val retry = if (savedExport != null) photos.filter { it.uri in failedExports } else photos
+                if (retry.isNotEmpty()) export(false, retry)
+            } else export(false)
+        }, onShare = { uri, isVideoResult ->
+            shareUri(uri, if (isVideoResult) "video/mp4" else "image/jpeg")
+        }, onCopy = { uri, isVideoResult ->
+            copySource = uri
+            val name = "TapHide-${System.currentTimeMillis()}"
+            if (isVideoResult) copyMovie.launch("$name.mp4") else copyPhoto.launch("$name.jpg")
+        }, enabled = !busy)
+
     }
 
     @Composable
     private fun EditorButton(label: String, active: Boolean, enabled: Boolean, modifier: Modifier = Modifier,
-        compact: Boolean = false, onClick: () -> Unit) {
+        compact: Boolean = false, icon: Int? = null, onClick: () -> Unit) {
         Button(onClick, modifier, enabled, colors = ButtonDefaults.buttonColors(
             containerColor = if (active) coral else pink, contentColor = if (active) Color.White else brown,
         ), contentPadding = PaddingValues(horizontal = if (compact) 3.dp else 5.dp, vertical = 8.dp)) {
-            Text(label, fontSize = if (compact) 12.sp else 13.sp, fontWeight = FontWeight.Bold)
+            if (compact && icon != null) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    TapIcon(icon)
+                    Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            } else if (icon != null) IconLabel(icon, label)
+            else Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
     }
 
     @Composable
     private fun OverlayPill(label: String, modifier: Modifier = Modifier, dark: Boolean = true,
         enabled: Boolean = true, transparent: Boolean = false, monospace: Boolean = false,
-        canvasControl: Boolean = false, toast: Boolean = false, onClick: (() -> Unit)? = null) {
+        canvasControl: Boolean = false, toast: Boolean = false, icon: Int? = null, iconDescription: String? = null, onClick: (() -> Unit)? = null) {
         Surface(
             modifier = if (onClick == null) modifier else modifier.clickable(enabled = enabled, onClick = onClick),
             shape = pill,
@@ -591,10 +746,13 @@ class MainActivity : ComponentActivity() {
             },
             contentColor = (if (dark) Color.White else brown).copy(alpha = if (enabled) 1f else 0.6f),
         ) {
-            Text(label, Modifier.padding(horizontal = if (toast) 16.dp else 8.dp, vertical = if (toast) 8.dp else 6.dp),
-                fontSize = if (toast) 12.sp else 11.sp,
-                fontFamily = if (monospace) FontFamily.Monospace else FontFamily.Default,
-                fontWeight = FontWeight.SemiBold)
+            Row(Modifier.padding(horizontal = if (toast) 16.dp else 8.dp, vertical = if (toast) 8.dp else 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (icon != null) TapIcon(icon, iconDescription, Modifier.size(13.dp))
+                if (label.isNotEmpty()) Text(label, fontSize = if (toast) 12.sp else 11.sp,
+                    fontFamily = if (monospace) FontFamily.Monospace else FontFamily.Default,
+                    fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 
@@ -625,7 +783,10 @@ class MainActivity : ComponentActivity() {
                 try {
                     val faces = draft.faces ?: detectPhoto(source)
                     ensureActive()
-                    val rendered = renderEditorPhoto(source, draft.edits.masks(faces), style, emoji)
+                    val overrides = if (style == MaskStyle.Sticker) {
+                        faces.mapNotNull { face -> draft.faceStickers[face.id]?.let { face.box to it } }.toMap()
+                    } else emptyMap()
+                    val rendered = renderEditorPhoto(source, draft.edits.masks(faces), style, emoji, overrides)
                     output = rendered
                     rendered to faces
                 } finally { source.recycle() }
@@ -637,7 +798,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private suspend fun savePhotos(drafts: List<PhotoDraft>, style: MaskStyle, emoji: String,
-        progress: (Int) -> Unit): Set<Uri> {
+        progress: (Int) -> Unit): PhotoExport {
         require(drafts.size in 1..batchLimit)
         val saved = mutableListOf<Uri>()
         val failures = mutableSetOf<Uri>()
@@ -665,15 +826,16 @@ class MainActivity : ComponentActivity() {
             }
             throw cancelled
         }
-        return failures
+        return PhotoExport(saved, failures)
     }
 
-    private suspend fun saveVideo(file: File) {
+    private suspend fun saveVideo(file: File): Uri {
         var saved: Uri? = null
         try {
             withContext(Dispatchers.IO) {
                 saved = saveMedia(true) { copyVideo(file, it) }
             }
+            return checkNotNull(saved)
         } catch (error: Exception) {
             withContext(NonCancellable + Dispatchers.IO) {
                 saved?.let { runCatching { contentResolver.delete(it, null, null) } }
@@ -700,15 +862,17 @@ class MainActivity : ComponentActivity() {
     }
 
     private suspend fun copyVideo(file: File, destination: java.io.OutputStream) {
+        file.inputStream().use { input -> copyStream(input, destination) }
+    }
+
+    private suspend fun copyStream(input: java.io.InputStream, destination: java.io.OutputStream) {
         val context = currentCoroutineContext()
-        file.inputStream().use { input ->
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            while (true) {
-                context.ensureActive()
-                val read = input.read(buffer)
-                if (read == -1) break
-                destination.write(buffer, 0, read)
-            }
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        while (true) {
+            context.ensureActive()
+            val read = input.read(buffer)
+            if (read == -1) break
+            destination.write(buffer, 0, read)
         }
     }
 
@@ -733,7 +897,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun shareFile(file: File, mime: String) {
-        val uri = FileProvider.getUriForFile(this, "$packageName.editor-share", file)
+        shareUri(FileProvider.getUriForFile(this, "$packageName.editor-share", file), mime)
+    }
+
+    private fun shareUri(uri: Uri, mime: String) {
         startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
             type = mime
             putExtra(Intent.EXTRA_STREAM, uri)
