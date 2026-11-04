@@ -52,7 +52,7 @@ class PersonSegmenter(context: Context, private val analysisSize: Int) : AutoClo
         interpreter.run(input, output)
         output.rewind()
 
-        // Per-pixel margin: person logit minus the strongest other class. Argmax is margin > 0.
+        // Per-pixel margin: strongest selected class minus the strongest unselected class.
         // No exp/softmax per class keeps the CPU cost to one pass over the logits.
         val floats = output.asFloatBuffer()
         val margin = FloatArray(modelSize * modelSize)
@@ -83,7 +83,14 @@ class PersonSegmenter(context: Context, private val analysisSize: Int) : AutoClo
                 binary[y * analysisSize + x] = if (top + (bottom - top) * fy > 0f) 0xFF.toByte() else 0
             }
         }
-        return PersonMask.dilated(analysisSize, binary)
+        val expanded = PersonMask.dilated(analysisSize, binary)
+        if (!pets) return expanded
+        val softened = expanded.feathered(radius = 3)
+        // Keep thin detected details, such as ear tips and tails, fully covered.
+        for (index in binary.indices) {
+            if (binary[index] != 0.toByte()) softened.alpha[index] = binary[index]
+        }
+        return softened
     }
 
     /** Bilinear RGBA→RGB resample to the model size, normalised to [-1, 1] (x − 127.5) / 127.5. */

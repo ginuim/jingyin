@@ -115,4 +115,6 @@
     <string name="editor_remove_media_title">現在の素材を取り除きますか？</string>
     <string name="editor_remove_media_body">現在の素材と編集内容をプロジェクトから取り除きます。元のファイルはライブラリに残ります。</string>
     <string name="editor_subject_unavailable">%1$s（デバッグ版のみ）</string>
+    <string name="editor_sticker_requires_face">ステッカーを使うには、処理する対象で「顔」を選択してください。</string>
+    <string name="editor_effect_strength">強度</string>
 </resources>

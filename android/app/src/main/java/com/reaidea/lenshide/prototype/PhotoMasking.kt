@@ -8,7 +8,8 @@ import kotlin.math.min
  * person silhouette and face ellipses. Runs on a worker thread; never on the main thread.
  */
 object PhotoMasking {
-    fun render(source: Bitmap, detection: Detection, inverted: Boolean = false, blurred: Bitmap? = null): Bitmap {
+    fun render(source: Bitmap, detection: Detection, inverted: Boolean = false, blurred: Bitmap? = null,
+        mosaicStrength: Float = 1f): Bitmap {
         if (!inverted && detection.faces.isEmpty() && detection.person == null) {
             return source.copy(Bitmap.Config.ARGB_8888, false)
         }
@@ -38,7 +39,7 @@ object PhotoMasking {
             blurX[x] = position - left
         }
         val out = src.copyOf()
-        val cell = SubjectMask.cellSize(width, height)
+        val cell = SubjectMask.cellSize(width, height, mosaicStrength)
         val fit = SubjectMask.letterboxFit(width, height)
         for (y in 0 until height) {
             val v = (y + 0.5f) / height

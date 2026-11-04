@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 internal enum class MaskStyle { Mosaic, Blur, Sticker }
 enum class EditorAudio { Original, Mute, Voice }
@@ -19,6 +20,9 @@ internal fun Set<SubjectTarget>.toggle(target: SubjectTarget): Set<SubjectTarget
         SubjectTarget.Pet -> this + target
     }
 }
+
+internal val effectStrengthRange = 0.5f..2.5f
+internal data class EffectStrengths(val mosaic: Float = 1f, val blur: Float = 1f)
 
 internal sealed interface MaskSelection {
     data class Automatic(val id: Int) : MaskSelection
@@ -84,19 +88,20 @@ internal fun renderEditorPhoto(
     overrides: Map<FaceBox, String> = emptyMap(),
     inverted: Boolean = false,
     silhouette: PersonMask? = null,
+    strengths: EffectStrengths = EffectStrengths(),
 ): Bitmap {
     val detection = Detection(masks, silhouette, 0.0)
     if (style == MaskStyle.Mosaic || (inverted && style == MaskStyle.Sticker)) {
-        return PhotoMasking.render(source, detection, inverted)
+        return PhotoMasking.render(source, detection, inverted, mosaicStrength = strengths.mosaic)
     }
     if (style == MaskStyle.Blur) {
-        val blurred = softBlur(source)
+        val blurred = softBlur(source, strengths.blur)
         try {
             return PhotoMasking.render(source, detection, inverted, blurred)
         } finally { blurred.recycle() }
     }
     val output = if (silhouette != null) {
-        val masked = PhotoMasking.render(source, detection.copy(faces = emptyList()))
+        val masked = PhotoMasking.render(source, detection.copy(faces = emptyList()), mosaicStrength = strengths.mosaic)
         try { masked.copy(Bitmap.Config.ARGB_8888, true) } finally { masked.recycle() }
     } else source.copy(Bitmap.Config.ARGB_8888, true)
     val canvas = Canvas(output)
@@ -119,7 +124,7 @@ internal fun renderEditorPhoto(
     }
 }
 
-private fun softBlur(source: Bitmap): Bitmap {
+private fun softBlur(source: Bitmap, strength: Float): Bitmap {
     val scale = (120f / min(source.width, source.height)).coerceAtMost(1f)
     val w = (source.width * scale).toInt().coerceAtLeast(1)
     val h = (source.height * scale).toInt().coerceAtLeast(1)
@@ -129,7 +134,7 @@ private fun softBlur(source: Bitmap): Bitmap {
     finally { if (reduced !== source) reduced.recycle() }
     val horizontal = IntArray(pixels.size)
     val result = IntArray(pixels.size)
-    val radius = (min(w, h) / 40).coerceAtLeast(1)
+    val radius = (min(w, h) * strength / 40f).roundToInt().coerceAtLeast(1)
     for (y in 0 until h) for (x in 0 until w) {
         horizontal[y * w + x] = average(radius) { pixels[y * w + (x + it).coerceIn(0, w - 1)] }
     }
@@ -159,4 +164,5 @@ internal data class VideoMaskOptions(
     val manual: List<FaceBox>,
     val inverted: Boolean = false,
     val targets: Set<SubjectTarget> = setOf(SubjectTarget.Face),
+    val strengths: EffectStrengths = EffectStrengths(),
 )

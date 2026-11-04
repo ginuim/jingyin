@@ -39,8 +39,8 @@ object SubjectMask {
         return floatArrayOf(width / maxDimension, height / maxDimension)
     }
 
-    fun cellSize(width: Int, height: Int): Int =
-        max(MIN_CELL, (CELL_AT_720 * min(width, height) / 720f).roundToInt())
+    fun cellSize(width: Int, height: Int, strength: Float = 1f): Int =
+        max(MIN_CELL, (CELL_AT_720 * min(width, height) * strength / 720f).roundToInt())
 
     /**
      * Combined coverage in [0, 1] at a display-normalized point.
@@ -95,6 +95,30 @@ class PersonMask(val size: Int, val alpha: ByteArray) {
     }
 
     private fun at(x: Int, y: Int): Float = (alpha[y * size + x].toInt() and 0xFF).toFloat()
+
+    /** Smooth the edge with a small separable tent filter, leaving the interior opaque. */
+    internal fun feathered(radius: Int): PersonMask {
+        require(radius > 0)
+        val horizontal = IntArray(alpha.size)
+        val normalization = (radius + 1) * (radius + 1)
+        for (y in 0 until size) for (x in 0 until size) {
+            var sum = 0
+            for (dx in -radius..radius) {
+                sum += (alpha[y * size + (x + dx).coerceIn(0, size - 1)].toInt() and 0xFF) * (radius + 1 - abs(dx))
+            }
+            horizontal[y * size + x] = sum
+        }
+        val output = ByteArray(alpha.size)
+        for (y in 0 until size) for (x in 0 until size) {
+            var sum = 0
+            for (dy in -radius..radius) {
+                val sy = (y + dy).coerceIn(0, size - 1)
+                sum += horizontal[sy * size + x] * (radius + 1 - abs(dy))
+            }
+            output[y * size + x] = (sum / (normalization * normalization)).toByte()
+        }
+        return PersonMask(size, output)
+    }
 
     companion object {
         /** Binary person mask dilated by [radius] texels using separable max filters. */

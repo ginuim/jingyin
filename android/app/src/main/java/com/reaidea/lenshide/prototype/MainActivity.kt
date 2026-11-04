@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.DocumentsContract
 import android.provider.MediaStore
+import android.util.LruCache
 import android.view.LayoutInflater
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -196,6 +197,17 @@ private data class PhotoDraft(
 
 private val PhotoDraft.faces get() = analysis?.faces?.mapIndexed(::PhotoFace)
 
+private data class PhotoPreviewKey(
+    val edits: MaskEdits,
+    val faceStickers: Map<Int, String>,
+    val style: MaskStyle,
+    val emoji: String,
+    val targets: Set<SubjectTarget>,
+    val strengths: EffectStrengths,
+)
+
+private data class CachedPhotoPreview(val key: PhotoPreviewKey, val bitmap: Bitmap)
+
 private data class PhotoExport(val saved: List<Uri>, val failed: Set<Uri>)
 
 private data class VideoDraft(val uri: Uri, val edits: MaskEdits = MaskEdits())
@@ -240,7 +252,6 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun Editor() {
         var targets by remember { mutableStateOf(setOf(SubjectTarget.Face)) }
-        var menuTargets by remember { mutableStateOf<Set<SubjectTarget>?>(null) }
         var pendingTargets by remember { mutableStateOf<Set<SubjectTarget>?>(null) }
         var confirmRemove by remember { mutableStateOf(false) }
         val silhouettesAvailable = applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
@@ -250,6 +261,14 @@ class MainActivity : ComponentActivity() {
         var video by remember { mutableStateOf<VideoDraft?>(null) }
         val isVideo = video != null
         val hasProject = isVideo || photos.isNotEmpty()
+        val editorSettings = remember { getSharedPreferences("editor_settings", MODE_PRIVATE) }
+        var strengths by remember {
+            mutableStateOf(EffectStrengths(
+                mosaic = editorSettings.getFloat("mosaic_strength", 1f).coerceIn(effectStrengthRange),
+                blur = editorSettings.getFloat("blur_strength", 1f).coerceIn(effectStrengthRange),
+            ))
+        }
+        var strengthOpen by remember { mutableStateOf(false) }
         var style by remember { mutableStateOf(MaskStyle.Mosaic) }
         var emojiIndex by remember { mutableIntStateOf(0) }
         var audio by remember { mutableStateOf(EditorAudio.Original) }
@@ -292,6 +311,16 @@ class MainActivity : ComponentActivity() {
         var seekPosition by remember { mutableStateOf<Float?>(null) }
         var infoOpen by remember { mutableStateOf(false) }
         val emoji = stickers[emojiIndex]
+        val photoPreviews = remember {
+            val maxBytes = minOf(32L * 1024 * 1024, Runtime.getRuntime().maxMemory() / 6).toInt()
+            // Let the bitmap live while either the cache or a Compose frame still references it.
+            object : LruCache<Uri, CachedPhotoPreview>(maxBytes) {
+                override fun sizeOf(key: Uri, value: CachedPhotoPreview) = value.bitmap.allocationByteCount
+            }
+        }
+        fun previewKey(item: PhotoDraft) = PhotoPreviewKey(item.edits, item.faceStickers, style, emoji, targets, strengths)
+        fun cachedPreview(item: PhotoDraft) =
+            photoPreviews.get(item.uri)?.takeIf { it.key == previewKey(item) }?.bitmap
         val secondary = ButtonDefaults.buttonColors(containerColor = pink, contentColor = brown)
         fun notify(message: String) {
             feedback = message
@@ -301,6 +330,8 @@ class MainActivity : ComponentActivity() {
             photos = photos.map { if (it.uri == replacement.uri) replacement else it }
         }
         fun closeProject() {
+            strengthOpen = false
+            photoPreviews.evictAll()
             photos = emptyList()
             pendingPhoto = null
             photoIndex = 0
@@ -426,7 +457,7 @@ class MainActivity : ComponentActivity() {
                 previewFailed = true
             }
         }
-        val videoOptions = video?.let { VideoMaskOptions(style, emoji, it.edits.manual, it.edits.inverted, targets) }
+        val videoOptions = video?.let { VideoMaskOptions(style, emoji, it.edits.manual, it.edits.inverted, targets, strengths) }
         val previewEffect = remember(sourceUri, videoRetry) {
             FacePixelEffect(FrameMetrics(), videoOptions)
         }
@@ -500,9 +531,14 @@ class MainActivity : ComponentActivity() {
                     for ((index, item) in batch.withIndex()) {
                         try {
                             if (item.uri == currentPhoto.uri) {
-                                val (bitmap, analysis) = renderPhoto(item, style, emoji, targets)
-                                updatePhoto(item.copy(analysis = analysis))
-                                photo = bitmap
+                                val key = previewKey(item)
+                                val cached = cachedPreview(item)
+                                photo = if (cached != null) cached else {
+                                    val (bitmap, analysis) = renderPhoto(item, style, emoji, targets, strengths, preview = true)
+                                    updatePhoto(item.copy(analysis = analysis))
+                                    photoPreviews.put(item.uri, CachedPhotoPreview(key, bitmap))
+                                    bitmap
+                                }
                                 renderedCurrent = true
                             } else {
                                 updatePhoto(item.copy(analysis = detectPhoto(item.uri, targets)))
@@ -518,9 +554,6 @@ class MainActivity : ComponentActivity() {
                     failed = !renderedCurrent
                 }
             }
-        }
-        photo?.let { bitmap ->
-            DisposableEffect(bitmap) { onDispose { bitmap.recycle() } }
         }
         videoOutput?.let { file ->
             DisposableEffect(file) { onDispose { file.delete() } }
@@ -540,7 +573,7 @@ class MainActivity : ComponentActivity() {
                 when {
                     currentVideo != null -> {
                         val file = videoOutput ?: VideoExporter(this@MainActivity).exportEditor(currentVideo.uri, audio,
-                            VideoMaskOptions(style, emoji, currentVideo.edits.manual, currentVideo.edits.inverted, targets),
+                            VideoMaskOptions(style, emoji, currentVideo.edits.manual, currentVideo.edits.inverted, targets, strengths),
                             VideoPurpose.FullExport) { progress = it }.file.also {
                             position = player?.currentPosition ?: position
                             videoOutput = it
@@ -549,20 +582,24 @@ class MainActivity : ComponentActivity() {
                         else savedExport = SavedExport(listOf(saveVideo(file)), video = true)
                     }
                     share -> {
-                        val current = checkNotNull(photo)
-                        val file = stageShare("jpg") { check(current.compress(Bitmap.CompressFormat.JPEG, 95, it)) }
-                        shareFile(file, "image/jpeg")
+                        val (rendered, _) = renderPhoto(checkNotNull(draft), style, emoji, targets, strengths)
+                        try {
+                            val file = stageShare("jpg") { stream ->
+                                check(rendered.compress(Bitmap.CompressFormat.JPEG, 95, stream))
+                            }
+                            shareFile(file, "image/jpeg")
+                        } finally { rendered.recycle() }
                     }
                     batch != null -> {
                         val retrying = batch.size < photos.size
-                        val result = savePhotos(batch, style, emoji, targets) { progress = it }
+                        val result = savePhotos(batch, style, emoji, targets, strengths) { progress = it }
                         batchItems = (if (retrying) batchItems else emptyList()) + result.saved
                         failedExports = result.failed
                         batchResult = batchItems.size to result.failed.size
                         savedExport = SavedExport(batchItems, video = false, failures = result.failed.size)
                     }
                     else -> {
-                        val result = savePhotos(listOf(checkNotNull(draft)), style, emoji, targets) { progress = it }
+                        val result = savePhotos(listOf(checkNotNull(draft)), style, emoji, targets, strengths) { progress = it }
                         check(result.failed.isEmpty())
                         savedExport = SavedExport(result.saved, video = false)
                     }
@@ -578,6 +615,8 @@ class MainActivity : ComponentActivity() {
             pendingPhoto = null
             selection = null
             targets = next
+            if (SubjectTarget.Face !in next && style == MaskStyle.Sticker) style = MaskStyle.Mosaic
+            photoPreviews.evictAll()
             failedExports = emptySet()
             batchResult = null
             batchItems = emptyList()
@@ -592,7 +631,9 @@ class MainActivity : ComponentActivity() {
             }
             pendingPhoto = null
             selection = null
-            failedExports = failedExports - checkNotNull(draft).uri
+            val uri = checkNotNull(draft).uri
+            photoPreviews.remove(uri)
+            failedExports = failedExports - uri
             batchResult = null
             batchItems = emptyList()
             photos = photos.filterIndexed { index, _ -> index != photoIndex }
@@ -601,30 +642,49 @@ class MainActivity : ComponentActivity() {
             rerender()
         }
 
+        fun showPhoto(target: Int, bitmap: Bitmap) {
+            pendingPhoto = null
+            selection = null
+            failed = false
+            photoIndex = target
+            photo = bitmap
+        }
+
         fun switchPhoto(target: Int) {
             if (target !in photos.indices) {
                 notify(getString(if (target < 0) R.string.editor_first_photo else R.string.editor_last_photo))
                 return
             }
-            pendingPhoto = target.takeUnless { it == photoIndex }
+            if (target == photoIndex) {
+                pendingPhoto = null
+                return
+            }
+            val cached = cachedPreview(photos[target])
+            if (cached != null && !busy) showPhoto(target, cached)
+            else pendingPhoto = target
         }
 
-        LaunchedEffect(pendingPhoto, renderRevision, style, emoji, targets, busy) {
+        val switchPhotoOnSwipe by rememberUpdatedState(::switchPhoto)
+        LaunchedEffect(pendingPhoto, renderRevision, style, emoji, targets, strengths, busy) {
             val target = pendingPhoto ?: return@LaunchedEffect
             if (busy) return@LaunchedEffect
             val item = photos.getOrNull(target) ?: return@LaunchedEffect
+            val key = previewKey(item)
+            val cached = cachedPreview(item)
+            if (cached != null) {
+                showPhoto(target, cached)
+                return@LaunchedEffect
+            }
             val revision = renderRevision
             try {
-                val (bitmap, analysis) = renderPhoto(item, style, emoji, targets)
+                val (bitmap, analysis) = renderPhoto(item, style, emoji, targets, strengths, preview = true)
                 if (pendingPhoto != target || renderRevision != revision || busy) {
                     bitmap.recycle()
                     return@LaunchedEffect
                 }
                 updatePhoto(item.copy(analysis = analysis))
-                selection = null
-                failed = false
-                photoIndex = target
-                photo = bitmap
+                photoPreviews.put(item.uri, CachedPhotoPreview(key, bitmap))
+                showPhoto(target, bitmap)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -685,40 +745,20 @@ class MainActivity : ComponentActivity() {
                         }
                         if (infoOpen) PrivacyPopover { infoOpen = false }
 
-                        Box {
-                            Button(onClick = { menuTargets = targets }, enabled = !busy, shape = pill) {
-                                Text(stringResource(R.string.editor_subjects) + " ▾")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            SubjectPicker(targets, silhouettesAvailable, enabled = !busy, modifier = Modifier.weight(1f, fill = false)) { next ->
+                                val customized = photos.any { it.edits != MaskEdits() || it.faceStickers.isNotEmpty() } ||
+                                    video?.edits?.let { it != MaskEdits() } == true
+                                if (customized) pendingTargets = next else applyTargets(next)
                             }
-                            DropdownMenu(expanded = menuTargets != null, onDismissRequest = { menuTargets = null }) {
-                                SubjectTarget.entries.forEach { target ->
-                                    val label = when (target) {
-                                        SubjectTarget.Face -> R.string.editor_subject_face
-                                        SubjectTarget.Person -> R.string.editor_subject_person
-                                        SubjectTarget.Pet -> R.string.editor_subject_pet
+                            if (hasProject) {
+                                Surface(onClick = ::closeProject, enabled = !busy, shape = pill,
+                                    border = BorderStroke(1.dp, line), color = paper, contentColor = brown) {
+                                    Box(Modifier.heightIn(min = editorToolbarButtonHeight).padding(horizontal = 12.dp),
+                                        contentAlignment = Alignment.Center) {
+                                        Text(stringResource(R.string.editor_clear), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                     }
-                                    val enabled = target == SubjectTarget.Face || silhouettesAvailable
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(if (enabled) stringResource(label)
-                                                else stringResource(R.string.editor_subject_unavailable, stringResource(label)))
-                                        },
-                                        leadingIcon = { Checkbox(target in menuTargets.orEmpty(), onCheckedChange = null, enabled = enabled) },
-                                        enabled = enabled,
-                                        onClick = { menuTargets = menuTargets.orEmpty().toggle(target) },
-                                    )
                                 }
-                                HorizontalDivider()
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.editor_subject_apply)) },
-                                    enabled = !busy && menuTargets != targets,
-                                    onClick = {
-                                        val next = checkNotNull(menuTargets)
-                                        menuTargets = null
-                                        val customized = photos.any { it.edits != MaskEdits() || it.faceStickers.isNotEmpty() } ||
-                                            video?.edits?.let { it != MaskEdits() } == true
-                                        if (customized) pendingTargets = next else applyTargets(next)
-                                    },
-                                )
                             }
                         }
                         if (!hasProject) {
@@ -731,7 +771,7 @@ class MainActivity : ComponentActivity() {
                             if (!hasProject) {
                                 EmptyCanvas(enabled = !busy) { pickMedia.launch(mediaRequest) }
                             } else BoxWithConstraints(
-                                Modifier.fillMaxSize().then(if (swipeEnabled) Modifier.pointerInput(Unit) {
+                                Modifier.fillMaxSize().then(if (swipeEnabled && !strengthOpen) Modifier.pointerInput(Unit) {
                                     var total = 0f
                                     detectHorizontalDragGestures(
                                         onDragStart = { total = 0f },
@@ -747,7 +787,7 @@ class MainActivity : ComponentActivity() {
                                                 total >= threshold -> current - 1
                                                 else -> current
                                             }
-                                            switchPhoto(target)
+                                            switchPhotoOnSwipe(target)
                                         },
                                     )
                                 } else Modifier),
@@ -792,7 +832,7 @@ class MainActivity : ComponentActivity() {
 
                                     val edits = video?.edits ?: draft?.edits
                                     val faces = draft?.faces.orEmpty()
-                                    if (imageWidth > 0 && imageHeight > 0 && mediaReady && edits != null) {
+                                    if (imageWidth > 0 && imageHeight > 0 && mediaReady && edits != null && !strengthOpen) {
                                         val tapAction by rememberUpdatedState<(Offset) -> Unit> { point ->
                                             val x = (point.x - left) / imageWidth
                                             val y = (point.y - top) / imageHeight
@@ -842,16 +882,37 @@ class MainActivity : ComponentActivity() {
                                 }
                                 val canvasEdits = video?.edits ?: draft?.edits
                                 if (canvasEdits != null) {
-                                    Row(Modifier.align(Alignment.TopStart).padding(10.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        OverlayPill(stringResource(R.string.editor_remove_media), dark = false,
-                                            canvasControl = true, enabled = !busy, icon = R.drawable.tap_close) {
-                                            pendingPhoto = null
-                                            confirmRemove = true
+                                    Column(Modifier.align(Alignment.TopStart).padding(10.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            OverlayPill(stringResource(R.string.editor_remove_media), dark = false,
+                                                canvasControl = true, enabled = !busy, icon = R.drawable.tap_close) {
+                                                pendingPhoto = null
+                                                confirmRemove = true
+                                            }
+                                            if (style != MaskStyle.Sticker) {
+                                                OverlayPill(stringResource(R.string.editor_effect_strength),
+                                                    dark = strengthOpen, canvasControl = !strengthOpen,
+                                                    enabled = mediaReady, icon = R.drawable.tap_settings) {
+                                                    strengthOpen = !strengthOpen
+                                                }
+                                            }
+                                            OverlayPill(stringResource(R.string.editor_invert_mask), dark = canvasEdits.inverted,
+                                                canvasControl = !canvasEdits.inverted, enabled = mediaReady && (isVideo || photo != null)) {
+                                                applyEdits(canvasEdits.copy(inverted = !canvasEdits.inverted))
+                                            }
                                         }
-                                        OverlayPill(stringResource(R.string.editor_invert_mask), dark = canvasEdits.inverted,
-                                            canvasControl = !canvasEdits.inverted, enabled = mediaReady && (isVideo || photo != null)) {
-                                            applyEdits(canvasEdits.copy(inverted = !canvasEdits.inverted))
+                                        if (strengthOpen && style != MaskStyle.Sticker) {
+                                            val isBlur = style == MaskStyle.Blur
+                                            val savedStrength = if (isBlur) strengths.blur else strengths.mosaic
+                                            StrengthPopup(style, savedStrength, mediaReady, onDismiss = { strengthOpen = false }) { value ->
+                                                if (value != savedStrength) {
+                                                    strengths = if (isBlur) strengths.copy(blur = value) else strengths.copy(mosaic = value)
+                                                    editorSettings.edit()
+                                                        .putFloat(if (isBlur) "blur_strength" else "mosaic_strength", value).apply()
+                                                    if (isVideo) updateVideoPreview() else rerender()
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -957,7 +1018,8 @@ class MainActivity : ComponentActivity() {
                                     seekPosition = null
                                 }, enabled = mediaReady, valueRange = 0f..duration.toFloat())
                         }
-                        if (hasProject && style == MaskStyle.Sticker) {
+                        val stickersAvailable = SubjectTarget.Face in targets
+                        if (hasProject && stickersAvailable && style == MaskStyle.Sticker) {
                             val face = selectedFace
                             val current = draft
                             fun applySticker(sticker: String) {
@@ -988,6 +1050,7 @@ class MainActivity : ComponentActivity() {
                         if (hasProject) {
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 for (option in MaskStyle.entries) {
+                                    val available = option != MaskStyle.Sticker || stickersAvailable
                                     val active = style == option
                                     val label = when (option) {
                                         MaskStyle.Mosaic -> stringResource(R.string.editor_pixelate)
@@ -1010,10 +1073,14 @@ class MainActivity : ComponentActivity() {
                                             style = option
                                             if (isVideo) updateVideoPreview() else rerender()
                                         }
-                                    }, enabled = mediaReady, modifier = Modifier.weight(1f), shape = RoundedCornerShape(16.dp),
-                                        color = if (active) paper else Color.White,
+                                    }, enabled = mediaReady && available, modifier = Modifier.weight(1f), shape = RoundedCornerShape(16.dp),
+                                        color = if (active || !available) paper else Color.White,
                                         border = BorderStroke(if (active) 2.dp else 1.dp, if (active) coral else pink),
-                                        contentColor = if (active) apricotDark else brown) {
+                                        contentColor = when {
+                                            active -> apricotDark
+                                            !available -> mutedInk
+                                            else -> brown
+                                        }) {
                                         Column(Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
                                             horizontalAlignment = Alignment.CenterHorizontally,
                                             verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -1024,6 +1091,10 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                 }
+                            }
+                            if (!stickersAvailable) {
+                                Text(stringResource(R.string.editor_sticker_requires_face),
+                                    color = mutedInk, fontSize = 12.sp)
                             }
                         }
                         if (isVideo) {
@@ -1071,29 +1142,24 @@ class MainActivity : ComponentActivity() {
             }
         }
         if (confirmRemove) {
-            AlertDialog(
-                onDismissRequest = { confirmRemove = false },
-                title = { Text(stringResource(R.string.editor_remove_media_title)) },
-                text = { Text(stringResource(R.string.editor_remove_media_body)) },
-                confirmButton = {
-                    TextButton(onClick = { confirmRemove = false; removeCurrent() }) {
-                        Text(stringResource(R.string.editor_remove_media))
-                    }
-                },
-                dismissButton = { TextButton(onClick = { confirmRemove = false }) { Text(stringResource(R.string.cancel)) } },
+            EditorConfirmDialog(
+                title = stringResource(R.string.editor_remove_media_title),
+                message = stringResource(R.string.editor_remove_media_body),
+                action = stringResource(R.string.editor_remove_media),
+                icon = R.drawable.tap_close,
+                destructive = true,
+                onDismiss = { confirmRemove = false },
+                onConfirm = { confirmRemove = false; removeCurrent() },
             )
         }
         pendingTargets?.let { next ->
-            AlertDialog(
-                onDismissRequest = { pendingTargets = null },
-                title = { Text(stringResource(R.string.editor_subject_confirm_title)) },
-                text = { Text(stringResource(R.string.editor_subject_confirm_body)) },
-                confirmButton = {
-                    TextButton(onClick = { pendingTargets = null; applyTargets(next) }) {
-                        Text(stringResource(R.string.editor_subject_apply))
-                    }
-                },
-                dismissButton = { TextButton(onClick = { pendingTargets = null }) { Text(stringResource(R.string.cancel)) } },
+            EditorConfirmDialog(
+                title = stringResource(R.string.editor_subject_confirm_title),
+                message = stringResource(R.string.editor_subject_confirm_body),
+                action = stringResource(R.string.editor_subject_apply),
+                icon = R.drawable.tap_refresh,
+                onDismiss = { pendingTargets = null },
+                onConfirm = { pendingTargets = null; applyTargets(next) },
             )
         }
         if (settingsOpen) {
@@ -1204,6 +1270,7 @@ class MainActivity : ComponentActivity() {
 
     private suspend fun renderPhoto(
         draft: PhotoDraft, style: MaskStyle, emoji: String, targets: Set<SubjectTarget>,
+        strengths: EffectStrengths, preview: Boolean = false,
     ): Pair<Bitmap, Detection> {
         var output: Bitmap? = null
         try {
@@ -1216,9 +1283,17 @@ class MainActivity : ComponentActivity() {
                     val overrides = if (style == MaskStyle.Sticker) {
                         faces.mapNotNull { face -> draft.faceStickers[face.id]?.let { draft.edits.boxFor(face) to it } }.toMap()
                     } else emptyMap()
-                    val rendered = renderEditorPhoto(source, draft.edits.masks(faces), style, emoji, overrides, draft.edits.inverted, analysis.person)
+                    val rendered = renderEditorPhoto(source, draft.edits.masks(faces), style, emoji, overrides, draft.edits.inverted, analysis.person, strengths)
                     output = rendered
-                    rendered to analysis
+                    val longEdge = maxOf(rendered.width, rendered.height)
+                    if (preview && longEdge > 1080) {
+                        val scale = 1080f / longEdge
+                        output = Bitmap.createScaledBitmap(rendered,
+                            (rendered.width * scale).roundToInt().coerceAtLeast(1),
+                            (rendered.height * scale).roundToInt().coerceAtLeast(1), true)
+                        rendered.recycle()
+                    }
+                    checkNotNull(output) to analysis
                 } finally { source.recycle() }
             }
         } catch (error: Exception) {
@@ -1228,7 +1303,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private suspend fun savePhotos(drafts: List<PhotoDraft>, style: MaskStyle, emoji: String,
-        targets: Set<SubjectTarget>, progress: (Int) -> Unit): PhotoExport {
+        targets: Set<SubjectTarget>, strengths: EffectStrengths, progress: (Int) -> Unit): PhotoExport {
         require(drafts.size in 1..batchLimit)
         val saved = mutableListOf<Uri>()
         val failures = mutableSetOf<Uri>()
@@ -1236,7 +1311,7 @@ class MainActivity : ComponentActivity() {
             for ((index, draft) in drafts.withIndex()) {
                 currentCoroutineContext().ensureActive()
                 try {
-                    val (bitmap) = renderPhoto(draft, style, emoji, targets)
+                    val (bitmap) = renderPhoto(draft, style, emoji, targets, strengths)
                     try {
                         withContext(Dispatchers.IO) {
                             saved += saveMedia(false) { check(bitmap.compress(Bitmap.CompressFormat.JPEG, 95, it)) }

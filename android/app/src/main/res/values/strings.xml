@@ -116,4 +116,6 @@
     <string name="editor_remove_media_title">Remove this item?</string>
     <string name="editor_remove_media_body">This removes the current item from the editor and discards its edits. The original stays in your library.</string>
     <string name="editor_subject_unavailable">%1$s (Debug only)</string>
+    <string name="editor_sticker_requires_face">Select Faces under Subjects to use stickers.</string>
+    <string name="editor_effect_strength">Strength</string>
 </resources>

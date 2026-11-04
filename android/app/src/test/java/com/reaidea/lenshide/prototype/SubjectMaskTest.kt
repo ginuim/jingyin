@@ -57,4 +57,14 @@ class SubjectMaskTest {
         assertEquals(0.5f, SubjectMask.smoothstep(0.35f, 0.65f, 0.5f), 1e-6f)
         assertEquals(1f, SubjectMask.smoothstep(0.35f, 0.65f, 0.9f), 1e-6f)
     }
+
+    @Test fun featheredSilhouetteKeepsCoreAndSoftensBoundary() {
+        val mask = PersonMask(15, ByteArray(225) { if (it % 15 < 7) 0xFF.toByte() else 0 })
+        val smoothed = mask.feathered(radius = 3)
+        fun alphaAt(x: Int) = smoothed.alpha[7 * 15 + x].toInt() and 0xFF
+        assertEquals(255, alphaAt(2))
+        assertEquals(0, alphaAt(12))
+        assertTrue(alphaAt(6) in 1..254)
+        assertTrue(alphaAt(7) in 1 until alphaAt(6))
+    }
 }

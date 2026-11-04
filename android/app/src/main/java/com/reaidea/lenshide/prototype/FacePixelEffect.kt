@@ -141,7 +141,9 @@ private class SubjectPixelShader(
             render.setSamplerTexIdUniform("uMask", maskTexture[0], 1)
             render.setFloatsUniform("uFit", fit)
             render.setFloatsUniform("uSize", floatArrayOf(width.toFloat(), height.toFloat()))
-            render.setFloatsUniform("uCell", floatArrayOf(SubjectMask.cellSize(width, height).toFloat()))
+            val strengths = options?.strengths ?: EffectStrengths()
+            render.setFloatsUniform("uCell", floatArrayOf(SubjectMask.cellSize(width, height, strengths.mosaic).toFloat()))
+            render.setFloatsUniform("uBlurStrength", floatArrayOf(strengths.blur))
             render.setSamplerTexIdUniform("uSticker", stickerTexture, 2)
             render.setIntUniform("uStyle", options?.style?.let { it.ordinal + 1 } ?: 0)
             render.setIntUniform("uCount", masks.size)
@@ -223,6 +225,7 @@ private class SubjectPixelShader(
             uniform vec2 uFit;
             uniform vec2 uSize;
             uniform float uCell;
+            uniform float uBlurStrength;
             uniform vec4 uFaces[64];
             uniform int uCount;
             uniform int uInverted;
@@ -255,7 +258,7 @@ private class SubjectPixelShader(
                         return;
                     }
                     vec4 blurred = vec4(0.0);
-                    float stepPx = min(uSize.x, uSize.y) / 120.0;
+                    float stepPx = min(uSize.x, uSize.y) * uBlurStrength / 120.0;
                     for (int y = -3; y <= 3; y++) {
                         for (int x = -3; x <= 3; x++) {
                             blurred += texture2D(uTex, vTex + vec2(float(x), float(y)) * stepPx / uSize);

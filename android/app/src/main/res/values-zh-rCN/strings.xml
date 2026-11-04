@@ -115,4 +115,6 @@
     <string name="editor_remove_media_title">移除当前素材？</string>
     <string name="editor_remove_media_body">当前素材及其编辑将从项目移除，原文件会保留在相册中。</string>
     <string name="editor_subject_unavailable">%1$s（仅调试版）</string>
+    <string name="editor_sticker_requires_face">在「处理主体」中勾选人脸，即可使用贴纸。</string>
+    <string name="editor_effect_strength">强度</string>
 </resources>

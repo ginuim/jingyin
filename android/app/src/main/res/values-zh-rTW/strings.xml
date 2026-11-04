@@ -115,4 +115,6 @@
     <string name="editor_remove_media_title">移除目前素材？</string>
     <string name="editor_remove_media_body">目前素材和相關編輯將從專案移除，原始檔會保留在相簿中。</string>
     <string name="editor_subject_unavailable">%1$s（僅偵錯版）</string>
+    <string name="editor_sticker_requires_face">在「處理主體」中勾選人臉，即可使用貼圖。</string>
+    <string name="editor_effect_strength">強度</string>
 </resources>

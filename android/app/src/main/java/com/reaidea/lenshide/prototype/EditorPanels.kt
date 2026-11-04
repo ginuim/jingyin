@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -27,13 +28,25 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -419,6 +432,203 @@ private fun SavedThumbnail(uri: Uri) {
             } else {
                 CircularProgressIndicator(Modifier.size(24.dp), color = coral, strokeWidth = 2.dp)
             }
+        }
+    }
+}
+
+private val SubjectTarget.icon get() = when (this) {
+    SubjectTarget.Face -> R.drawable.tap_face
+    SubjectTarget.Person -> R.drawable.tap_body
+    SubjectTarget.Pet -> R.drawable.tap_cat
+}
+
+private val SubjectTarget.label get() = when (this) {
+    SubjectTarget.Face -> R.string.editor_subject_face
+    SubjectTarget.Person -> R.string.editor_subject_person
+    SubjectTarget.Pet -> R.string.editor_subject_pet
+}
+
+internal val editorToolbarButtonHeight = 44.dp
+
+@Composable
+private fun rememberEditorPopupPosition(): PopupPositionProvider {
+    val gap = with(LocalDensity.current) { 6.dp.roundToPx() }
+    return remember(gap) {
+        object : PopupPositionProvider {
+            override fun calculatePosition(
+                anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize,
+            ): IntOffset {
+                val start = if (layoutDirection == LayoutDirection.Ltr) anchorBounds.left
+                    else anchorBounds.right - popupContentSize.width
+                val below = anchorBounds.bottom + gap
+                val top = if (below + popupContentSize.height <= windowSize.height) below
+                    else anchorBounds.top - gap - popupContentSize.height
+                return IntOffset(
+                    start.coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0)),
+                    top.coerceIn(0, (windowSize.height - popupContentSize.height).coerceAtLeast(0)),
+                )
+            }
+        }
+    }
+
+}
+
+@Composable
+internal fun SubjectPicker(
+    targets: Set<SubjectTarget>,
+    silhouettesAvailable: Boolean,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onApply: (Set<SubjectTarget>) -> Unit,
+) {
+    var pending by remember { mutableStateOf<Set<SubjectTarget>?>(null) }
+    val position = rememberEditorPopupPosition()
+
+    Box(modifier) {
+        Surface(onClick = { pending = targets }, enabled = enabled, shape = pill, color = paper,
+            contentColor = brown, border = BorderStroke(1.dp, if (pending != null) coral else line)) {
+            Row(Modifier.heightIn(min = editorToolbarButtonHeight).padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                SubjectTarget.entries.filter { it in targets }.forEach { target ->
+                    Surface(shape = CircleShape, color = pink, contentColor = apricotDark) {
+                        Box(Modifier.size(26.dp), contentAlignment = Alignment.Center) {
+                            TapIcon(target.icon, stringResource(target.label), Modifier.size(16.dp))
+                        }
+                    }
+                }
+                Text(stringResource(R.string.editor_subjects), Modifier.weight(1f, fill = false),
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                TapIcon(R.drawable.tap_down, modifier = Modifier.size(16.dp))
+            }
+        }
+        pending?.let { selected ->
+            Popup(position, onDismissRequest = { pending = null }, properties = PopupProperties(focusable = true)) {
+                Surface(Modifier.width(260.dp), shape = RoundedCornerShape(20.dp), color = paper,
+                    border = BorderStroke(1.dp, line), shadowElevation = 8.dp) {
+                    Column(Modifier.verticalScroll(rememberScrollState()).padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(stringResource(R.string.editor_subjects), Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            color = ink, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                        SubjectTarget.entries.forEach { target ->
+                            val checked = target in selected
+                            val available = enabled && (target == SubjectTarget.Face || silhouettesAvailable)
+                            val shape = RoundedCornerShape(12.dp)
+                            Surface(shape = shape, color = if (checked) pink else Color.Transparent,
+                                border = if (checked) BorderStroke(1.dp, line) else null) {
+                                Row(
+                                    Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                                        .toggleable(checked, enabled = available, role = Role.Checkbox) {
+                                            pending = selected.toggle(target)
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Surface(shape = RoundedCornerShape(9.dp), color = if (checked) Color.White else pink,
+                                        contentColor = if (available) apricotDark else mutedInk) {
+                                        Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+                                            TapIcon(target.icon, modifier = Modifier.size(19.dp))
+                                        }
+                                    }
+                                    val label = stringResource(target.label)
+                                    Text(if (available) label else stringResource(R.string.editor_subject_unavailable, label),
+                                        Modifier.weight(1f), color = if (available) ink else mutedInk,
+                                        fontSize = 13.sp, fontWeight = if (checked) FontWeight.Bold else FontWeight.Medium)
+                                    Surface(Modifier.size(18.dp), shape = CircleShape,
+                                        color = if (checked) apricotDark else Color.Transparent,
+                                        contentColor = Color.White,
+                                        border = if (checked) null else BorderStroke(1.dp, mutedInk)) {
+                                        if (checked) Box(contentAlignment = Alignment.Center) {
+                                            TapIcon(R.drawable.tap_check, modifier = Modifier.size(13.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Button(onClick = { pending = null; onApply(selected) }, enabled = enabled && selected != targets,
+                            modifier = Modifier.fillMaxWidth(), shape = pill,
+                            colors = ButtonDefaults.buttonColors(containerColor = apricotDark, contentColor = Color.White)) {
+                            Text(stringResource(R.string.editor_subject_apply), fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun EditorConfirmDialog(
+    title: String,
+    message: String,
+    action: String,
+    icon: Int,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+    destructive: Boolean = false,
+) {
+    val accent = if (destructive) roseDeep else apricotDark
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = paper,
+            border = BorderStroke(1.dp, line), shadowElevation = 8.dp) {
+            Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Surface(shape = RoundedCornerShape(14.dp), color = if (destructive) roseSoft else pink, contentColor = accent) {
+                    Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+                        TapIcon(icon, modifier = Modifier.size(23.dp))
+                    }
+                }
+                Text(title, color = ink, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                Text(message, color = brown, fontSize = 14.sp, lineHeight = 21.sp)
+                Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f), shape = pill,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = brown),
+                        border = BorderStroke(1.dp, line), contentPadding = PaddingValues(horizontal = 8.dp)) {
+                        Text(stringResource(R.string.cancel), textAlign = TextAlign.Center)
+                    }
+                    Button(onClick = onConfirm, modifier = Modifier.weight(1f), shape = pill,
+                        colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color.White),
+                        contentPadding = PaddingValues(horizontal = 8.dp)) {
+                        Text(action, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun StrengthPopup(
+    style: MaskStyle, savedStrength: Float, enabled: Boolean,
+    onDismiss: () -> Unit, onCommit: (Float) -> Unit,
+) {
+    Popup(rememberEditorPopupPosition(), onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = true)) {
+        StrengthSlider(style, savedStrength, enabled, onCommit)
+    }
+}
+
+@Composable
+private fun StrengthSlider(style: MaskStyle, savedStrength: Float, enabled: Boolean, onCommit: (Float) -> Unit) {
+    var strength by remember(style, savedStrength) { mutableFloatStateOf(savedStrength) }
+    val label = stringResource(if (style == MaskStyle.Blur) R.string.editor_blur else R.string.editor_pixelate)
+    Surface(Modifier.width(232.dp), shape = RoundedCornerShape(16.dp), color = paper,
+        border = BorderStroke(1.dp, line), shadowElevation = 4.dp) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(label, color = ink, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                val percent = java.text.NumberFormat.getPercentInstance().format(strength.toDouble())
+                Text(percent, color = apricotDark, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+            Slider(
+                value = strength,
+                onValueChange = { strength = it },
+                onValueChangeFinished = { onCommit(strength) },
+                enabled = enabled,
+                valueRange = effectStrengthRange,
+                modifier = Modifier.semantics { contentDescription = label },
+                colors = SliderDefaults.colors(thumbColor = apricotDark, activeTrackColor = coral),
+            )
         }
     }
 }
