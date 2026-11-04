@@ -1,6 +1,10 @@
 package com.reaidea.lenshide.prototype
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.Color
 import android.media.MediaMetadataRetriever
 import android.net.Uri
@@ -25,6 +29,35 @@ class PipelineTest {
     private fun report(name: String, value: String) {
         Log.i("LensHideBenchmark", "$name\n$value")
         File(context.filesDir, "lab-results.txt").appendText("$name\n$value\n\n")
+    }
+
+    @Test fun photoTilesRecoverDistantFaces() {
+        val group = BitmapFactory.decodeFile(fixture("face.jpg").path)
+        val photo = Bitmap.createBitmap(1600, 1000, Bitmap.Config.ARGB_8888)
+        val inset = Rect(520, 340, 1080, 340 + 560 * group.height / group.width)
+        try {
+            Canvas(photo).drawBitmap(group, null, inset, Paint(Paint.FILTER_BITMAP_FLAG))
+            FaceDetector(context, detectPerson = false).use { detector ->
+                val full = detector.detect(photo)
+                val tiled = detector.detectPhoto(photo, faces = true, person = false, pets = false)
+                val reference = detector.detect(group).faces
+                val recovered = reference.count { face ->
+                    val x = (inset.left + face.cx * inset.width()) / photo.width
+                    val y = (inset.top + face.cy * inset.height()) / photo.height
+                    tiled.faces.any { it.contains(x, y) }
+                }
+                report("photo-small-faces", "full=${full.faces.size}, tiled=${tiled.faces.size}, recovered=$recovered/${reference.size}")
+                assertEquals("Expected eight reference faces", 8, reference.size)
+                assertEquals("Tiled analysis should recover the reference faces", reference.size, recovered)
+                assertTrue("Tiled analysis should find more small faces", tiled.faces.size > full.faces.size)
+                assertTrue("Faces must map back into the group photo", tiled.faces.all {
+                    inset.contains((it.cx * photo.width).toInt(), (it.cy * photo.height).toInt())
+                })
+            }
+        } finally {
+            photo.recycle()
+            group.recycle()
+        }
     }
 
     @Test fun photoDetectionAndMasking() {

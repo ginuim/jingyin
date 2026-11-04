@@ -426,6 +426,7 @@ class MainActivity : ComponentActivity() {
             photos = photos.map { if (it.uri == replacement.uri) replacement else it }
         }
         fun closeProject() {
+            renderRevision++
             strengthOpen = false
             photoPreviews.evictAll()
             photos = emptyList()
@@ -617,12 +618,38 @@ class MainActivity : ComponentActivity() {
                 delay(100)
             }
         }
-        var refreshingPhoto by remember { mutableStateOf(false) }
         LaunchedEffect(renderRevision) {
             val currentPhoto = draft ?: return@LaunchedEffect
+            if (photo != null && currentPhoto.analysis != null && !analyzeBatch) {
+                val revision = renderRevision
+                val key = previewKey(currentPhoto)
+                fun isCurrentPreview() =
+                    renderRevision == revision && photos.getOrNull(photoIndex)?.uri == currentPhoto.uri
+
+                try {
+                    val cached = cachedPreview(currentPhoto)
+                    if (cached != null) {
+                        if (isCurrentPreview()) photo = cached
+                    } else {
+                        val (bitmap, _) = renderPhoto(currentPhoto, style, emoji, targets, strengths, preview = true)
+                        if (isCurrentPreview()) {
+                            photoPreviews.put(currentPhoto.uri, CachedPhotoPreview(key, bitmap))
+                            photo = bitmap
+                        } else {
+                            bitmap.recycle()
+                        }
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    android.util.Log.w("TapHide", "Photo preview could not be refreshed", error)
+                    if (isCurrentPreview()) failed = true
+                }
+                return@LaunchedEffect
+            }
+
             startWork {
                 var renderedCurrent = false
-                refreshingPhoto = photo != null && currentPhoto.analysis != null && !analyzeBatch
                 try {
                     val batch = if (analyzeBatch) photos else listOf(currentPhoto)
                     analyzeBatch = false
@@ -649,7 +676,6 @@ class MainActivity : ComponentActivity() {
                         progress = (index + 1) * 100 / batch.size
                     }
                 } finally {
-                    refreshingPhoto = false
                     failed = !renderedCurrent
                 }
             }
@@ -1086,9 +1112,7 @@ class MainActivity : ComponentActivity() {
                                 if (pendingPhoto != null && !busy) {
                                     LinearProgressIndicator(Modifier.align(Alignment.BottomCenter).fillMaxWidth())
                                 }
-                                if (refreshingPhoto) {
-                                    LinearProgressIndicator(Modifier.align(Alignment.BottomCenter).fillMaxWidth())
-                                } else if (busy) {
+                                if (busy) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         CircularProgressIndicator()
                                         if (isVideo || progress > 0) OverlayPill("$progress%")
@@ -1436,7 +1460,7 @@ class MainActivity : ComponentActivity() {
 
     private fun detectPhoto(bitmap: Bitmap, targets: Set<SubjectTarget>): Detection =
         FaceDetector(this, detectPerson = false).use {
-            it.detect(bitmap, SubjectTarget.Face in targets, SubjectTarget.Person in targets, SubjectTarget.Pet in targets)
+            it.detectPhoto(bitmap, SubjectTarget.Face in targets, SubjectTarget.Person in targets, SubjectTarget.Pet in targets)
         }
 
     private suspend fun detectPhoto(uri: Uri, targets: Set<SubjectTarget>): Detection = withContext(Dispatchers.Default) {

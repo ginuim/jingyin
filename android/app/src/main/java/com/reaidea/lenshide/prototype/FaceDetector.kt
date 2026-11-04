@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.RectF
 import android.os.SystemClock
 import org.opencv.android.OpenCVLoader
@@ -60,6 +61,56 @@ class FaceDetector(context: Context, val inputSize: Int = 320, detectPerson: Boo
         canvas.drawBitmap(bitmap, null, RectF(fit[0], fit[1], fit[0] + fit[2], fit[1] + fit[3]), paint)
         Utils.bitmapToMat(square, rgba)
         return infer(bitmap.width, bitmap.height, faces, person, pets)
+    }
+
+    internal fun detectPhoto(bitmap: Bitmap, faces: Boolean, person: Boolean, pets: Boolean): Detection {
+        val full = detect(bitmap, faces, person, pets)
+        val longEdge = max(bitmap.width, bitmap.height)
+        if (!faces || longEdge < inputSize * 2) return full
+
+        // Give distant faces more model pixels while keeping YuNet's input fixed.
+        val divisions = if (longEdge >= inputSize * 3) 3 else 2
+        val edge = (longEdge * if (divisions == 3) 0.42f else 0.60f).toInt()
+        val tileWidth = minOf(bitmap.width, edge)
+        val tileHeight = minOf(bitmap.height, edge)
+        val merged = full.faces.toMutableList()
+        var millis = full.millis
+        val fit = placement(tileWidth, tileHeight)
+        val destination = RectF(fit[0], fit[1], fit[0] + fit[2], fit[1] + fit[3])
+        for (top in tileStarts(bitmap.height, tileHeight, divisions)) {
+            for (left in tileStarts(bitmap.width, tileWidth, divisions)) {
+                canvas.drawColor(Color.BLACK)
+                canvas.drawBitmap(bitmap, Rect(left, top, left + tileWidth, top + tileHeight), destination, paint)
+                Utils.bitmapToMat(square, rgba)
+                val tile = infer(tileWidth, tileHeight, detectFaces = true, detectPerson = false, detectPets = false)
+                millis += tile.millis
+                for (face in tile.faces) {
+                    if (face.cx !in 0f..1f || face.cy !in 0f..1f) continue
+                    val mapped = FaceBox(
+                        (left + face.cx * tileWidth) / bitmap.width,
+                        (top + face.cy * tileHeight) / bitmap.height,
+                        face.rx * tileWidth / bitmap.width,
+                        face.ry * tileHeight / bitmap.height,
+                    )
+                    if (merged.none { it.overlapRatio(mapped) >= 0.35f }) merged += mapped
+                }
+            }
+        }
+        return full.copy(faces = merged, millis = millis)
+    }
+
+    private fun tileStarts(length: Int, tileSize: Int, divisions: Int): List<Int> {
+        val span = length - tileSize
+        val count = if (span < tileSize * 0.8f) 2 else divisions
+        return List(count) { span * it / (count - 1) }.distinct()
+    }
+
+    private fun FaceBox.overlapRatio(other: FaceBox): Float {
+        val width = minOf(cx + rx, other.cx + other.rx) - maxOf(cx - rx, other.cx - other.rx)
+        val height = minOf(cy + ry, other.cy + other.ry) - maxOf(cy - ry, other.cy - other.ry)
+        if (width <= 0 || height <= 0) return 0f
+        val intersection = width * height
+        return intersection / (4 * (rx * ry + other.rx * other.ry) - intersection)
     }
 
     /** RGBA readback of a letterboxed GL texture, with the first row at bottom. */
