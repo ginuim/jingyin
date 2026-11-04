@@ -13,6 +13,7 @@ import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.util.LruCache
 import android.view.LayoutInflater
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -616,10 +617,12 @@ class MainActivity : ComponentActivity() {
                 delay(100)
             }
         }
+        var refreshingPhoto by remember { mutableStateOf(false) }
         LaunchedEffect(renderRevision) {
             val currentPhoto = draft ?: return@LaunchedEffect
             startWork {
                 var renderedCurrent = false
+                refreshingPhoto = photo != null && currentPhoto.analysis != null && !analyzeBatch
                 try {
                     val batch = if (analyzeBatch) photos else listOf(currentPhoto)
                     analyzeBatch = false
@@ -646,6 +649,7 @@ class MainActivity : ComponentActivity() {
                         progress = (index + 1) * 100 / batch.size
                     }
                 } finally {
+                    refreshingPhoto = false
                     failed = !renderedCurrent
                 }
             }
@@ -877,12 +881,9 @@ class MainActivity : ComponentActivity() {
                                 PhotoPagePicker(photoUris, photoIndex, reviewedPhotos, failedExports, !busy, ::switchPhoto)
                             }
                         }
-                        if (!hasProject) {
-                            Text(stringResource(R.string.editor_limit_hint),
-                                color = mutedInk, fontSize = 11.sp, lineHeight = 16.sp)
-                        }
-
-                        Surface(Modifier.fillMaxWidth().aspectRatio(4f / 5f), shape = RoundedCornerShape(16.dp),
+                        val previewModifier = Modifier.fillMaxWidth()
+                            .then(if (hasProject) Modifier.aspectRatio(4f / 5f) else Modifier)
+                        Surface(previewModifier, shape = RoundedCornerShape(16.dp),
                             color = if (isVideo) Color(0xFF211C1A) else Color(0xFFEFE2DC), border = BorderStroke(1.dp, line)) {
                             if (!hasProject) {
                                 EmptyCanvas(enabled = !busy) { pickMedia.launch(mediaRequest) }
@@ -1032,35 +1033,40 @@ class MainActivity : ComponentActivity() {
                                 if (canvasEdits != null) {
                                     Column(Modifier.align(Alignment.TopStart).padding(10.dp),
                                         verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            OverlayPill(stringResource(R.string.editor_remove_media), dark = false,
-                                                canvasControl = true, enabled = !busy, icon = R.drawable.tap_close) {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            verticalAlignment = Alignment.CenterVertically) {
+                                            OverlayPill("", dark = false, canvasControl = true, enabled = !busy,
+                                                icon = R.drawable.tap_trash, iconDescription = stringResource(R.string.editor_remove_media),
+                                                modifier = Modifier.width(46.dp), minimumHeight = 36.dp) {
                                                 pendingPhoto = null
                                                 confirmRemove = true
                                             }
                                             if (style != MaskStyle.Sticker) {
-                                                OverlayPill(stringResource(R.string.editor_effect_strength),
+                                                OverlayPill("",
                                                     dark = strengthOpen, canvasControl = !strengthOpen,
-                                                    enabled = mediaReady, icon = R.drawable.tap_settings) {
+                                                    enabled = mediaReady, icon = R.drawable.tap_settings,
+                                                    iconDescription = stringResource(R.string.editor_effect_strength),
+                                                    modifier = Modifier.width(46.dp), minimumHeight = 36.dp) {
                                                     strengthOpen = !strengthOpen
                                                 }
-                                            }
-                                            OverlayPill(stringResource(R.string.editor_invert_mask), dark = canvasEdits.inverted,
-                                                canvasControl = !canvasEdits.inverted, enabled = mediaReady && (isVideo || photo != null)) {
-                                                applyEdits(canvasEdits.copy(inverted = !canvasEdits.inverted))
                                             }
                                             OverlayPill(
                                                 label = "",
                                                 dark = addingMask,
                                                 canvasControl = !addingMask,
                                                 enabled = mediaReady,
-                                                icon = R.drawable.tap_add,
+                                                icon = R.drawable.tap_add_selection,
+                                                minimumHeight = 36.dp,
                                                 iconDescription = stringResource(R.string.editor_add_mask),
-                                                modifier = Modifier.semantics { selected = addingMask },
+                                                modifier = Modifier.width(46.dp).semantics { selected = addingMask },
                                             ) {
                                                 addingMask = !addingMask
                                                 selection = null
                                                 strengthOpen = false
+                                            }
+                                            OverlayPill(stringResource(R.string.editor_invert_mask), dark = canvasEdits.inverted,
+                                                canvasControl = !canvasEdits.inverted, minimumHeight = 36.dp, enabled = mediaReady && (isVideo || photo != null)) {
+                                                applyEdits(canvasEdits.copy(inverted = !canvasEdits.inverted))
                                             }
                                         }
                                         if (strengthOpen && style != MaskStyle.Sticker) {
@@ -1080,7 +1086,9 @@ class MainActivity : ComponentActivity() {
                                 if (pendingPhoto != null && !busy) {
                                     LinearProgressIndicator(Modifier.align(Alignment.BottomCenter).fillMaxWidth())
                                 }
-                                if (busy) {
+                                if (refreshingPhoto) {
+                                    LinearProgressIndicator(Modifier.align(Alignment.BottomCenter).fillMaxWidth())
+                                } else if (busy) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         CircularProgressIndicator()
                                         if (isVideo || progress > 0) OverlayPill("$progress%")
@@ -1227,12 +1235,14 @@ class MainActivity : ComponentActivity() {
                                         MaskStyle.Sticker -> R.drawable.tap_sticker
                                     }
                                     Surface(onClick = {
-                                        if (style != option) {
+                                        if (!available) {
+                                            Toast.makeText(this@MainActivity, R.string.editor_sticker_requires_face, Toast.LENGTH_SHORT).show()
+                                        } else if (style != option) {
                                             selection = null
                                             style = option
                                             if (isVideo) updateVideoPreview() else rerender()
                                         }
-                                    }, enabled = mediaReady && available, modifier = Modifier.weight(1f), shape = RoundedCornerShape(16.dp),
+                                    }, enabled = mediaReady, modifier = Modifier.weight(1f), shape = RoundedCornerShape(16.dp),
                                         color = if (active || !available) paper else Color.White,
                                         border = BorderStroke(if (active) 2.dp else 1.dp, if (active) coral else pink),
                                         contentColor = when {
@@ -1250,10 +1260,6 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                 }
-                            }
-                            if (!stickersAvailable) {
-                                Text(stringResource(R.string.editor_sticker_requires_face),
-                                    color = mutedInk, fontSize = 12.sp)
                             }
                         }
                         if (isVideo) {
@@ -1383,7 +1389,8 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun OverlayPill(label: String, modifier: Modifier = Modifier, dark: Boolean = true,
         enabled: Boolean = true, transparent: Boolean = false, monospace: Boolean = false,
-        canvasControl: Boolean = false, toast: Boolean = false, icon: Int? = null, iconDescription: String? = null, onClick: (() -> Unit)? = null) {
+        canvasControl: Boolean = false, toast: Boolean = false, icon: Int? = null, iconDescription: String? = null,
+        minimumHeight: androidx.compose.ui.unit.Dp = 0.dp, onClick: (() -> Unit)? = null) {
         Surface(
             modifier = if (onClick == null) modifier else modifier.clickable(enabled = enabled, onClick = onClick),
             shape = pill,
@@ -1396,8 +1403,9 @@ class MainActivity : ComponentActivity() {
             },
             contentColor = (if (dark) Color.White else brown).copy(alpha = if (enabled) 1f else 0.6f),
         ) {
-            Row(Modifier.padding(horizontal = if (toast) 16.dp else 8.dp, vertical = if (toast) 8.dp else 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.heightIn(min = minimumHeight).padding(horizontal = if (toast) 16.dp else 8.dp, vertical = if (toast) 8.dp else 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically) {
                 if (icon != null) TapIcon(icon, iconDescription, Modifier.size(13.dp))
                 if (label.isNotEmpty()) Text(label, fontSize = if (toast) 12.sp else 11.sp,
                     fontFamily = if (monospace) FontFamily.Monospace else FontFamily.Default,
@@ -1411,10 +1419,19 @@ class MainActivity : ComponentActivity() {
         return "%d:%02d".format(seconds / 60, seconds % 60)
     }
 
-    private fun decodePhoto(uri: Uri): Bitmap =
+    private fun decodePhoto(uri: Uri, previewSized: Boolean = false): Bitmap =
         ImageDecoder.decodeBitmap(ImageDecoder.createSource(contentResolver, uri)) { decoder, info, _ ->
             decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-            decoder.setTargetSampleSize(ceil(maxOf(info.size.width, info.size.height) / 2048.0).toInt().coerceAtLeast(1))
+            val longEdge = maxOf(info.size.width, info.size.height)
+            if (previewSized && longEdge > 1080) {
+                val scale = 1080f / longEdge
+                decoder.setTargetSize(
+                    (info.size.width * scale).roundToInt().coerceAtLeast(1),
+                    (info.size.height * scale).roundToInt().coerceAtLeast(1),
+                )
+            } else {
+                decoder.setTargetSampleSize(ceil(longEdge / 2048.0).toInt().coerceAtLeast(1))
+            }
         }
 
     private fun detectPhoto(bitmap: Bitmap, targets: Set<SubjectTarget>): Detection =
@@ -1434,7 +1451,7 @@ class MainActivity : ComponentActivity() {
         var output: Bitmap? = null
         try {
             return withContext(Dispatchers.Default) {
-                val source = decodePhoto(draft.uri)
+                val source = decodePhoto(draft.uri, previewSized = preview && draft.analysis != null)
                 try {
                     val analysis = draft.analysis ?: detectPhoto(source, targets)
                     val faces = analysis.faces.mapIndexed(::PhotoFace)
@@ -1442,17 +1459,21 @@ class MainActivity : ComponentActivity() {
                     val overrides = if (style == MaskStyle.Sticker) {
                         faces.mapNotNull { face -> draft.faceStickers[face.id]?.let { draft.edits.boxFor(face) to it } }.toMap()
                     } else emptyMap()
-                    val rendered = renderEditorPhoto(source, draft.edits.masks(faces), style, emoji, overrides, draft.edits.inverted, analysis.person, strengths)
-                    output = rendered
-                    val longEdge = maxOf(rendered.width, rendered.height)
-                    if (preview && longEdge > 1080) {
+                    val longEdge = maxOf(source.width, source.height)
+                    val input = if (preview && longEdge > 1080) {
                         val scale = 1080f / longEdge
-                        output = Bitmap.createScaledBitmap(rendered,
-                            (rendered.width * scale).roundToInt().coerceAtLeast(1),
-                            (rendered.height * scale).roundToInt().coerceAtLeast(1), true)
-                        rendered.recycle()
+                        Bitmap.createScaledBitmap(source,
+                            (source.width * scale).roundToInt().coerceAtLeast(1),
+                            (source.height * scale).roundToInt().coerceAtLeast(1), true)
+                    } else source
+                    try {
+                        val rendered = renderEditorPhoto(input, draft.edits.masks(faces), style, emoji, overrides,
+                            draft.edits.inverted, analysis.person, strengths)
+                        output = rendered
+                        rendered to analysis
+                    } finally {
+                        if (input !== source) input.recycle()
                     }
-                    checkNotNull(output) to analysis
                 } finally { source.recycle() }
             }
         } catch (error: Exception) {

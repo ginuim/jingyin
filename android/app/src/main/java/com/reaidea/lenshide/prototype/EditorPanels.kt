@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Size
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -109,11 +108,11 @@ internal fun PrivacyPopover(onClose: () -> Unit) {
 /** Initial empty state rendered inside the preview canvas (no separate home screen). */
 @Composable
 internal fun EmptyCanvas(enabled: Boolean, onPick: () -> Unit) {
-    Box(Modifier.fillMaxSize()
+    Box(Modifier.fillMaxWidth()
         .background(Brush.verticalGradient(listOf(Color(0xFFFFFDFB), Color(0xFFFCEEE9))))
         .padding(14.dp)) {
         Column(
-            Modifier.fillMaxSize()
+            Modifier.fillMaxWidth()
                 .background(Color.White.copy(alpha = 0.75f), RoundedCornerShape(16.dp))
                 .drawBehind {
                     drawRoundRect(
@@ -124,11 +123,11 @@ internal fun EmptyCanvas(enabled: Boolean, onPick: () -> Unit) {
                 }
                 .padding(horizontal = 16.dp, vertical = 18.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Surface(shape = pill, color = pink.copy(alpha = 0.8f), contentColor = apricotDark) {
                 Text(stringResource(R.string.editor_steps), Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
-                    fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
             }
 
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -157,41 +156,15 @@ internal fun EmptyCanvas(enabled: Boolean, onPick: () -> Unit) {
 
 @Composable
 private fun EmptyIllustration() {
-    Box(Modifier.size(80.dp)) {
-        Box(Modifier.matchParentSize()
-            .background(pink, RoundedCornerShape(24.dp))
-            .drawBehind {
-                drawRoundRect(color = line, cornerRadius = CornerRadius(24.dp.toPx()), style = Stroke(1.dp.toPx()))
-            })
-        Canvas(Modifier.size(56.dp).align(Alignment.Center)) {
-            val unit = size.width / 64f
-            drawRoundRect(color = paper, topLeft = androidx.compose.ui.geometry.Offset(8 * unit, 8 * unit),
-                size = androidx.compose.ui.geometry.Size(48 * unit, 48 * unit), cornerRadius = CornerRadius(12 * unit))
-            drawRoundRect(color = coral, topLeft = androidx.compose.ui.geometry.Offset(8 * unit, 8 * unit),
-                size = androidx.compose.ui.geometry.Size(48 * unit, 48 * unit), cornerRadius = CornerRadius(12 * unit),
-                style = Stroke(2.5f * unit))
-            val cells = listOf(
-                listOf(Color(0xFF5A4944), Color(0xFFC89D7C), Color(0xFFF19A87)),
-                listOf(Color(0xFFE89954), coral, Color(0xFFB84B37)),
-                listOf(Color(0xFFFAD9D0), Color(0xFFDC644D), Color(0xFFF28F27)),
-            )
-            cells.forEachIndexed { row, colors ->
-                colors.forEachIndexed { col, color ->
-                    drawRoundRect(color = color,
-                        topLeft = androidx.compose.ui.geometry.Offset((20 + col * 8) * unit, (16 + row * 8) * unit),
-                        size = androidx.compose.ui.geometry.Size(8 * unit, 8 * unit),
-                        cornerRadius = CornerRadius(1.5f * unit))
-                }
-            }
-        }
-        Surface(Modifier.align(Alignment.BottomEnd).offset(x = 6.dp, y = 6.dp).size(32.dp),
-            shape = RoundedCornerShape(12.dp), color = Color.White, border = BorderStroke(1.dp, line)) {
-            Box(contentAlignment = Alignment.Center) { Text("😊", fontSize = 16.sp) }
-        }
-        Surface(Modifier.align(Alignment.TopStart).offset(x = (-8).dp, y = (-8).dp),
-            shape = pill, color = emerald, contentColor = Color.White) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Image(
+            painter = painterResource(R.drawable.tap_import_illustration),
+            contentDescription = null,
+            modifier = Modifier.widthIn(max = 192.dp).fillMaxWidth().aspectRatio(1.5f),
+        )
+        Surface(shape = pill, color = emerald, contentColor = Color.White) {
             Text(stringResource(R.string.editor_local_badge), Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                fontSize = 10.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
