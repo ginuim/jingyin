@@ -20,7 +20,7 @@
     <string name="editor_pixelate">隱私馬賽克</string>
     <string name="editor_blur">柔焦模糊</string>
     <string name="editor_share">分享</string>
-    <string name="editor_canvas_hint">點按選取或新增遮蓋</string>
+    <string name="editor_canvas_hint">點按遮罩即可選取</string>
     <string name="editor_reset">還原自動遮蓋</string>
     <string name="editor_reset_done">已還原預設自動遮蓋</string>
     <string name="editor_photo_count">照片 %1$d / %2$d</string>
@@ -35,7 +35,7 @@
     <string name="editor_close">關閉</string>
     <string name="editor_batch_hint">效果套用到整批照片，可逐張檢查和調整遮蓋。</string>
     <string name="editor_preparing_preview">正在準備預覽…</string>
-    <string name="editor_video_hint">影片會自動遮蓋人臉。點按可新增或選取手動遮蓋，拖曳右下角即可縮放。</string>
+    <string name="editor_video_hint">自動遮蓋人臉。選取手動遮罩後，可拖曳角點調整大小。</string>
     <string name="editor_save_batch">儲存所有 %1$d 張圖片</string>
     <string name="editor_batch_result">已儲存 %1$d 張 · 失敗 %2$d 張</string>
     <string name="editor_retry_failed">重試 %1$d 張失敗照片</string>
@@ -117,4 +117,8 @@
     <string name="editor_subject_unavailable">%1$s（僅偵錯版）</string>
     <string name="editor_sticker_requires_face">在「處理主體」中勾選人臉，即可使用貼圖。</string>
     <string name="editor_effect_strength">強度</string>
+    <string name="editor_photo_reviewed">已複核</string>
+    <string name="editor_photo_needs_review">待複核</string>
+    <string name="editor_photo_export_failed">匯出失敗</string>
+    <string name="editor_add_mask">新增遮罩</string>
 </resources>

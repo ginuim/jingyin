@@ -20,7 +20,7 @@
     <string name="editor_pixelate">モザイク</string>
     <string name="editor_blur">ぼかし</string>
     <string name="editor_share">共有</string>
-    <string name="editor_canvas_hint">タップしてマスクを選択・追加</string>
+    <string name="editor_canvas_hint">マスクをタップして選択</string>
     <string name="editor_reset">自動マスクに戻す</string>
     <string name="editor_reset_done">自動マスクに戻しました</string>
     <string name="editor_photo_count">写真 %1$d / %2$d</string>
@@ -35,7 +35,7 @@
     <string name="editor_close">閉じる</string>
     <string name="editor_batch_hint">効果は一括で適用されます。写真ごとに確認・調整できます。</string>
     <string name="editor_preparing_preview">プレビューを準備中…</string>
-    <string name="editor_video_hint">動画の顔は自動で隠れます。タップして手動マスクを追加・選択し、右下の角をドラッグしてサイズを変えられます。</string>
+    <string name="editor_video_hint">顔は自動で隠されます。手動マスクを選び、角をドラッグしてサイズを変更できます。</string>
     <string name="editor_save_batch">%1$d 枚すべて保存</string>
     <string name="editor_batch_result">保存 %1$d 枚 · 失敗 %2$d 枚</string>
     <string name="editor_retry_failed">失敗した %1$d 枚を再試行</string>
@@ -117,4 +117,8 @@
     <string name="editor_subject_unavailable">%1$s（デバッグ版のみ）</string>
     <string name="editor_sticker_requires_face">ステッカーを使うには、処理する対象で「顔」を選択してください。</string>
     <string name="editor_effect_strength">強度</string>
+    <string name="editor_photo_reviewed">確認済み</string>
+    <string name="editor_photo_needs_review">未確認</string>
+    <string name="editor_photo_export_failed">書き出し失敗</string>
+    <string name="editor_add_mask">マスクを追加</string>
 </resources>

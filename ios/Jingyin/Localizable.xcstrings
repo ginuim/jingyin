@@ -5472,9 +5472,21 @@
     "photo.exportCount" : {
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Export %lld Photos"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Export %lld Photo"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Export %lld Photos"
+                }
+              }
+            }
           }
         },
         "ja" : {
@@ -5502,25 +5514,25 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Export Current Image Free"
+            "value" : "Export 1 Photo Free"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "現在の画像を無料で書き出す"
+            "value" : "1枚を無料で書き出す"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "免费导出当前图片"
+            "value" : "免费导出 1 张"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "免費匯出目前圖片"
+            "value" : "免費匯出 1 張"
           }
         }
       }

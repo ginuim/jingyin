@@ -20,7 +20,7 @@
     <string name="editor_pixelate">隐私马赛克</string>
     <string name="editor_blur">柔焦模糊</string>
     <string name="editor_share">分享</string>
-    <string name="editor_canvas_hint">点按选中或添加遮盖</string>
+    <string name="editor_canvas_hint">点按蒙版即可选中</string>
     <string name="editor_reset">还原自动打码</string>
     <string name="editor_reset_done">已还原默认自动打码</string>
     <string name="editor_photo_count">照片 %1$d / %2$d</string>
@@ -35,7 +35,7 @@
     <string name="editor_close">关闭</string>
     <string name="editor_batch_hint">效果应用于整批照片，可逐张检查和调整遮盖。</string>
     <string name="editor_preparing_preview">正在准备预览…</string>
-    <string name="editor_video_hint">视频自动遮盖人脸。点按可添加或选中手动遮盖，拖动右下角可缩放。</string>
+    <string name="editor_video_hint">自动遮盖人脸。选中手动蒙版后，可拖动角点调整大小。</string>
     <string name="editor_save_batch">保存所有 %1$d 张图片</string>
     <string name="editor_batch_result">已保存 %1$d 张 · 失败 %2$d 张</string>
     <string name="editor_retry_failed">重试 %1$d 张失败照片</string>
@@ -117,4 +117,8 @@
     <string name="editor_subject_unavailable">%1$s（仅调试版）</string>
     <string name="editor_sticker_requires_face">在「处理主体」中勾选人脸，即可使用贴纸。</string>
     <string name="editor_effect_strength">强度</string>
+    <string name="editor_photo_reviewed">已复核</string>
+    <string name="editor_photo_needs_review">待复核</string>
+    <string name="editor_photo_export_failed">导出失败</string>
+    <string name="editor_add_mask">添加蒙版</string>
 </resources>

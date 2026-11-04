@@ -485,9 +485,14 @@ internal fun SubjectPicker(
     val position = rememberEditorPopupPosition()
 
     Box(modifier) {
-        Surface(onClick = { pending = targets }, enabled = enabled, shape = pill, color = paper,
-            contentColor = brown, border = BorderStroke(1.dp, if (pending != null) coral else line)) {
-            Row(Modifier.heightIn(min = editorToolbarButtonHeight).padding(horizontal = 12.dp),
+        Button(
+            onClick = { pending = targets },
+            enabled = enabled,
+            modifier = Modifier.heightIn(min = editorToolbarButtonHeight),
+            shape = pill,
+            contentPadding = PaddingValues(horizontal = 12.dp),
+        ) {
+            Row(
                 horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 SubjectTarget.entries.filter { it in targets }.forEach { target ->
                     Surface(shape = CircleShape, color = pink, contentColor = apricotDark) {

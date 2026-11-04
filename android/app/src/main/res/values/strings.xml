@@ -20,7 +20,7 @@
     <string name="editor_pixelate">Privacy mosaic</string>
     <string name="editor_blur">Soft blur</string>
     <string name="editor_share">Share</string>
-    <string name="editor_canvas_hint">Tap to select or add a mask</string>
+    <string name="editor_canvas_hint">Tap a mask to select it</string>
     <string name="editor_reset">Reset masks</string>
     <string name="editor_reset_done">Automatic masks restored</string>
     <string name="editor_photo_count">Photos %1$d / %2$d</string>
@@ -35,7 +35,7 @@
     <string name="editor_close">Close</string>
     <string name="editor_batch_hint">Effects apply to the whole batch. Switch photos to check and adjust each one.</string>
     <string name="editor_preparing_preview">Preparing preview…</string>
-    <string name="editor_video_hint">Faces are covered automatically. Tap to add or select a manual mask, then drag its corner to resize.</string>
+    <string name="editor_video_hint">Faces are covered automatically. Select a manual mask and drag its corner to resize.</string>
     <string name="editor_save_batch">Save all %1$d photos</string>
     <string name="editor_batch_result">Saved %1$d · Failed %2$d</string>
     <string name="editor_retry_failed">Retry %1$d failed photos</string>
@@ -118,4 +118,10 @@
     <string name="editor_subject_unavailable">%1$s (Debug only)</string>
     <string name="editor_sticker_requires_face">Select Faces under Subjects to use stickers.</string>
     <string name="editor_effect_strength">Strength</string>
+    <string name="editor_photo_reviewed">Reviewed</string>
+    <string name="editor_photo_needs_review">Needs review</string>
+    <string name="editor_photo_export_failed">Export failed</string>
+    <string name="editor_photo_page">%1$d/%2$d</string>
+    <string name="editor_photo_tile">%1$d · %2$s</string>
+    <string name="editor_add_mask">Add mask</string>
 </resources>

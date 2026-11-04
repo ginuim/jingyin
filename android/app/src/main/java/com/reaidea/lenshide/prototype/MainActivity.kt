@@ -30,6 +30,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -48,14 +52,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -77,6 +87,91 @@ import java.io.File
 import java.util.Locale
 import kotlin.math.ceil
 import kotlin.math.roundToInt
+
+@Composable
+private fun PhotoPagePicker(
+    photos: List<Uri>,
+    current: Int,
+    reviewed: Set<Uri>,
+    failedExports: Set<Uri>,
+    enabled: Boolean,
+    onSelect: (Int) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val resolver = LocalContext.current.contentResolver
+
+    Box {
+        OutlinedButton(
+            onClick = { expanded = true },
+            enabled = enabled,
+            shape = pill,
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            border = BorderStroke(1.dp, if (expanded) coralDeep else line),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = if (expanded) pink else paper,
+                contentColor = coralDeep,
+            ),
+        ) {
+            IconLabel(R.drawable.tap_photos, stringResource(R.string.editor_photo_page, current + 1, photos.size))
+        }
+        DropdownMenu(expanded = expanded && enabled, onDismissRequest = { expanded = false },
+            modifier = Modifier.width(if (photos.size == 2) 192.dp else 284.dp).heightIn(max = 360.dp),
+            shape = RoundedCornerShape(18.dp),
+            containerColor = paper,
+            border = BorderStroke(1.dp, line),
+        ) {
+            photos.withIndex().chunked(3).forEach { row ->
+                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    row.forEach { (index, uri) ->
+                        key(uri) {
+                            val thumbnail by produceState<Bitmap?>(null, uri) {
+                                value = withContext(Dispatchers.IO) {
+                                    try {
+                                        ImageDecoder.decodeBitmap(ImageDecoder.createSource(resolver, uri)) { decoder, info, _ ->
+                                            val sample = ceil(maxOf(info.size.width, info.size.height) / 240.0).toInt()
+                                            decoder.setTargetSampleSize(sample.coerceAtLeast(1))
+                                            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                                        }
+                                    } catch (_: java.io.IOException) {
+                                        null
+                                    } catch (_: SecurityException) {
+                                        null
+                                    }
+                                }
+                            }
+                            val status = when (uri) {
+                                in failedExports -> R.string.editor_photo_export_failed
+                                in reviewed -> R.string.editor_photo_reviewed
+                                else -> R.string.editor_photo_needs_review
+                            }
+                            Surface(
+                                onClick = { expanded = false; onSelect(index) },
+                                modifier = Modifier.width(86.dp).semantics { selected = index == current },
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (index == current) pink else paper,
+                                border = BorderStroke(1.dp, if (index == current) coralDeep else line),
+                            ) {
+                                Column(Modifier.padding(4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Box(Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(5.dp))
+                                        .background(Color(0xFFEFE2DC)), contentAlignment = Alignment.Center) {
+                                        thumbnail?.let {
+                                            Image(it.asImageBitmap(), contentDescription = null,
+                                                modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                                        } ?: TapIcon(R.drawable.tap_photos)
+                                    }
+                                    Text(stringResource(R.string.editor_photo_tile, index + 1, stringResource(status)),
+                                        color = ink, fontSize = 10.sp, lineHeight = 13.sp,
+                                        textAlign = TextAlign.Center)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun BoxScope.MaskSelectionControls(
@@ -664,6 +759,20 @@ class MainActivity : ComponentActivity() {
             else pendingPhoto = target
         }
 
+        val photoUris = photos.map { it.uri }
+        var reviewedPhotos by remember(photoUris, targets, style, emoji, strengths) {
+            mutableStateOf(emptySet<Uri>())
+        }
+        LaunchedEffect(draft?.uri, photo, busy, failed, targets, style, emoji, strengths) {
+            if (photo != null && !busy && !failed) {
+                draft?.uri?.let { reviewedPhotos = reviewedPhotos + it }
+            }
+        }
+        var addingMask by remember(sourceUri, draft?.uri) { mutableStateOf(false) }
+        var photoZoom by remember(draft?.uri) { mutableFloatStateOf(1f) }
+        var photoPan by remember(draft?.uri) { mutableStateOf(Offset.Zero) }
+        val canSwipe by rememberUpdatedState(!strengthOpen && !addingMask && photoZoom == 1f)
+        val swipeIndex by rememberUpdatedState(pendingPhoto ?: photoIndex)
         val switchPhotoOnSwipe by rememberUpdatedState(::switchPhoto)
         LaunchedEffect(pendingPhoto, renderRevision, style, emoji, targets, strengths, busy) {
             val target = pendingPhoto ?: return@LaunchedEffect
@@ -745,20 +854,27 @@ class MainActivity : ComponentActivity() {
                         }
                         if (infoOpen) PrivacyPopover { infoOpen = false }
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            SubjectPicker(targets, silhouettesAvailable, enabled = !busy, modifier = Modifier.weight(1f, fill = false)) { next ->
-                                val customized = photos.any { it.edits != MaskEdits() || it.faceStickers.isNotEmpty() } ||
-                                    video?.edits?.let { it != MaskEdits() } == true
-                                if (customized) pendingTargets = next else applyTargets(next)
-                            }
-                            if (hasProject) {
-                                Surface(onClick = ::closeProject, enabled = !busy, shape = pill,
-                                    border = BorderStroke(1.dp, line), color = paper, contentColor = brown) {
-                                    Box(Modifier.heightIn(min = editorToolbarButtonHeight).padding(horizontal = 12.dp),
-                                        contentAlignment = Alignment.Center) {
-                                        Text(stringResource(R.string.editor_clear), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                SubjectPicker(targets, silhouettesAvailable, enabled = !busy, modifier = Modifier.weight(1f, fill = false)) { next ->
+                                    val customized = photos.any { it.edits != MaskEdits() || it.faceStickers.isNotEmpty() } ||
+                                        video?.edits?.let { it != MaskEdits() } == true
+                                    if (customized) pendingTargets = next else applyTargets(next)
+                                }
+                                if (hasProject) {
+                                    Surface(onClick = ::closeProject, enabled = !busy, shape = pill,
+                                        border = BorderStroke(1.dp, line), color = paper, contentColor = brown) {
+                                        Box(Modifier.heightIn(min = editorToolbarButtonHeight).padding(horizontal = 12.dp),
+                                            contentAlignment = Alignment.Center) {
+                                            Text(stringResource(R.string.editor_clear), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                        }
                                     }
                                 }
+                            }
+                            if (photoUris.size > 1) {
+                                PhotoPagePicker(photoUris, photoIndex, reviewedPhotos, failedExports, !busy, ::switchPhoto)
                             }
                         }
                         if (!hasProject) {
@@ -771,17 +887,20 @@ class MainActivity : ComponentActivity() {
                             if (!hasProject) {
                                 EmptyCanvas(enabled = !busy) { pickMedia.launch(mediaRequest) }
                             } else BoxWithConstraints(
-                                Modifier.fillMaxSize().then(if (swipeEnabled && !strengthOpen) Modifier.pointerInput(Unit) {
+                                Modifier.fillMaxSize().then(if (swipeEnabled) Modifier.pointerInput(Unit) {
                                     var total = 0f
                                     detectHorizontalDragGestures(
                                         onDragStart = { total = 0f },
                                         onHorizontalDrag = { change, dragAmount ->
-                                            change.consume()
-                                            total += dragAmount
+                                            if (canSwipe) {
+                                                change.consume()
+                                                total += dragAmount
+                                            }
                                         },
                                         onDragEnd = {
+                                            if (!canSwipe || total == 0f) return@detectHorizontalDragGestures
                                             val threshold = size.width * 0.18f
-                                            val current = pendingPhoto ?: photoIndex
+                                            val current = swipeIndex
                                             val target = when {
                                                 total <= -threshold -> current + 1
                                                 total >= threshold -> current - 1
@@ -801,10 +920,12 @@ class MainActivity : ComponentActivity() {
                                 val aspectScale = if (mediaWidth > 0 && mediaHeight > 0) {
                                     minOf(viewWidth / mediaWidth, viewHeight / mediaHeight)
                                 } else 1f
-                                val imageWidth = mediaWidth * aspectScale
-                                val imageHeight = mediaHeight * aspectScale
-                                val left = (viewWidth - imageWidth) / 2
-                                val top = (viewHeight - imageHeight) / 2
+                                val fittedWidth = mediaWidth * aspectScale
+                                val fittedHeight = mediaHeight * aspectScale
+                                val imageWidth = fittedWidth * photoZoom
+                                val imageHeight = fittedHeight * photoZoom
+                                val left = (viewWidth - imageWidth) / 2 + photoPan.x
+                                val top = (viewHeight - imageHeight) / 2 + photoPan.y
 
                                 fun applyEdits(next: MaskEdits) {
                                     if (isVideo) {
@@ -816,7 +937,31 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
 
-                                Box(Modifier.fillMaxSize()) {
+                                val photoTransform = if (isVideo || photo == null) Modifier else {
+                                    Modifier.pointerInput(draft?.uri, fittedWidth, fittedHeight, viewWidth, viewHeight) {
+                                        awaitEachGesture {
+                                            var transforming = false
+                                            do {
+                                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                if (event.changes.count { it.pressed } >= 2) {
+                                                    transforming = true
+                                                    val zoom = (photoZoom * event.calculateZoom()).coerceIn(1f, 4f)
+                                                    val focus = event.calculateCentroid(useCurrent = false)
+                                                    if (focus != Offset.Unspecified) {
+                                                        val anchor = focus - Offset(viewWidth / 2, viewHeight / 2)
+                                                        val pan = anchor + (photoPan - anchor) * (zoom / photoZoom) + event.calculatePan()
+                                                        val maxX = ((fittedWidth * zoom - viewWidth) / 2).coerceAtLeast(0f)
+                                                        val maxY = ((fittedHeight * zoom - viewHeight) / 2).coerceAtLeast(0f)
+                                                        photoPan = Offset(pan.x.coerceIn(-maxX, maxX), pan.y.coerceIn(-maxY, maxY))
+                                                        photoZoom = zoom
+                                                    }
+                                                }
+                                                if (transforming) event.changes.forEach { it.consume() }
+                                            } while (event.changes.any { it.pressed })
+                                        }
+                                    }
+                                }
+                                Box(Modifier.fillMaxSize().then(photoTransform)) {
                                     if (isVideo) {
                                         player?.takeUnless { previewFailed }?.let { active ->
                                             AndroidView(factory = {
@@ -827,7 +972,12 @@ class MainActivity : ComponentActivity() {
                                         }
                                     } else {
                                         photo?.let { Image(it.asImageBitmap(), stringResource(R.string.result),
-                                            Modifier.fillMaxSize(), contentScale = ContentScale.Fit) }
+                                            Modifier.fillMaxSize().graphicsLayer {
+                                                scaleX = photoZoom
+                                                scaleY = photoZoom
+                                                translationX = photoPan.x
+                                                translationY = photoPan.y
+                                            }, contentScale = ContentScale.Fit) }
                                     }
 
                                     val edits = video?.edits ?: draft?.edits
@@ -840,14 +990,12 @@ class MainActivity : ComponentActivity() {
                                                 selection = null
                                                 return@rememberUpdatedState
                                             }
-                                            val hit = edits.hitTest(x, y, faces)
-                                            if (hit != null) {
-                                                selection = hit
-                                            } else if (selection != null) {
-                                                selection = null
+                                            if (!addingMask) {
+                                                selection = edits.hitTest(x, y, faces)
                                             } else if (edits.manual.size >= 32) {
                                                 notify(getString(R.string.editor_mask_limit))
                                             } else {
+                                                addingMask = false
                                                 selection = MaskSelection.Manual(edits.manual.size)
                                                 applyEdits(edits.copy(manual = edits.manual + FaceBox(x, y, 0.13f, 0.1f)))
                                                 notify(getString(R.string.editor_added))
@@ -900,6 +1048,19 @@ class MainActivity : ComponentActivity() {
                                             OverlayPill(stringResource(R.string.editor_invert_mask), dark = canvasEdits.inverted,
                                                 canvasControl = !canvasEdits.inverted, enabled = mediaReady && (isVideo || photo != null)) {
                                                 applyEdits(canvasEdits.copy(inverted = !canvasEdits.inverted))
+                                            }
+                                            OverlayPill(
+                                                label = "",
+                                                dark = addingMask,
+                                                canvasControl = !addingMask,
+                                                enabled = mediaReady,
+                                                icon = R.drawable.tap_add,
+                                                iconDescription = stringResource(R.string.editor_add_mask),
+                                                modifier = Modifier.semantics { selected = addingMask },
+                                            ) {
+                                                addingMask = !addingMask
+                                                selection = null
+                                                strengthOpen = false
                                             }
                                         }
                                         if (strengthOpen && style != MaskStyle.Sticker) {
@@ -991,8 +1152,6 @@ class MainActivity : ComponentActivity() {
                                             updateVideoPreview()
                                             audio = EditorAudio.entries[(audio.ordinal + 1) % EditorAudio.entries.size]
                                         }
-                                    } else if (swipeEnabled) {
-                                        OverlayPill(stringResource(R.string.editor_swipe_hint, photoIndex + 1, photos.size), dark = true)
                                     }
                                     Spacer(Modifier.weight(1f))
                                     OverlayPill(stringResource(R.string.editor_reset), dark = false, canvasControl = true,

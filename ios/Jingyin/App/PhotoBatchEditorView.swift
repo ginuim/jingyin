@@ -154,13 +154,6 @@ struct PhotoBatchEditorView: View {
                     !isExporting
                         && (isAnalyzing || currentDraft?.status == .failed)
                 )
-                .accessibilityLabel(
-                    isExporting
-                        ? localization.t("processing.cancel")
-                        : entitlements.isUnlocked
-                        ? localization.t("photo.exportBatch")
-                        : localization.t("photo.exportCurrent")
-                )
             }
         }
         .task {
